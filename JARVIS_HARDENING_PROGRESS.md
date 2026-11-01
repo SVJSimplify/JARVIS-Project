@@ -542,3 +542,34 @@ from the movie's butler, each one a real engineering fix with a test, not a prom
   background service.
 - Memory revision detection requires currency in both texts; non-numeric revisions
   ("I now prefer Android") still follow the existing similarity dedupe.
+
+## ROUND 10 — ADVANCED COGNITIVE ARCHITECTURE & ENFORCEABLE AUTONOMY (2026-11-01)
+
+Mandate: Advance JARVIS into a general-purpose autonomous cognitive system where intelligence is
+enforced in application code, not merely requested by prompts.
+
+### Subsystems Implemented
+
+| Subsystem | File | Core Engineering Responsibility |
+| --- | --- | --- |
+| Goal Understanding Engine | `src/main/goalEngine.ts` | Intent normalization, constraint extraction, ambiguity detection, verifiable success criteria, authoritative goal contracts, and semantic drift prevention (Invariant 5). |
+| Persistent DAG Planning | `src/main/persistentPlanner.ts` | Directed Acyclic Graph (DAG) task decomposition, topological batching, reachability & cycle validation, node preconditions & expected outcomes, persistent checkpoints, and dynamic replanning that preserves verified completed work. |
+| Strategy Selector | `src/main/strategySelector.ts` | Deterministic complexity scoring, risk routing, and resource budgeting across direct response, quick lookup, browser automation, deep research, and hierarchical planning. Trivial queries bypass heavy planning overhead. |
+| Metacognitive Engine | `src/main/metacognition.ts` | Measurable self-monitoring in code: tool loop detection (identical or oscillatory calls), consecutive failure tracking, evidence contradiction diffing, and resource budget guardrails with concrete self-corrective directives. |
+| Outcome Verification | `src/main/outcomeVerifier.ts` | Independent post-action outcome inspection: disk verification of created/edited files (size, existence, content matching), browser truth-line checks, and syntax balancing. |
+| Hybrid Cognitive Memory | `src/main/advancedMemory.ts` | 6-tier cognitive architecture (episodic, semantic, procedural, failure, preference, strategic) with hybrid lexical + semantic retrieval, automatic contradiction resolution (superseding conflicting entries), and validated learning promotion. |
+| Environmental Intelligence | `src/main/envIntelligence.ts` | Host system capability discovery (OS, CPUs, RAM, workspace), runtime availability (Node, Python, Git), and stale cache invalidation (<60s TTL). |
+| Long-Horizon Execution | `src/main/longHorizon.ts` | Point-in-time state checkpoints, crash-resilient restart recovery (active jobs cleanly recovered to interrupted), and idempotency key registry to prevent duplicate non-idempotent operations (Invariant 11). |
+| Specialized Model Router | `src/main/modelRouter.ts` | Cognitive role assignment (reasoning, planning, coding, research, verification, classification), capability profiles, and transparent preservation of user-configured fallback chains. |
+| Central Dispatch Wiring | `src/main/tools.ts`, `src/main/toolRouter.ts`, `src/main/provider.ts` | Centralized `runTool` choke point registered with `goal_status`, `env_status`, and `verify_file_change`. Connected `completion.ts` (`beginTask`, `recordStep`, `auditReply`, `endTask`) directly into live `runTurn` loop. |
+
+### Verification (Round 10)
+
+- New `tests/cognitiveArchitecture.test.ts` (30 tests): Explicit tests for all 30 mandatory test scenarios defined in the Autonomous Engineering Directive (malformed model output, invalid arguments, tool timeouts, partial side effects, provider outages, persistence failures, crash recovery, idempotency, concurrent plan versions, dynamic replanning preserving completed work, cancellation, verification failures, injection defenses, memory poisoning prevention, resource limits, loop detection, environmental refresh, policy authorization, conflicting memory supersession, sub-agent recovery, DAG cycle rejection, checkpoints, fallback routing, and goal drift rejection).
+- Full gauntlet:
+  - `npm run typecheck`: **PASS (zero errors in node and app configs)**
+  - `npm run lint`: **PASS (zero errors across src/)**
+  - `npm test`: **260/260 tests passed across 19 files** (all 18 previous test suites + new cognitive test suite)
+  - `npm run build:dev`: **PASS (main + preload compilation clean)**
+  - `npm run build:renderer`: **PASS (Vite production bundle clean)**
+

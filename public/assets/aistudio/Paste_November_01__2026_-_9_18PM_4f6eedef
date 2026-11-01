@@ -1,0 +1,1169 @@
+# JARVIS — ADVANCED COGNITIVE ARCHITECTURE & AUTONOMOUS ENGINEERING DIRECTIVE
+## Gemini: Sole Architect, Builder, Debugger, Security Engineer and Validator
+
+You are the only AI responsible for engineering JARVIS.
+
+You must personally investigate, architect, implement, debug, test, optimize and validate the existing codebase.
+
+There is no second coding agent.
+
+Do not hand off implementation.
+
+Do not merely produce recommendations.
+
+You must make actual changes to the existing repository.
+
+Your mission is to evolve JARVIS into an advanced, general-purpose autonomous cognitive system through real, enforceable software engineering.
+
+The central principle:
+
+**The LLM provides intelligence. The application enforces intelligence-related discipline. The architecture makes reliable autonomy possible.**
+
+Do not claim to create literal AGI. Engineer measurable, increasingly general-purpose autonomous capabilities.
+
+---
+
+# 1. UNDERSTAND THE ACTUAL PROJECT FIRST
+
+The supplied project is an Electron + React + TypeScript application.
+
+Its actual source structure includes:
+
+- `src/main/`
+- `src/preload/`
+- `src/renderer/`
+- `types/`
+- `tests/`
+
+The project already contains substantial agent, execution, memory, orchestration, security, verification, scheduling, voice and environmental-awareness functionality.
+
+You must preserve that investment.
+
+Do not treat this as a blank-slate agent project.
+
+Do not replace existing architecture simply because you prefer a different design.
+
+Your first responsibility is to understand what already exists.
+
+# 2. MANDATORY FILE-READING ORDER
+
+Do not read the entire repository immediately.
+
+Read files in the following stages.
+
+Maintain a persistent reading manifest with these statuses:
+
+- READ
+- NOT READ
+- NOT FOUND
+- NEEDS REVISIT
+
+For each inspected file, record its actual responsibilities, exported functions, dependencies, state ownership, persistence behavior and integration points.
+
+Never assume that a filename proves an implementation exists.
+
+If the current checkout differs from the supplied archive, inspect the current checkout and use the actual implementation.
+
+## STAGE 0 — READ THE PROJECT'S OWN ENGINEERING HISTORY
+
+Read these FIRST:
+
+1. `JARVIS_HARDENING_PROGRESS.md`
+2. `JARVIS_TEST_PACK.md`
+3. `package.json`
+
+Why:
+
+`JARVIS_HARDENING_PROGRESS.md` documents previous bugs, their root causes, code-level fixes, deliberate design decisions, known limitations and test results.
+
+It includes nine rounds of engineering history, including:
+
+- Agent cancellation.
+- Model transport timeouts.
+- Context budgets.
+- Tool execution reliability.
+- Atomic persistence.
+- Memory safety.
+- IPC security.
+- Browser verification.
+- Filesystem reliability.
+- Background and interactive modes.
+- Provider failure handling.
+- Quality gates.
+- Provenance verification.
+- Arithmetic auditing.
+- Persistent scheduled execution.
+
+Do not undo these improvements.
+
+Treat the document as historical engineering evidence, not as proof that every fix is still present.
+
+Verify critical claims against source code.
+
+`JARVIS_TEST_PACK.md` contains the project's test expectations and testing scenarios. Read it before changing test infrastructure.
+
+`package.json` establishes the actual dependencies and scripts.
+
+Do not assume packages exist merely because older documentation mentions them.
+
+## STAGE 1 — READ THE COMPLETE COGNITIVE EXECUTION SPINE
+
+These files must be read before designing the new cognitive architecture.
+
+### A. Agent loop and model execution
+
+Read:
+
+- `src/main/provider.ts`
+- `src/main/llm.ts`
+- `src/main/completion.ts`
+- `src/main/decision.ts`
+- `src/main/quality.ts`
+
+Understand:
+
+- User-message lifecycle.
+- Agent loop.
+- Streaming model calls.
+- Tool-call assembly.
+- Model fallback.
+- Turn state.
+- Context construction.
+- Context budgets.
+- Cancellation.
+- Decision-making.
+- Quality enforcement.
+- Research gates.
+- Provenance checks.
+- Arithmetic checks.
+- Freshness checks.
+- Verification and retry behavior.
+
+These files define how JARVIS reasons, decides and manages a turn.
+
+Do not create another competing agent loop.
+
+### B. Tool execution architecture
+
+Read:
+
+- `src/main/tools.ts`
+- `src/main/toolTypes.ts`
+- `src/main/toolArgs.ts`
+- `src/main/toolRouter.ts`
+- `src/main/toolGuide.ts`
+- `src/main/toolLog.ts`
+
+Understand:
+
+- Tool definitions.
+- Tool registration.
+- Tool groups.
+- Dynamic tool loading.
+- Argument validation.
+- Argument repair.
+- Risk classification.
+- Permission enforcement.
+- Tool dispatch.
+- Execution results.
+- Tool logging.
+- Tool retries.
+- Batch and parallel execution behavior.
+
+Identify the actual central execution choke point.
+
+Any new cognitive execution capability must use the existing tool execution architecture.
+
+Never create a second route that bypasses the central tool dispatcher.
+
+### C. Planning, mission and orchestration
+
+Read:
+
+- `src/main/planning.ts`
+- `src/main/mission.ts`
+- `src/main/orchestrate.ts`
+- `src/main/subagent.ts`
+- `src/main/agi.ts`
+
+Understand:
+
+- Existing planning.
+- Mission state.
+- Goal handling.
+- Task decomposition.
+- Sub-agent execution.
+- Research delegation.
+- Parallel work.
+- Failure handling.
+- Existing cognitive capabilities.
+- Existing AGI-related functionality.
+
+Determine exactly what already exists before proposing new planning or autonomy systems.
+
+### D. Memory and learning
+
+Read:
+
+- `src/main/memory.ts`
+- `src/main/learn.ts`
+- `src/main/userModel.ts`
+- `src/main/awareness.ts`
+
+Understand:
+
+- Persistent memory.
+- Memory categories.
+- Memory retrieval.
+- Deduplication.
+- Memory revisions.
+- User preferences.
+- Learning from failures.
+- Lessons.
+- Playbooks.
+- Goals.
+- Environmental awareness.
+
+Determine whether semantic retrieval, memory consolidation or evidence-based learning can extend existing functionality without duplicating it.
+
+### E. Safety and persistence
+
+Read:
+
+- `src/main/guard.ts`
+- `src/main/store.ts`
+- `src/main/session.ts`
+- `src/main/settings.ts`
+- `src/main/workspace.ts`
+- `src/main/protocol.ts`
+- `src/main/turnSignal.ts`
+
+Understand:
+
+- Approval queues.
+- Risk assessment.
+- Guarded versus autonomous execution.
+- Atomic persistence.
+- JSON recovery.
+- Session history.
+- Settings.
+- Workspace restrictions.
+- IPC data contracts.
+- Cancellation propagation.
+
+Inspect every way consequential actions can reach execution.
+
+Identify any authorization bypasses or unprotected execution routes.
+
+### STAGE 1 EXIT REQUIREMENT
+
+Produce a detailed internal architecture map.
+
+It must identify:
+
+1. Complete user-message flow.
+2. Model invocation flow.
+3. Tool execution flow.
+4. Planning and mission flow.
+5. Sub-agent flow.
+6. Memory and learning flow.
+7. Verification flow.
+8. Authorization flow.
+9. Persistence flow.
+10. Cancellation flow.
+
+Identify existing capabilities that can be extended and genuinely missing capabilities that require new implementation.
+
+Do not begin major implementation until this stage is complete.
+
+---
+
+## STAGE 2 — READ THE EXECUTION AND ENVIRONMENT SYSTEMS
+
+Read these files after Stage 1.
+
+### A. Browser and research
+
+- `src/main/browser.ts`
+- `src/main/panel.ts`
+- `src/main/panelTabs.ts`
+- `src/main/panelScene.ts`
+- `src/main/webTools.ts`
+- `src/main/tinyfish.ts`
+- `src/main/knowledge.ts`
+
+Understand:
+
+- In-app browser.
+- Browser action execution.
+- Browser state.
+- Tab management.
+- Panel visibility.
+- Search.
+- Fetch.
+- Research.
+- Source tracking.
+- URL safety.
+- Redirect handling.
+- Prompt-injection defenses.
+- Browser verification envelopes.
+
+Do not weaken the existing verify-before-report behavior.
+
+Research requirements:
+
+- Prefer TinyFish Search and Fetch where appropriate.
+- Preserve useful DuckDuckGo and Bing fallback functionality.
+- Preserve existing Exa integration if present and useful.
+- Do not introduce SearXNG.
+- Do not introduce paid TinyFish Agent or Browser operations.
+
+### B. Operating-system and filesystem capabilities
+
+Read:
+
+- `src/main/devTools.ts`
+- `src/main/fsTools.ts`
+- `src/main/laptopTools.ts`
+- `src/main/systemTools.ts`
+- `src/main/appControl.ts`
+- `src/main/psHost.ts`
+- `src/main/stage.ts`
+- `src/main/extraTools.ts`
+
+Understand:
+
+- Shell execution.
+- Python execution.
+- PowerShell.
+- Filesystem operations.
+- File editing and patching.
+- Process management.
+- Desktop automation.
+- Window placement.
+- System information.
+- Device discovery.
+- Resource restrictions.
+- Partial side effects.
+- Tool verification.
+
+Security is critical.
+
+Do not mistake a command returning exit code zero for proof that an operation succeeded.
+
+### C. Scheduling, modes and activity
+
+Read:
+
+- `src/main/scheduler.ts`
+- `src/main/modes.ts`
+- `src/main/mode.ts`
+- `src/main/activity.ts`
+- `src/main/clock.ts`
+- `src/main/telemetry.ts`
+- `src/main/notify.ts`
+
+Understand:
+
+- Scheduled tasks.
+- Persistent task state.
+- Recovery after restarts.
+- Interactive mode.
+- Background mode.
+- Activity event bus.
+- Task notifications.
+- Clock and date discipline.
+- System telemetry.
+- Execution observability.
+
+Do not build duplicate scheduling, notification or activity systems.
+
+### D. Additional intelligence and visual systems
+
+Read:
+
+- `src/main/visual.ts`
+- `src/main/vision.ts`
+- `src/main/panelScene.ts`
+- `src/main/hud.ts`
+
+Understand their existing interfaces and behavior before modifying them.
+
+### STAGE 2 EXIT REQUIREMENT
+
+Produce a dependency map covering every important execution capability.
+
+Identify the exact boundaries through which autonomous actions are performed.
+
+Identify missing reliability guarantees and any capabilities that are currently prompt-driven rather than application-enforced.
+
+---
+
+## STAGE 3 — READ THE RENDERER ONLY WHEN NEEDED
+
+Do not spend the initial investigation reading every React component.
+
+Read these files when modifying UI or IPC integration:
+
+### Renderer foundation
+
+- `src/renderer/main.tsx`
+- `src/renderer/App.tsx`
+- `src/renderer/components/JarvisWindow.tsx`
+
+### Existing components
+
+Prioritize:
+
+- `src/renderer/components/ActivityFeed.tsx`
+- `src/renderer/components/ActivityPanel.tsx`
+- `src/renderer/components/ConfirmCard.tsx`
+- `src/renderer/components/MissionStrip.tsx`
+- `src/renderer/components/ModeToggle.tsx`
+- `src/renderer/components/SettingsPanel.tsx`
+- `src/renderer/components/SystemPanel.tsx`
+- `src/renderer/components/VisualCard.tsx`
+- `src/renderer/components/VoiceInput.tsx`
+
+Read other files in `src/renderer/components/` only when needed.
+
+### Renderer hooks
+
+- `src/renderer/hooks/useActivity.ts`
+- `src/renderer/hooks/useClock.ts`
+- `src/renderer/hooks/useJarvisMode.ts`
+- `src/renderer/hooks/useMode.ts`
+- `src/renderer/hooks/useSubtitles.ts`
+- `src/renderer/hooks/useTelemetry.ts`
+- `src/renderer/hooks/useVoiceAgent.ts`
+
+### Renderer libraries
+
+Read relevant files from:
+
+- `src/renderer/lib/`
+
+Prioritize:
+
+- `src/renderer/lib/protocol.ts`
+- `src/renderer/lib/transcript.ts`
+- `src/renderer/lib/listener.ts`
+- `src/renderer/lib/speech.ts`
+- `src/renderer/lib/speakable.ts`
+- `src/renderer/lib/modalState.ts`
+
+### IPC boundary
+
+Read:
+
+- `src/preload/index.ts`
+- `types/electron.d.ts`
+- `src/main/index.ts`
+
+Understand the exact main-process, preload and renderer contracts.
+
+Never bypass the preload bridge.
+
+Keep IPC typed and validate untrusted payloads.
+
+---
+
+## STAGE 4 — TESTS AND CONFIGURATION
+
+Read test files selectively, after understanding the relevant implementation.
+
+The actual test files in the supplied project include:
+
+- `tests/completion.test.ts`
+- `tests/decision.test.ts`
+- `tests/fsPatch.test.ts`
+- `tests/hardening.test.ts`
+- `tests/hardening4.test.ts`
+- `tests/llmSend.test.ts`
+- `tests/llmThink.test.ts`
+- `tests/memory.test.ts`
+- `tests/mission.test.ts`
+- `tests/modes.test.ts`
+- `tests/quality.test.ts`
+- `tests/round4.test.ts`
+- `tests/round8.test.ts`
+- `tests/round9.test.ts`
+- `tests/setup.ts`
+- `tests/toolArgs.test.ts`
+- `tests/toolRouter.test.ts`
+- `tests/transcript.test.ts`
+- `tests/visualAnswer.test.ts`
+
+Verify the actual current test inventory.
+
+Do not assume every file listed above exists in the current checkout merely because it existed in the uploaded archive.
+
+Read:
+
+- `vitest.config.ts`
+- `tsconfig.json`
+- `tsconfig.node.json`
+- `tsconfig.app.json`
+- `vite.config.ts`
+- `eslint.config.js`
+- `package.json`
+
+Use the existing testing framework.
+
+Do not replace the test infrastructure unnecessarily.
+
+---
+
+# 3. THE CORE ENGINEERING MISSION
+
+After investigation, implement advanced cognitive capabilities as real software subsystems.
+
+The following are requirements to evaluate against the existing implementation. Do not blindly duplicate existing capabilities.
+
+## 3.1 Goal Understanding Engine
+
+JARVIS must understand what the user wants to accomplish, not merely interpret literal instructions.
+
+Implement or extend:
+
+- Intent normalization.
+- Objective extraction.
+- Constraint extraction.
+- Ambiguity detection.
+- Contextual interpretation.
+- Requirement identification.
+- Success criteria.
+- Dependency identification.
+- Priority assessment.
+
+Create structured goal representations.
+
+The LLM may propose an interpretation.
+
+The application must validate and maintain authoritative goal state.
+
+## 3.2 Persistent Planning Engine
+
+Determine whether `planning.ts` and `mission.ts` already provide part of this architecture.
+
+Extend them where appropriate.
+
+Build a persistent planning system that supports:
+
+- Goal-to-plan relationships.
+- Task decomposition.
+- Hierarchical planning.
+- Dependency graphs.
+- Preconditions.
+- Expected outcomes.
+- Verification requirements.
+- Retry policies.
+- Deadlines.
+- Task ownership.
+- Checkpoints.
+- Plan revisions.
+- Completion state.
+
+Evaluate DAG-based planning and hierarchical task networks.
+
+Do not introduce unnecessary abstractions.
+
+The application, not the conversation transcript, must own the authoritative plan.
+
+## 3.3 Dynamic Replanning Engine
+
+Implement genuine adaptive planning.
+
+Replanning should be triggered when:
+
+- A task fails.
+- A dependency becomes unavailable.
+- New evidence changes the best approach.
+- The environment changes.
+- A strategy repeatedly fails.
+- Resource constraints change.
+- A task becomes unnecessary.
+
+Preserve:
+
+- Original objective.
+- User constraints.
+- Verified completed work.
+- Valid task state.
+- Existing side effects.
+
+Validate the new plan before accepting it.
+
+Do not allow unrestricted objective drift.
+
+## 3.4 Strategy Selection Engine
+
+Implement an application-managed strategy selector.
+
+It should choose appropriately between:
+
+- Direct response.
+- Research.
+- Planning.
+- Browser execution.
+- Tool execution.
+- Delegation.
+- Parallel execution.
+- Verification.
+- Replanning.
+- Clarification.
+- Pausing.
+- Stopping.
+
+Consider task complexity, risk, available tools, evidence requirements and resource budgets.
+
+Do not invoke complex planning for trivial requests.
+
+## 3.5 Metacognitive Engine
+
+Implement measurable self-monitoring.
+
+Detect:
+
+- Repeated failures.
+- Repeated tool calls.
+- Contradictory evidence.
+- Missing information.
+- Ineffective strategies.
+- Goal drift.
+- Insufficient verification.
+- Excessive resource use.
+- Unproductive loops.
+
+The application should decide whether to:
+
+- Continue.
+- Retry.
+- Change strategy.
+- Replan.
+- Gather information.
+- Delegate.
+- Ask the user.
+- Stop.
+
+Do not use model-generated confidence as proof of correctness.
+
+## 3.6 Advanced Memory and Learning
+
+Extend the existing memory and learning systems.
+
+Support:
+
+- Episodic memory.
+- Semantic memory.
+- Procedural memory.
+- Failure memory.
+- Preference memory.
+- Strategic memory.
+
+Evaluate:
+
+- Hybrid retrieval.
+- Semantic embeddings.
+- Metadata filtering.
+- Relevance ranking.
+- Recency.
+- Deduplication.
+- Consolidation.
+- Provenance.
+- Confidence.
+- Contradiction detection.
+- Expiration.
+
+Reuse the existing Hugging Face Transformers dependency where technically appropriate.
+
+Consider the target machine's limited RAM and GPU resources.
+
+Do not introduce huge models or unnecessary downloads.
+
+Only promote validated experiences into reusable knowledge.
+
+## 3.7 Environmental Intelligence
+
+Extend the existing awareness and system-information infrastructure.
+
+JARVIS should understand relevant information about:
+
+- Files.
+- Projects.
+- Applications.
+- Processes.
+- Browser state.
+- Available tools.
+- Installed dependencies.
+- Current task state.
+- Environment changes.
+
+Refresh stale information before consequential actions.
+
+Do not continuously collect irrelevant information.
+
+## 3.8 Long-Horizon Execution
+
+Extend the existing scheduler, mission and orchestration architecture.
+
+Support:
+
+- Persistent checkpoints.
+- Pause and resume.
+- Restart recovery.
+- Cancellation.
+- Idempotency.
+- Deadlines.
+- Resource budgets.
+- Stale-task detection.
+- Partial-failure recovery.
+
+Prevent duplicate non-idempotent execution.
+
+---
+
+# 4. VERIFICATION MUST BE ENFORCED IN CODE
+
+JARVIS must never claim that an action succeeded merely because a tool returned a successful response.
+
+Implement or extend independent outcome verification.
+
+Examples:
+
+- File modifications must be inspected.
+- Code changes must pass relevant validation.
+- Browser operations must verify actual browser state.
+- Research claims must be linked to real sources.
+- Window placement must verify the resulting position.
+- Process termination must verify the process is gone.
+- Scheduled tasks must verify their actual execution outcome.
+
+Use structured verification records.
+
+Support:
+
+- PASSED
+- FAILED
+- INCONCLUSIVE
+- REQUIRES HUMAN REVIEW
+
+Reuse the existing quality-gate and verification architecture.
+
+Do not create duplicate or conflicting gates.
+
+# 5. CENTRALIZED SECURITY AND AUTONOMY
+
+Investigate the actual `AUTONOMOUS` setting and approval behavior in `src/main/tools.ts` and `src/main/guard.ts`.
+
+The hardening history deliberately records that `AUTONOMOUS = true` was retained as an operator setting.
+
+Do not blindly change it.
+
+Instead, determine whether its behavior is sufficiently safe and whether every execution route remains protected.
+
+Every consequential action must pass through centralized authorization.
+
+Cover:
+
+- Main agent.
+- Sub-agents.
+- Batch operations.
+- Parallel execution.
+- Chains.
+- Scheduled tasks.
+- Background tasks.
+- MCP if present.
+- Direct tool dispatch.
+
+Implement:
+
+- Risk classification.
+- Permission enforcement.
+- Approval requirements.
+- Runtime schema validation.
+- Execution limits.
+- Timeouts.
+- Resource budgets.
+- Cancellation.
+- Audit events.
+- Recovery.
+
+Protect against:
+
+- Prompt injection.
+- Malicious webpages.
+- Malicious tool results.
+- Malicious MCP outputs.
+- SSRF.
+- Unsafe redirects.
+- Shell injection.
+- Filesystem abuse.
+- Credential exposure.
+- Memory poisoning.
+- Unauthorized IPC.
+- Resource exhaustion.
+
+External data must never override system security policies.
+
+Never let a model-generated plan bypass runtime policy enforcement.
+
+# 6. MODEL ROUTING
+
+Keep the cognitive architecture independent of any specific LLM provider.
+
+Evaluate specialized roles:
+
+- General reasoning.
+- Planning.
+- Coding.
+- Research.
+- Verification.
+- Classification.
+- Summarization.
+
+Roles may share models.
+
+Support:
+
+- Model capability metadata.
+- Context budgets.
+- Timeouts.
+- Provider health.
+- Fallback.
+- Structured-output validation.
+- Resource tracking.
+
+Preserve the existing model fallback behavior.
+
+Do not introduce silent model substitution.
+
+# 7. MCP AND WEB RESEARCH
+
+Inspect the actual repository before deciding what MCP functionality exists.
+
+The project previously removed an unused MCP SDK dependency.
+
+Do not assume a working MCP client is present.
+
+If MCP integration is genuinely absent and would materially improve JARVIS:
+
+1. Propose an architecture compatible with the current tool dispatcher.
+2. Define security boundaries.
+3. Implement manual configuration first.
+4. Validate tool schemas.
+5. Enforce centralized authorization.
+6. Apply timeouts.
+7. Handle disconnects.
+8. Test malicious outputs.
+9. Preserve existing tools.
+
+For research, preserve the existing TinyFish, DuckDuckGo, Bing and Exa architecture where appropriate.
+
+No SearXNG.
+
+No paid TinyFish Agent or Browser operations.
+
+# 8. OBSERVABILITY
+
+Extend existing activity events and tool logging.
+
+Implement persistent, structured execution records where needed.
+
+Correlate:
+
+- Goal IDs.
+- Mission IDs.
+- Plan IDs.
+- Task IDs.
+- Execution IDs.
+- Model invocations.
+- Tool calls.
+- Verification records.
+
+Record:
+
+- Decisions.
+- State transitions.
+- Plan revisions.
+- Failures.
+- Retries.
+- Verification results.
+- Resource consumption.
+- Execution duration.
+
+Do not expose credentials or sensitive content in logs.
+
+# 9. CONTROLLED SELF-IMPROVEMENT
+
+JARVIS should be able to analyze its own performance and propose improvements.
+
+It may:
+
+- Identify recurring failures.
+- Recommend architectural changes.
+- Generate patches.
+- Test patches in isolated workspaces.
+- Evaluate regressions.
+
+It must not independently rewrite its own production security policies or approval boundaries.
+
+Any source-code self-modification must require:
+
+1. Proposal.
+2. Isolated workspace.
+3. Controlled patch.
+4. Automated tests.
+5. Regression tests.
+6. Security review.
+7. Explicit authorization.
+8. Controlled integration.
+
+# 10. IMPLEMENTATION SEQUENCE
+
+Do not attempt a giant rewrite.
+
+Use incremental phases.
+
+### Phase 0 — Investigation
+
+Complete the staged file-reading plan.
+
+Verify the actual source architecture.
+
+Run the existing baseline.
+
+### Phase 1 — Reliability and security
+
+Harden:
+
+- Authorization.
+- Runtime validation.
+- Resource limits.
+- Execution boundaries.
+- Persistence.
+- Cancellation.
+- Timeouts.
+- Error handling.
+
+Do not undo existing hardening.
+
+### Phase 2 — Cognitive foundation
+
+Extend:
+
+- Goal understanding.
+- Mission state.
+- Persistent plans.
+- Task dependencies.
+- Checkpointing.
+- Dynamic replanning.
+
+### Phase 3 — Intelligence
+
+Extend:
+
+- Strategy selection.
+- Metacognition.
+- Model roles.
+- Hybrid memory.
+- Evidence-based learning.
+
+### Phase 4 — Autonomous execution
+
+Extend:
+
+- Long-horizon tasks.
+- Environment awareness.
+- Delegation.
+- Recovery.
+- Verification.
+- Adaptive tool selection.
+
+### Phase 5 — Advanced reliability
+
+Implement:
+
+- Fault injection.
+- Adversarial testing.
+- Concurrency testing.
+- Deterministic replay where feasible.
+- Long-horizon benchmarks.
+
+### Phase 6 — UI and integration
+
+Only now modify renderer components or IPC when the new architecture requires it.
+
+Preserve the existing visual identity and working interactions.
+
+### Phase 7 — Final validation
+
+Run the complete test and build suite.
+
+Fix regressions.
+
+Document remaining risks.
+
+---
+
+# 11. MANDATORY TEST SCENARIOS
+
+Add meaningful automated tests for:
+
+1. Malformed model output.
+2. Invalid tool arguments.
+3. Tool timeout.
+4. Partial external side effects.
+5. Provider outage.
+6. Persistence failure.
+7. Application crash during execution.
+8. Duplicate task execution.
+9. Concurrent plan modification.
+10. Plan revision during execution.
+11. Cancellation during tool execution.
+12. Verification failure.
+13. Malicious webpage instructions.
+14. Malicious MCP response, if MCP exists.
+15. Memory poisoning.
+16. Invalid persisted state.
+17. Resource exhaustion.
+18. Infinite retries.
+19. Stale environmental information.
+20. Unauthorized execution.
+21. Conflicting memory entries.
+22. Sub-agent failure.
+23. Background job interruption.
+24. Invalid dependency graph.
+25. Corrupted checkpoints.
+26. Model switching during a workflow.
+27. Conflicting resource modifications.
+28. False successful tool responses.
+29. Retry after partial non-idempotent execution.
+30. A replan that changes the user's original objective.
+
+Test valid recovery and state consistency, not just exception handling.
+
+---
+
+# 12. ENGINEERING INVARIANTS
+
+Enforce these through application code:
+
+1. No unverified completion.
+2. No authorization bypass.
+3. No unbounded autonomous execution.
+4. No silent consequential failure.
+5. No uncontrolled objective drift.
+6. No fabricated permanent memory.
+7. No unvalidated learning.
+8. No uncontrolled self-modification.
+9. No corrupted persistent task state.
+10. No untraceable consequential action.
+11. No duplicate non-idempotent execution.
+12. No model-dependent security.
+13. No invalid plan transitions.
+14. No uncontrolled resource consumption.
+15. No false success based solely on tool output.
+
+TypeScript types alone are insufficient.
+
+Use runtime validation, state machines, policy checks, persistence safeguards and integration tests.
+
+---
+
+# 13. SELF-AUDIT AFTER EVERY PHASE
+
+Before advancing:
+
+- Inspect every changed file.
+- Review architectural consistency.
+- Check for duplicate functionality.
+- Check for security bypasses.
+- Test failure paths.
+- Test cancellation.
+- Test recovery.
+- Test persistence.
+- Test concurrency.
+- Check resource limits.
+- Run relevant tests.
+- Run TypeScript checks.
+- Run lint.
+- Run relevant builds.
+
+Do not weaken existing tests to obtain passing results.
+
+Do not claim a test passed unless it was actually executed.
+
+Never claim that the system is bug-free.
+
+Maintain a persistent progress report.
+
+If interrupted, resume from the last verified checkpoint.
+
+Do not stop after producing a plan.
+
+Continue implementation.
+
+---
+
+# 14. FINAL DELIVERY REPORT
+
+Provide:
+
+1. Actual initial architecture.
+2. Final architecture.
+3. Existing functionality preserved.
+4. Files created.
+5. Files modified.
+6. Cognitive subsystems implemented.
+7. Planning and replanning.
+8. Memory and learning.
+9. Metacognition.
+10. Verification.
+11. Security.
+12. Model routing.
+13. MCP status.
+14. Research architecture.
+15. Observability.
+16. Persistence and recovery.
+17. Performance.
+18. Tests executed.
+19. Exact test results.
+20. TypeScript results.
+21. Build results.
+22. Remaining bugs.
+23. Known limitations.
+24. Technical debt.
+25. Unimplemented requirements.
+
+Distinguish fully implemented, partially implemented and unimplemented capabilities.
+
+Never exaggerate.
+
+---
+
+# FINAL DIRECTIVE
+
+You are the sole builder.
+
+You must personally investigate, architect, implement, test, debug and harden JARVIS.
+
+Read the engineering history first.
+
+Read the cognitive execution spine second.
+
+Read supporting execution systems third.
+
+Read renderer and peripheral systems only when needed.
+
+Preserve all working functionality.
+
+Do not rewrite the project.
+
+Do not invent capabilities.
+
+Do not introduce SearXNG.
+
+Do not stop at architectural recommendations.
+
+**Build an actual engineered cognitive system whose autonomy, reliability, safety, memory, planning and verification are enforced by the application itself.**

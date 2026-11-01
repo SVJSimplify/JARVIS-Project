@@ -12,6 +12,7 @@ import { loadStt, stopStt, transcribeStt } from './stt';
 import { stopAwareness, syncAwareness } from './awareness';
 import { latestTelemetry, startTelemetry, stopTelemetry } from './telemetry';
 import { registerScheduledRunner, startScheduler, stopScheduler } from './scheduler';
+import { recoverInterruptedJobs } from './longHorizon';
 
 let store: Store | undefined;
 const initStore = async (): Promise<Store> => {
@@ -97,6 +98,7 @@ app.whenReady().then(() => {
   // notification and the session ledger, never by narrating into a window that may be shut.
   registerScheduledRunner((text) => chat(text, () => undefined));
   startScheduler();
+  void recoverInterruptedJobs().catch(() => undefined);
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();

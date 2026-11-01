@@ -1,5 +1,6 @@
 import { app, safeStorage } from 'electron';
 import { promises as fs } from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { atomicWrite, loadJson } from './store';
 
@@ -31,7 +32,7 @@ export interface PublicSettings {
   awareness: boolean;
 }
 
-const file = () => path.join(app.getPath('userData'), 'settings.json');
+const file = () => path.join(app?.getPath ? app.getPath('userData') : (process.env.JARVIS_SETTINGS_DIR || path.join(os.tmpdir(), 'jarvis-settings')), 'settings.json');
 
 async function read(): Promise<Stored> {
   return loadJson<Stored>(file(), {});

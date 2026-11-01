@@ -5,6 +5,9 @@ import '@fontsource/jost/500.css';
 import '@fontsource/jost/700.css';
 import App from './App';
 import './index.css';
+import { setupWebBridge } from './webBridge';
+
+setupWebBridge();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

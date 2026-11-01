@@ -13,6 +13,7 @@ const CORE = [
   'list_memories', 'forget', 'tool_log', 'see_screen', 'ask_user', 'batch', 'task', 'research', 'parallel_tasks', 'chain', 'screen_text', 'click_text',
   'browser_play', 'browser_media', 'find_files', 'open_anything', 'read_document', 'read', 'load_tools', 'show_visual', 'quality_gate', 'decide', 'todo_write', 'write_file',
   'list_drives', 'bluetooth_scan', 'get_system_info', 'list_processes', 'schedule_task', 'list_scheduled', 'cancel_scheduled',
+  'goal_status', 'env_status', 'verify_file_change',
 ];
 
 const GROUPS: Group[] = [

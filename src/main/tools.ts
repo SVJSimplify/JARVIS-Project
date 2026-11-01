@@ -34,6 +34,7 @@ import { currentSchemas, loadGroups, noteUsed, routeTurn, setAllSchemas } from '
 import { checkArgs, parseArgs, resolveTool } from './toolArgs';
 import { emitActivity } from './modes';
 import { scheduleTools } from './scheduler';
+import { cognitiveTools } from './cognitiveTools';
 
 const MAX_LINES = 1000;
 const MAX_READ_BYTES = 2 * 1024 * 1024;
@@ -200,7 +201,7 @@ TOOLS.open_file = {
   },
 };
 
-Object.assign(TOOLS, memoryTools, webTools, tinyfishTools, systemTools, extraTools, appControlTools, visionTools, browserTools, devTools, stageTools, fsTools, patchTools, planningTools, knowledgeTools, visualTools, qualityTools, decisionTools, agiTools, learnTools, userModelTools, telemetryTools, awarenessTools, scheduleTools);
+Object.assign(TOOLS, memoryTools, webTools, tinyfishTools, systemTools, extraTools, appControlTools, visionTools, browserTools, devTools, stageTools, fsTools, patchTools, planningTools, knowledgeTools, visualTools, qualityTools, decisionTools, agiTools, learnTools, userModelTools, telemetryTools, awarenessTools, scheduleTools, cognitiveTools);
 
 const launch = TOOLS.launch_app.run;
 // A place request must survive the whole chain: "open notepad on the right" used to always
@@ -260,11 +261,11 @@ TOOLS.tool_log = {
 
 const TRANSIENT = /Page failed to load|ERR_(TIMED_OUT|NAME_NOT_RESOLVED|INTERNET_DISCONNECTED|EMPTY_RESPONSE)|time(d)? ?out|ETIMEDOUT|ECONNRESET|EAI_AGAIN|fetch failed|ERR_NETWORK|ERR_CONNECTION|socket hang up|not ready|Execution context was destroyed/i;
 /** Read-only tools that are safe to repeat once after a transient failure. open_url is excluded: a fuzzy-matched guess must never pop a page into the user's external browser. */
-const SAFE_RETRY = /^(tinyfish_|search_and_read|web_search|fetch_url|get_weather|code_search|read|glob|grep|inspect_app|see_screen|screen_text|get_|list_|find_|browser_(open|snapshot|read|see|tabs|search))/;
+const SAFE_RETRY = /^(tinyfish_|search_and_read|web_search|fetch_url|get_weather|code_search|read|glob|grep|inspect_app|see_screen|screen_text|get_|list_|find_|browser_(open|snapshot|read|see|tabs|search)|goal_status|env_status|verify_file_change)/;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Read-only tools: when the model asks for several at once they can run in parallel. */
-const PARALLEL_OK = /^(tinyfish_|search_and_read|web_search|fetch_url|get_weather|get_current_time|code_search|read$|glob|grep|list_|read_notes|get_system_info|clipboard_read|find_contact|calculate|browser_(tabs|read))/;
+const PARALLEL_OK = /^(tinyfish_|search_and_read|web_search|fetch_url|get_weather|get_current_time|code_search|read$|glob|grep|list_|read_notes|get_system_info|clipboard_read|find_contact|calculate|browser_(tabs|read)|goal_status|env_status|verify_file_change)/;
 export const isParallelSafe = (name: string): boolean => PARALLEL_OK.test(name);
 
 /** Auto-approve everything except hard-blocked actions (deleting). */

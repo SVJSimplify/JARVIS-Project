@@ -8,6 +8,10 @@ import { isParallelSafe, runTool, schemasFor } from './tools';
 import { currentSchemas, endTurn, unloadedGroups } from './toolRouter';
 import { denyAllPending } from './guard';
 import { resetPlanMode } from './planning';
+import { beginTask, endTask, recordFailedTurn, recordInterrupted, recordStep } from './completion';
+import { createGoal, updateGoalStatus } from './goalEngine';
+import { selectStrategy } from './strategySelector';
+import { evaluateExecutionState } from './metacognition';
 
 
 /** Optional extra request fields as JSON, e.g. JARVIS_EXTRA_BODY={"temperature":0.2}; check your API host's docs for a thinking/reasoning option. */
@@ -359,17 +363,21 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   prevProject = PROJECT_RE.test(text);
   const freshTurn = FRESH_RE.test(text);
   await observeUser(text).catch(() => undefined);
+  const goal = await createGoal(text).catch(() => null);
+  const strategyAssessment = selectStrategy(text);
   turnContext = (await Promise.all([getMemoryPrompt(), getSessionPrompt(), getLearningPrompt(text), buildUserContext().catch(() => ''), Promise.resolve(getAwarenessPrompt()), Promise.resolve(pendingVisualNote())])).filter(Boolean).join('\n\n');
   // The date anchor leads the per-turn context: a report dated "1 November 2025" when today
   // is 1 November 2026 sailed through every gate before this line existed. The clock probe
   // is once per process and fail-open; a badly wrong PC clock is warned about, not trusted.
   const clock = clockWarning(await checkClockDrift());
-  turnContext = [dateContext(todayParts()), clock ? `[CLOCK WARNING] ${clock}` : '', turnContext].filter(Boolean).join('\n\n');
+  const strategyNote = `[STRATEGY: ${strategyAssessment.strategy}] ${strategyAssessment.reason}`;
+  turnContext = [dateContext(todayParts()), clock ? `[CLOCK WARNING] ${clock}` : '', strategyNote, turnContext].filter(Boolean).join('\n\n');
   const turnStart = history.length;
   const userMsg: Message = { role: 'user', content: text };
   turnStarts.add(userMsg);
   history.push(userMsg);
   beginTurn(text); // the interaction-mode digest opens here: background turns summarise at endTurn
+  beginTask(text);
   const actions: string[] = [];
   const used: Array<{ name: string; args: string }> = [];
   /** Tool result bodies seen this turn — the evidence pool the provenance gate checks figures against. */
@@ -439,6 +447,14 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         } else if (projectTurn && reply.trim()) {
           actions.push('quality_gate PASS (code-enforced)');
         }
+        const audited = await endTask(final);
+        final = audited.reply;
+        if (goal) {
+          void updateGoalStatus(
+            goal.id,
+            audited.verdict === 'completed' ? 'completed' : audited.verdict === 'failed' ? 'failed' : 'active'
+          ).catch(() => null);
+        }
         trimHistory();
         endTurn();
         lastTurnAt = Date.now();
@@ -461,6 +477,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         const call = toolCalls[i];
         if (signal.aborted) throw new Error('Interrupted');
         const raw = String(early ? early[i] : await runTool(call.function.name, call.function.arguments));
+        recordStep(call.function.name, call.function.arguments, raw);
         const failed = /^(Tool error|Unknown tool|BLOCKED|NOT APPROVED|NOT DONE)/.test(raw);
         if (failed) failures++;
         if (/^(Tool error|Unknown tool|NOT DONE)/.test(raw)) failLog.push({ tool: call.function.name, args: describe(call), error: raw.slice(0, 200).replace(/\s+/g, ' ') });
@@ -498,11 +515,30 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
           .slice(turnStart)
           .reduce((n, m) => (m.role === 'tool' && typeof m.content === 'string' ? n + m.content.length : n), 0);
       }
+      const metacog = evaluateExecutionState({
+        round,
+        maxRounds: MAX_TOOL_ROUNDS,
+        recentToolCalls: actions.map((a) => ({
+          tool: a.split(' ')[0],
+          args: a,
+          outcome: a.includes('FAILED') ? 'failed' : 'success',
+        })),
+        evidenceItems: evidence,
+        originalObjective: goal?.objective ?? text,
+        consecutiveFailures: failures,
+        totalCharsConsumed: turnChars,
+        charsBudget: TURN_CHAR_BUDGET,
+      });
+      if (metacog.directive && round > 0 && round % 4 === 0) {
+        history.push({ role: 'user', content: metacog.directive });
+      }
     }
     throw new Error('Too many tool steps without an answer.');
   } catch (err) {
     if (signal.aborted) {
       // Interrupted by the user: remember what was already done so the next request has context.
+      void recordInterrupted();
+      if (goal) void updateGoalStatus(goal.id, 'cancelled').catch(() => null);
       history.length = turnStart;
       const note = actions.length ? `Interrupted by the user. Already done: ${actions.join('; ')}.` : 'Interrupted by the user before I did anything.';
       const u: Message = { role: 'user', content: text };
@@ -514,6 +550,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       return '';
     }
     const message = err instanceof Error ? err.message : String(err);
+    void recordFailedTurn(message);
+    if (goal) void updateGoalStatus(goal.id, 'failed').catch(() => null);
     // Keep the request and the failure in context instead of silently forgetting the turn.
     history.length = turnStart;
     const failed: Message = { role: 'user', content: text };
