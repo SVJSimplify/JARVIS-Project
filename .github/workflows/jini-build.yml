@@ -10,8 +10,6 @@ jobs:
   android-apk:
     name: Android APK (debug-signed, installable)
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # to publish the latest APK to the apk-latest branch
     defaults:
       run:
         working-directory: mobile
@@ -49,18 +47,6 @@ jobs:
           name: JINI-mobile-apk
           path: JINI-mobile-debug.apk
           if-no-files-found: error
-      - name: Publish latest APK to the apk-latest branch
-        if: github.event_name == 'push'
-        working-directory: .
-        run: |
-          mkdir /tmp/apk && cp JINI-mobile-debug.apk /tmp/apk/
-          cd /tmp/apk
-          echo "Built from ${GITHUB_SHA} on ${GITHUB_REF_NAME}" > BUILD.txt
-          git init -q -b apk-latest
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add . && git commit -qm "JINI APK from ${GITHUB_SHA}"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" apk-latest
 
   desktop-check:
     name: Desktop typecheck, link tests, renderer build
@@ -79,3 +65,58 @@ jobs:
         run: npx vitest run tests/jini
       - name: Renderer build
         run: npx vite build
+
+  desktop-installer:
+    name: Windows desktop installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Build renderer, main and preload (fails on any type error)
+        run: |
+          npm run build:renderer
+          npm run build:main
+          npm run build:preload
+      - name: Package NSIS installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --win nsis --publish never
+      - name: Collect installer
+        shell: bash
+        run: |
+          mkdir out
+          cp release/*.exe "out/JINI-Desktop-Setup.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JINI-desktop-installer
+          path: out/JINI-Desktop-Setup.exe
+          if-no-files-found: error
+
+  publish-builds:
+    name: Publish latest builds to the builds-latest branch
+    if: github.event_name == 'push'
+    needs: [android-apk, desktop-installer, desktop-check]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+      - name: Push builds
+        run: |
+          mkdir pub
+          cp dl/JINI-mobile-apk/JINI-mobile-debug.apk pub/
+          cp dl/JINI-desktop-installer/JINI-Desktop-Setup.exe pub/
+          echo "Built from ${GITHUB_SHA} on ${GITHUB_REF_NAME}" > pub/BUILD.txt
+          cd pub
+          git init -q -b builds-latest
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "JINI builds from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" builds-latest
