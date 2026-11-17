@@ -66,6 +66,10 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>JINI listens when you use voice mode.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>JINI turns your speech into text in voice mode.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>JINI uses the camera to scan the pairing QR code shown by desktop JINI.</string>
 	<key>NSLocalNetworkUsageDescription</key>
