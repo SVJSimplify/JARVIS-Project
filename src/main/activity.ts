@@ -1,7 +1,7 @@
 /**
  * THE ACTIVITY STREAM — what makes Interactive Mode interactive.
  *
- * Every tool call, turn, mission transition and notice is emitted here and pushed to the
+ * Every tool call, turn, task transition and notice is emitted here and pushed to the
  * renderer feed live. Emission happens in the MAIN process at the single place tools are
  * executed and turns begin/end, so the feed cannot lie: it shows what actually ran, with
  * the real duration and the classified outcome, not what the model says it did.
@@ -11,23 +11,21 @@
  * push channel is injected (setActivityEmitter), so unit tests need no mocks.
  */
 
-export type ActivityKind = 'tool' | 'turn' | 'mission' | 'notice';
-export type ActivityStatus = 'running' | 'ok' | 'failed' | 'blocked' | 'approval' | 'info';
+export type ActivityKind = 'tool' | 'turn' | 'notice';
+export type ActivityStatus = 'running' | 'ok' | 'failed' | 'blocked' | 'info';
 
 export interface ActivityEvent {
   id: number;
   t: number;
   kind: ActivityKind;
   status: ActivityStatus;
-  /** Tool name, or short label for turn/mission/notice events. */
+  /** Tool name, or short label for turn/notice events. */
   name: string;
   /** Arguments summary for tools; detail text for others. */
   detail?: string;
   /** Result summary (first line, clipped) once finished. */
   summary?: string;
   ms?: number;
-  /** Mission correlation. */
-  missionId?: string;
   step?: number;
   steps?: number;
   /** Tool-call correlation: the finish event replaces the running one in the feed. */
@@ -49,15 +47,6 @@ let seq = 0;
 export const clipActivity = (s: string, n: number): string => {
   const one = String(s ?? '').replace(/\s+/g, ' ').trim();
   return one.length > n ? `${one.slice(0, n - 1)}…` : one;
-};
-
-/** Classify a finished tool call from its raw output — the same prefixes used everywhere else. */
-export const statusOfResult = (raw: string): ActivityStatus => {
-  const s = String(raw ?? '');
-  if (/^BLOCKED/.test(s)) return 'blocked';
-  if (/^NOT APPROVED/.test(s)) return 'approval';
-  if (/^(Tool error|Unknown tool|NOT DONE)/.test(s)) return 'failed';
-  return 'ok';
 };
 
 export function emitActivity(e: Omit<ActivityEvent, 'id' | 't'>): ActivityEvent {

@@ -3,14 +3,33 @@ import { cancelSpeech, enqueue } from '../lib/speech';
 import { setVoicePrefs, useVoicePrefs, type ToggleKey } from '../lib/voicePrefs';
 import { ENROL_CLIPS, clearPrint, startEnrol, useVoiceprint } from '../lib/voiceprint';
 import { popModal, pushModal } from '../lib/modalState';
+import { CommandLog } from './HudPanels';
+import { SettingsActivitySection } from './ActivityFeed';
+import DevicesSection from './DevicesSection';
+import type { LogEntry } from '../lib/jarvisMode';
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** The in-session transcript (Settings → Transcript). Owned by App, rendered here. */
+  log?: LogEntry[];
+  /** Which section to show when the panel opens (Round 23 navigation). */
+  initialSection?: SettingsSection;
 }
 
+/** Round 23: Settings is organised into three sections — the provider/voice form this
+ *  panel always had, plus the relocated Activity and Transcript interfaces. */
+export type SettingsSection = 'provider' | 'devices' | 'activity' | 'transcript';
+
+const SECTIONS: Array<{ id: SettingsSection; label: string; title: string }> = [
+  { id: 'provider', label: 'Provider & Voice', title: 'Provider' },
+  { id: 'devices', label: 'Devices', title: 'Devices' },
+  { id: 'activity', label: 'Activity', title: 'Activity' },
+  { id: 'transcript', label: 'Transcript', title: 'Transcript' },
+];
+
 const VOICES: Array<{ id: string; label: string }> = [
-  { id: 'en-GB-RyanNeural', label: 'Ryan: British, calm (closest to JARVIS)' },
+  { id: 'en-GB-RyanNeural', label: 'Ryan: British, calm (default)' },
   { id: 'en-GB-ThomasNeural', label: 'Thomas: British, warm' },
   { id: 'en-US-AndrewNeural', label: 'Andrew: American, smooth' },
   { id: 'en-US-GuyNeural', label: 'Guy: American, deep' },
@@ -30,7 +49,7 @@ const TOGGLES: Array<{ key: ToggleKey; label: string }> = [
 const field =
   'w-full border-b border-line bg-transparent py-2 font-mono text-sm text-hot outline-none placeholder:text-steel/60 focus:border-accent';
 
-export default function SettingsPanel({ open, onClose }: Props) {
+export default function SettingsPanel({ open, onClose, log = [], initialSection = 'provider' }: Props) {
   const [baseUrl, setBaseUrl] = useState('');
   const [keySet, setKeySet] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -44,6 +63,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const [voice, setVoice] = useState('en-GB-RyanNeural');
   const [awareness, setAwareness] = useState(true);
   const [saveError, setSaveError] = useState('');
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   const prefs = useVoicePrefs();
   const vp = useVoiceprint();
   // JarvisWindow re-creates `onClose` on every telemetry tick (2 s); keying the effect on it
@@ -55,6 +75,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
     if (!open) return;
     pushModal();
     setSaveError('');
+    setSection(initialSection); // deep links (header → “Full history”) land on their section
     setApiKey('');
     setGroqKey('');
     setTinyfishKey('');
@@ -76,7 +97,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
       popModal();
       window.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, initialSection]);
 
   if (!open) return null;
 
@@ -84,8 +105,12 @@ export default function SettingsPanel({ open, onClose }: Props) {
     setSaveError('');
     try {
       await window.electronAPI.settings.set({
+        baseUrl,
         model,
         voice,
+        // FULL AUTONOMY, single mode: there is no selector and nothing to send. The
+        // hard floors (no deletion, no OS modification) are code-enforced in the
+        // permission service and are not a user-facing setting.
         // Always sent: clearing the field must also clear the saved chain.
         fallbackModels: fallback.split(',').map((t) => t.trim()).filter(Boolean),
         ...(apiKey ? { apiKey } : {}),
@@ -148,17 +173,63 @@ export default function SettingsPanel({ open, onClose }: Props) {
       className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-[rgb(var(--void)/0.75)] backdrop-blur-sm"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <form
+      <div
         className="rail m-auto max-h-[86vh] w-[28rem] max-w-[90vw] overflow-y-auto bg-[rgb(var(--void)/0.95)] p-6"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
+        role="dialog"
+        aria-label="Settings"
       >
+        {/* Round 23 navigation: three sections, existing conventions (uppercase, tracked,
+            accent when active). Switching sections never resets provider form state —
+            only which section is rendered. */}
+        <nav className="mb-6 flex gap-5" aria-label="Settings sections">
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSection(s.id)}
+              aria-current={section === s.id}
+              className={`no-drag font-display text-[11px] font-bold uppercase tracking-[0.3em] transition-colors ${section === s.id ? 'text-accent' : 'text-steel hover:text-hot'}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
+
+        {section === 'activity' && <SettingsActivitySection />}
+        {section === 'devices' && <DevicesSection />}
+
+        {section === 'transcript' && (
+          <div className="space-y-4">
+            <h2 className="rail-title">Transcript</h2>
+            <p className="text-sm text-steel">Everything you asked and JINI answered in this session. The durable full-fidelity history of every past session lives in Conversations (the speech-bubble button, top right).</p>
+            <div className="max-h-[52vh] overflow-y-auto pr-1">
+              <CommandLog log={log} />
+            </div>
+          </div>
+        )}
+
+        {section === 'provider' && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
         <h2 className="rail-title">Provider</h2>
 
-        <label className="block text-sm text-steel">Endpoint</label>
-        <p className="mb-5 mt-1 font-mono text-sm text-hot">{baseUrl}</p>
+        <label htmlFor="base-url" className="block text-sm text-steel">
+          API base URL (any OpenAI-compatible endpoint)
+        </label>
+        <input
+          id="base-url"
+          type="url"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://api.openai.com/v1"
+          autoComplete="off"
+          spellCheck={false}
+          className={`${field} mb-5 mt-1 font-mono`}
+        />
 
         <label htmlFor="api-key" className="block text-sm text-steel">
           API key
@@ -266,6 +337,15 @@ export default function SettingsPanel({ open, onClose }: Props) {
           </button>
         </div>
 
+        <h2 className="rail-title">Autonomy</h2>
+        <div className="mb-8 space-y-2">
+          <p className="block text-sm text-steel">
+            <span className="text-accent">Autonomous — always on.</span> JINI acts on his own, no approval
+            cards, no permission modes. The only hard blocks are deletion and modification of operating-system
+            resources, enforced in code on every route; everything else runs automatically.
+          </p>
+        </div>
+
         <h2 className="rail-title">Awareness</h2>
         <div className="mb-8 space-y-3">
           <label className="flex cursor-pointer items-center justify-between text-sm text-steel">
@@ -333,7 +413,9 @@ export default function SettingsPanel({ open, onClose }: Props) {
             SAVE
           </button>
         </div>
-      </form>
+        </form>
+        )}
+      </div>
     </div>
   );
 }

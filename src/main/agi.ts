@@ -3,12 +3,14 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { completeOnce } from './llm';
 import { getRelevantLessons } from './learn';
-import type { AgentKind, SchemaPicker } from './orchestrate';
+import { agentDefFor, type AgentKind, type SchemaPicker } from './orchestrate';
 import { getModel } from './settings';
 import { runSubagent, type Runner } from './subagent';
 import type { Tool } from './toolTypes';
 import { FILES_ROOT } from './workspace';
 import { atomicWrite, loadJson } from './store';
+import { pythonVerdict } from './policy';
+import { executionSignal } from './toolResult';
 
 /** AGI-style capabilities: learn from experience, remember procedures, pursue long goals, second opinions, computation, verification, background work. */
 
@@ -41,8 +43,7 @@ const ask = async (system: string, user: string): Promise<string> => {
   return r.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 };
 
-/** Blocks deletes and shell-outs — including the dynamic escapes (`__import__('os').system(...)`, `eval`, `exec`, `importlib`) that defeat a plain-text deny list. */
-const PY_DENY = /(os\.(remove|unlink|rmdir|removedirs)|shutil\.rmtree|\.unlink\(|\.rmdir\(|send2trash|os\.system|subprocess|__import__|importlib|\beval\s*\(|\bexec\s*\(|\bcompile\s*\()/;
+/** Superseded: classification now lives in policy.pythonVerdict (single enforcement brain). */
 
 export const agiTools: Record<string, Tool> = {
   critique: {
@@ -133,18 +134,21 @@ export const agiTools: Record<string, Tool> = {
   },
   run_python: {
     description:
-      'Run Python code for maths, data analysis, parsing, charts-as-data, file processing or any computation you would otherwise guess. Print results. Deleting files and shelling out are blocked. Asks the user first.',
+      'Run Python code for maths, data analysis, parsing, charts-as-data, file processing or any computation you would otherwise guess. Print results. Deleting files, shelling out and OS access are blocked by policy and cannot be approved.',
     parameters: { type: 'object', properties: { code: { type: 'string' }, timeout_s: { type: 'number', description: 'Default 60, max 300.' } }, required: ['code'] },
     run: async (args) => {
       const code = String(args.code ?? '');
       if (!code.trim()) throw new Error('code is empty.');
-      if (PY_DENY.test(code)) throw new Error('Code blocked: deleting files, shelling out and dynamic imports/eval are disabled. Use the dedicated tools.');
+      // Second layer only — the SAME central classifier already gated this call at the
+      // authorization boundary (guard.assessRisk → permission.authorize). No private rules.
+      const verdict = pythonVerdict(code);
+      if (verdict.blocked) throw new Error(verdict.reason ?? 'Code blocked by policy.');
       const timeout = Math.min(Number(args.timeout_s) || 60, 300) * 1000;
       await fs.mkdir(path.join(DIR, 'scratch'), { recursive: true });
       const file = path.join(DIR, 'scratch', `run_${Date.now()}.py`);
       await fs.writeFile(file, code, 'utf8');
       return new Promise<string>((resolve) => {
-        execFile(process.platform === 'win32' ? 'python' : 'python3', [file], { cwd: FILES_ROOT, timeout, maxBuffer: 4_000_000, windowsHide: true }, (err, stdout, stderr) => {
+        execFile(process.platform === 'win32' ? 'python' : 'python3', [file], { cwd: FILES_ROOT, timeout, maxBuffer: 4_000_000, windowsHide: true, signal: executionSignal() }, (err, stdout, stderr) => {
           const out = `${stdout}${stderr ? `\n[stderr]\n${stderr}` : ''}`.trim();
           const tail = out.length > 6000 ? `…${out.slice(-6000)}` : out;
           resolve(err ? `Tool error (${(err as { killed?: boolean }).killed ? 'timed out' : `exit ${String((err as { code?: unknown }).code ?? 'error')}`}):\n${tail || err.message}` : tail || '(no output)');
@@ -171,8 +175,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Tools that spawn sub-agents, so they need the runner and schema picker. */
 export const agiOrchestrated = (run: Runner, schemas: SchemaPicker): Record<string, Tool> => {
-  const role = { research: 'researcher', explore: 'explorer', general: 'general' } as const;
-  const agent = (prompt: string, kind: AgentKind) => runSubagent(prompt, schemas(kind), run, { role: role[kind] });
+  const agent = (prompt: string, kind: AgentKind) => runSubagent(prompt, schemas(kind), run, { agent: agentDefFor(kind).name });
   return {
     verify_claim: {
       description: 'Fact-check a specific claim, number or statement with independent sources, looking for evidence against it too. Returns SUPPORTED, CONTRADICTED, PARTLY or UNVERIFIED with sources. Use before stating or saving anything important you are not certain of.',

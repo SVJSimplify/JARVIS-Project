@@ -5,15 +5,15 @@ export default defineConfig({
   root: 'src/renderer',
   base: './',
   server: {
-    host: '0.0.0.0',
-    port: 3000,
+    port: 5173,
+    strictPort: true,
   },
   preview: {
-    host: '0.0.0.0',
-    port: 3000,
+    port: 5173,
+    strictPort: true,
   },
   build: {
-    outDir: '../../dist',
+    outDir: '../../dist/renderer',
     emptyOutDir: true,
     sourcemap: true,
   },

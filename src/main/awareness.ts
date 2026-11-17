@@ -65,7 +65,7 @@ const span = (ms: number) => {
 
 function normalise(app: string, title: string): { app: string; title: string } {
   if (SENSITIVE.test(app) || SENSITIVE.test(title)) return { app: SENSITIVE.test(app) ? 'private app' : app, title: '' };
-  if (/^jarvis$/i.test(title.trim())) return { app: 'JARVIS', title: '' };
+  if (/^(jarvis|jini)$/i.test(title.trim())) return { app: 'JINI', title: '' };
   return { app, title: title.length > TITLE_MAX ? `${title.slice(0, TITLE_MAX)}…` : title };
 }
 

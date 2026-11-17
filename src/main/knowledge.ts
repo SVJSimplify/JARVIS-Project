@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { Tool } from './toolTypes';
 import { FILES_ROOT } from './workspace';
+import { withTimeout } from './toolResult';
 
 const SKILLS_DIR = path.join(FILES_ROOT, 'skills');
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -42,6 +43,7 @@ export const knowledgeTools: Record<string, Tool> = {
     },
   },
   code_search: {
+    parallelSafe: true,
     description:
       'Find real-world code examples and API/library documentation for a programming question (frameworks, SDKs, error messages). Better than web_search for code.',
     parameters: {
@@ -65,7 +67,7 @@ export const knowledgeTools: Record<string, Tool> = {
           method: 'tools/call',
           params: { name: 'get_code_context_exa', arguments: { query, tokensNum } },
         }),
-        signal: AbortSignal.timeout(30_000),
+        signal: withTimeout(30_000),
       });
       if (!res.ok) throw new Error(`Code search failed (${res.status}).`);
       const body = await res.text();

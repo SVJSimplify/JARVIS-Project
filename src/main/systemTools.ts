@@ -129,6 +129,7 @@ export const systemTools: Record<string, Tool> = {
     },
   },
   get_system_info: {
+    parallelSafe: true,
     description:
       'Get CPU load, memory usage, uptime and basic details about this computer. topic "devices" lists the hardware Windows sees right now — device classes and every paired/connected Bluetooth device with its status (it cannot discover NEW nearby devices that were never paired).',
     parameters: { type: 'object', properties: { topic: { type: 'string', enum: ['overview', 'devices'], description: 'Default overview.' } } },
@@ -157,6 +158,7 @@ export const systemTools: Record<string, Tool> = {
     },
   },
   clipboard_read: {
+    parallelSafe: true,
     description: 'Read the text currently on the clipboard.',
     parameters: { type: 'object', properties: {} },
     run: () => {
@@ -260,13 +262,23 @@ export const systemTools: Record<string, Tool> = {
       }
       // NOT_FOUND is written instead of `exit 3`: exit would kill the shared PowerShell host
       // and cost a full prelude recompile on the next app-control call.
+      // Round 20 (CHANGE 9): POST-LAUNCH VERIFICATION — "Start-Process returned nothing"
+      // used to be reported as "Launched X." without evidence. The script now polls for a
+      // real window belonging to a NEW process of the launched app (up to 6 s) and
+      // reports the observed state honestly: launched-and-window-visible, launched-but-
+      // no-window-yet (with guidance), or not found.
       const script =
         '$a = Get-StartApps | Where-Object { $_.Name -like "*$($env:JARVIS_ARG)*" } | Sort-Object { $_.Name.Length } | Select-Object -First 1; ' +
-        'if (-not $a) { "NOT_FOUND" } else { Start-Process explorer.exe "shell:AppsFolder\\$($a.AppID)"; $a.Name }';
+        'if (-not $a) { "NOT_FOUND" } else { $before = @(Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { $_.Id }); Start-Process explorer.exe "shell:AppsFolder\\$($a.AppID)"; $win = $null; ' +
+        'foreach ($i in 1..12) { Start-Sleep -Milliseconds 500; $cand = @(Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $before -notcontains $_.Id }); if ($cand.Count) { $win = $cand[0]; break } }; ' +
+        'if ($win) { "LAUNCHED_WINDOW: $($a.Name) ($($win.ProcessName)) window: $($win.MainWindowTitle)" } else { "LAUNCHED_NOWINDOW: $($a.Name) - no new window appeared within 6s; check the taskbar/screen_text" } }';
       const { stdout } = await ps(script, name);
       const out = stdout.trim();
       if (out === 'NOT_FOUND') throw new Error(`No installed app matching "${name}".`);
-      return `Launched ${out || name}.`;
+      const m = /^(LAUNCHED_WINDOW|LAUNCHED_NOWINDOW):\s*(.*)$/s.exec(out);
+      if (!m) return `Launched ${out || name}.`; // legacy shape — do not invent evidence
+      if (m[1] === 'LAUNCHED_WINDOW') return `Launched ${m[2].trim()}. (verified: a window appeared)`;
+      return `NOT DONE: ${m[2].trim()}.`;
     },
   },
   media_control: {

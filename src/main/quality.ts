@@ -22,7 +22,7 @@ export const STANDARDS: Record<string, string[]> = {
   browser: [
     'The final page state was seen (snapshot or image) after the last action, not assumed.',
     'Every field, option and button the task needs was actually set, not skipped.',
-    'Nothing irreversible (send, pay, delete, submit) happened without the user\'s approval.',
+    'Every consequential step the request asked for (send, pay, submit) verifiably happened; any blocked step is reported as disabled, never as pending approval.',
     'The reported outcome matches what the page shows.',
   ],
   general: [

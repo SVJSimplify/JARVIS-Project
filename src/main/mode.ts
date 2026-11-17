@@ -10,16 +10,16 @@ import { FILES_ROOT } from './workspace';
  *                 captions, speech). The default.
  *  BACKGROUND   — JARVIS works silently: no speech, no captions, browser tools may run
  *                 without dragging the panel on screen, and every finished task (turn or
- *                 mission) is delivered as an OS notification with the audited verdict.
+ *                 durable task) is delivered as an OS notification with the audited verdict.
  *                 If the OS cannot notify, the report is persisted as an unread digest so
- *                 it is never lost (see notify.ts).
+ *                 it is never lost (the digest lives in modes.ts).
  *
  * The mode changes PRESENTATION and DELIVERY only — the tool pipeline, the verify-then-
  * report envelopes and the completion guarantee run identically in both modes, so a task
  * that succeeds interactively succeeds in the background too. Delivery uses the mode at
  * the moment the reply is ready, so flipping the mode mid-turn is always handled honestly.
  *
- * Electron-free like mission.ts: the push channel is injected (setModeBroadcaster), so
+ * Electron-free by design: the push channel is injected (setModeBroadcaster), so
  * unit tests need no mocks.
  */
 

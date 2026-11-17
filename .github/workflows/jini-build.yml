@@ -1,0 +1,63 @@
+name: JINI build
+
+on:
+  push:
+    branches: [jini-mvp, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  android-apk:
+    name: Android APK (debug-signed, installable)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - name: Install
+        run: npm ci
+      - name: Typecheck + build web bundle (fails the job on any error)
+        run: npm run build
+      - name: Sync native project
+        run: npx cap sync android
+      - name: Assemble APK
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk ../JINI-mobile-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JINI-mobile-apk
+          path: JINI-mobile-debug.apk
+          if-no-files-found: error
+
+  desktop-check:
+    name: Desktop typecheck, link tests, renderer build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Typecheck (main + renderer)
+        run: npx tsc -p tsconfig.node.json --noEmit && npx tsc -p tsconfig.app.json --noEmit
+      - name: JINI device-link tests
+        run: npx vitest run tests/jini
+      - name: Renderer build
+        run: npx vite build

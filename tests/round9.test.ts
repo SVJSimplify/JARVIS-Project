@@ -172,8 +172,13 @@ describe('scheduled follow-ups — the follow-through capability', () => {
   });
 
   it('schedules from an absolute ISO time and rejects the past and garbage', async () => {
-    const out = String(await scheduleTools.schedule_task.run({ task: 'Check shipment', at: '2026-11-02T09:00' }));
-    expect(out).toMatch(/Scheduled \(#\w+\) for 2 Nov 2026/);
+    // The "future" time must be computed at run time: a hardcoded date rotted the day
+    // after this test was written (2026-11-02T09:00 was the future on 2026-11-01 only).
+    const soon = new Date(Date.now() + 60 * 60 * 1000);
+    const p = (n: number): string => String(n).padStart(2, '0');
+    const at = `${soon.getFullYear()}-${p(soon.getMonth() + 1)}-${p(soon.getDate())}T${p(soon.getHours())}:${p(soon.getMinutes())}`;
+    const out = String(await scheduleTools.schedule_task.run({ task: 'Check shipment', at }));
+    expect(out).toMatch(new RegExp(`Scheduled \\(#\\w+\\) for ${soon.getDate()} \\w{3} ${soon.getFullYear()}`));
     await expect(scheduleTools.schedule_task.run({ task: 'x', at: '2020-01-01T00:00' })).rejects.toThrow(/past/);
     await expect(scheduleTools.schedule_task.run({ task: 'x', at: 'sometime after lunch' })).rejects.toThrow(/Cannot understand the time/);
     await expect(scheduleTools.schedule_task.run({ task: 'x', in_minutes: 0 })).rejects.toThrow(/in_minutes/);
@@ -232,13 +237,13 @@ describe('memory revisions — a changed value updates, it does not contradict',
     resetMemoryForTests();
   });
 
-  it('a revised budget updates the existing entry and says what it was', async () => {
+  it('a revised budget updates the existing entry and says what it was (Round 18 §7.5: supersession — the old value is kept as history, never shown as current)', async () => {
     await remember.run({ fact: 'phone budget is firm at ₹50,000', category: 'preference' });
     const out = String(await remember.run({ fact: 'phone budget is firm at ₹80,000', category: 'preference' }));
     expect(out).toMatch(/Updated \(was: phone budget is firm at ₹50,000\)/);
     const list = String(await list_memories.run({ category: 'preference' }));
     expect(list).toMatch(/₹80,000/);
-    expect(list).not.toMatch(/₹50,000/);
+    expect(list).not.toMatch(/₹50,000/); // superseded history is not live memory
   });
 
   it('a different topic with a different amount is NOT merged (phone vs laptop budgets)', async () => {

@@ -3,7 +3,6 @@ import { startListener } from '../lib/listener';
 import { loadWhisper, transcribe } from '../lib/whisper';
 import { isSpeaking } from '../lib/speech';
 import { cleanTranscript, greeting, isStop, parseWake } from '../lib/transcript';
-import { answerConfirm, parseYesNo, pendingConfirm } from '../lib/confirm';
 import { setVoicePrefs, useVoicePrefs } from '../lib/voicePrefs';
 import { ENROL_CLIPS, addClip, hasPrint, isEnrolling, startEnrol, useVoiceprint, verify } from '../lib/voiceprint';
 import type { JarvisMode } from '../lib/jarvisMode';
@@ -12,7 +11,6 @@ const NOISE = /^\W*(thank(s| you)( for watching)?|you|uh+|um+|hm+|mm+|ah+|oh+|by
 
 interface Options {
   onCommand: (text: string) => void;
-  onInterrupt: () => void;
   onCancel: () => void;
   speak: (text: string) => void;
   busy: boolean;
@@ -45,7 +43,7 @@ export function useVoiceAgent(o: Options) {
   }, []);
 
   const handle = useCallback(
-    async (audio: Float32Array) => {
+    async (audio: Float32Array, wasBarge = false) => {
       setTranscribing((n) => n + 1);
       try {
         const { prefs: p, o: cb } = latest.current;
@@ -62,14 +60,14 @@ export function useVoiceAgent(o: Options) {
         const text = cleanTranscript(await transcribe(audio));
         if (!text || NOISE.test(text) || !liveRef.current) return;
         const { woke, command } = parseWake(text);
-        if (pendingConfirm()) {
-          // An approval prompt is open: "yes" / "no" answer it; anything else waits.
-          const yn = parseYesNo(command);
-          if (yn !== null) return answerConfirm(yn);
-          if (!woke) return;
-        }
         if (woke && !command) return cb.speak('Yes, sir?');
         if (isStop(command)) return cb.onCancel(); // "stop" silences JARVIS and cancels the running request
+        // While JARVIS is talking, only a wake-word command may interrupt: ambient noise,
+        // the echo of JARVIS's own voice off the speakers and stray chatter are dropped
+        // here, so a long answer is never cut off mid-sentence by a sound that was never
+        // a command. The interrupt decision happens AFTER the utterance ends and the voice
+        // has been verified — never at first detection.
+        if (wasBarge && !woke) return;
         if (cb.busy && !woke) return; // while working, only "Jarvis, ..." interrupts (stray speech is ignored)
         cb.onCommand(command); // a new spoken command interrupts whatever JARVIS is doing
       } catch (e) {
@@ -102,13 +100,14 @@ export function useVoiceAgent(o: Options) {
     startListener({
       gate: () => (isSpeaking() ? (latest.current.prefs.interrupt ? 'barge' : 'deaf') : 'normal'),
       onLevel: (v) => (levelRef.current = v),
-      onStart: (barge) => {
-        setTalking(true);
-        if (barge) latest.current.o.onInterrupt();
-      },
-      onEnd: (audio) => {
+      // A barge capture no longer kills JARVIS's speech at detection time — that was the
+      // cut-off bug: any sound louder than the barge threshold (speaker echo, a door, a
+      // keyboard) silenced the rest of the answer before anyone knew who spoke. The audio
+      // is captured, verified and transcribed first; only a real command acts on it.
+      onStart: () => setTalking(true),
+      onEnd: (audio, barge) => {
         setTalking(false);
-        if (audio) void handle(audio);
+        if (audio) void handle(audio, barge);
       },
     })
       .then((s) => (dead ? s.stop() : (stop = s.stop)))

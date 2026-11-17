@@ -1,4 +1,4 @@
-import { BASE_URL } from './settings';
+import { getBaseUrl } from './settings';
 
 /**
  * The model must never trust its internal sense of "today". A live run shipped a report
@@ -30,7 +30,7 @@ export function checkClockDrift(): Promise<number | null> {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), PROBE_TIMEOUT_MS);
       try {
-        const res = await fetch(`${BASE_URL}/models`, { method: 'GET', signal: ctl.signal });
+        const res = await fetch(`${await getBaseUrl()}/models`, { method: 'GET', signal: ctl.signal });
         return driftFromHeader(res.headers.get('date'), Date.now());
       } finally {
         clearTimeout(timer);

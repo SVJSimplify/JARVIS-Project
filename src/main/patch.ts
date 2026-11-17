@@ -2,6 +2,8 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { Tool } from './toolTypes';
 import { displayPath, resolveWrite } from './workspace';
+import { withWriteLocks } from './writeCoord';
+import { callContext } from './toolRecord';
 
 interface Hunk {
   old: string[];
@@ -147,14 +149,19 @@ export const patchTools: Record<string, Tool> = {
       for (const [file] of writes) {
         originals.set(file, await fs.readFile(file, 'utf8').catch(() => null));
       }
+      // F-21: the whole multi-file transaction holds per-path locks (canonical order —
+      // deadlock-free) so a concurrent engine cannot interleave its own writes.
+      const lockOwner = `patch:${callContext().agent}`;
       try {
-        for (const [file, content] of writes) {
-          if (content === null) await fs.rm(file, { force: true });
-          else {
-            await fs.mkdir(path.dirname(file), { recursive: true });
-            await fs.writeFile(file, content, 'utf8');
+        await withWriteLocks([...writes.keys()], lockOwner, async () => {
+          for (const [file, content] of writes) {
+            if (content === null) await fs.rm(file, { force: true });
+            else {
+              await fs.mkdir(path.dirname(file), { recursive: true });
+              await fs.writeFile(file, content, 'utf8');
+            }
           }
-        }
+        });
       } catch (err) {
         for (const [file, cur] of originals) {
           await (cur === null ? fs.rm(file, { force: true }) : fs.writeFile(file, cur, 'utf8')).catch(() => undefined);

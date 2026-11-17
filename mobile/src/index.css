@@ -1,0 +1,33 @@
+@import '@fontsource-variable/inter';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: #0c0b10;
+  color: #f3f1f7;
+  font-family: 'Inter Variable', system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+.safe-top { padding-top: max(env(safe-area-inset-top), 14px); }
+.safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 6px); }
+
+@layer components {
+  .btn { @apply inline-flex h-12 items-center justify-center rounded-xl px-5 text-[15px] font-medium transition-colors disabled:opacity-40; }
+  .btn-primary { @apply btn bg-accent text-on-accent active:bg-accent-strong; }
+  .btn-secondary { @apply btn bg-surface text-text active:bg-surface-2; }
+  .btn-text { @apply text-[15px] font-medium text-accent active:opacity-70 disabled:opacity-40; }
+  .field { @apply w-full rounded-xl border border-hairline bg-surface px-4 py-3 text-[15px] text-text outline-none placeholder:text-faint focus:border-accent; }
+  .section-label { @apply px-1 pb-2 pt-6 text-[13px] font-medium text-muted; }
+  .group-list { @apply overflow-hidden rounded-2xl bg-surface; }
+  .group-row { @apply border-b border-hairline px-4 py-3.5 last:border-b-0; }
+}
+
+:focus-visible { outline: 2px solid #b4a3ff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

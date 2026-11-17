@@ -1,5 +1,6 @@
 import { runPs } from './psHost';
 import type { Tool } from './toolTypes';
+import { assessTargetAmbiguity, desktopVerifyBlock, type ScreenState } from './desktopVerify';
 
 const requireWindows = () => {
   if (process.platform !== 'win32') throw new Error('App control is only supported on Windows.');
@@ -88,22 +89,44 @@ $m = $found[$n - 1]
 switch ($env:JD) { 'right' { RClick $m.X $m.Y } 'double' { Click $m.X $m.Y 2 } default { Click $m.X $m.Y 1 } }
 $ln = $m.Line; if ($ln.Length -gt 80) { $ln = $ln.Substring(0, 80) }
 'Clicked "' + $env:JA + '" at ' + $m.X + ',' + $m.Y + ' (match ' + $n + ' of ' + $found.Count + '; line: ' + $ln + ')'
+# Round 19 (CHANGE 7) — OBSERVE after acting: re-read the screen and report whether the
+# clicked text is still visible, plus which window is in the foreground now. A successful
+# click API call is not proof the UI responded; this is the verify step.
+Start-Sleep -Milliseconds 500
+$still = @(Ocr) | Where-Object { $_.Text -like ('*' + $env:JA + '*') }
+if ($still.Count) { 'After: the text "' + $env:JA + '" is STILL visible on screen - if you expected it to disappear (menu closed, dialog dismissed), verify the intended state.' }
+else { 'After: the clicked text is no longer visible on screen (the UI responded).' }
+'After: foreground window is now "' + (Fore) + '"'
+DialogLine
 `;
 
 const PRELUDE = [
   '$ErrorActionPreference = "Stop"',
   'Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,System.Windows.Forms',
   'Add-Type -TypeDefinition @"',
-  'using System; using System.Runtime.InteropServices;',
+  'using System; using System.Runtime.InteropServices; using System.Text;',
   'public class JM { [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);',
   '[DllImport("user32.dll")] public static extern void mouse_event(uint f,uint dx,uint dy,uint d,UIntPtr e);',
-  '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware(); }',
+  '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();',
+  // Round 19 (CHANGE 7): post-action evidence — WHICH window is in the foreground after
+  // the action. A successful mouse_event/SendKeys call is not proof the intended window
+  // received it; the foreground title is the cheapest observable check.
+  '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+  '[DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n); }',
   '"@',
   '[void][JM]::SetProcessDPIAware()',
   '$AE = [Windows.Automation.AutomationElement]; $TS = [Windows.Automation.TreeScope]; $TC = [Windows.Automation.Condition]::TrueCondition',
   'function Win($t) { foreach ($e in $AE::RootElement.FindAll($TS::Children, $TC)) { if ($e.Current.Name -like "*$t*") { return $e } }; throw "No window matching $t" }',
   'function El($w, $n) { foreach ($e in $w.FindAll($TS::Descendants, $TC)) { if ($e.Current.Name -like "*$n*" -and -not $e.Current.IsOffscreen) { return $e } }; throw "No control matching $n" }',
   'function Focus($t) { if ($t) { if (-not (New-Object -ComObject WScript.Shell).AppActivate($t)) { throw "No window matching $t" }; Start-Sleep -Milliseconds 350 } }',
+  'function Fore() { $sb = New-Object System.Text.StringBuilder 512; [void][JM]::GetWindowText([JM]::GetForegroundWindow(), $sb, 512); return $sb.ToString() }',
+  // Round 20 (CHANGE 9): DIALOG DETECTION — standard Windows modal dialogs live in the
+  // '#32770' window class (MessageBox, file pickers, confirmations). After every acting
+  // step the tools report whether one appeared: an unnoticed modal used to swallow
+  // clicks invisibly and stall desktop flows. Read the dialog (screen_text/inspect_app)
+  // and respond deliberately — never click through it blindly.
+  'function Dialogs() { $out = @(); foreach ($w in $AE::RootElement.FindAll($TS::Children, $TC)) { try { if ($w.Current.ClassName -eq "#32770") { $out += $w.Current.Name } } catch {} }; return ,$out }',
+  'function DialogLine() { $ds = Dialogs; if ($ds.Count) { return ("After: DIALOG window(s) detected: " + (($ds | Select-Object -First 3) -join " | ") + " - observe them (screen_text / inspect_app) and respond deliberately before further actions.") } return "After: no modal dialog windows detected." }',
   'function Click($x, $y, $n) { [JM]::SetCursorPos([int]$x, [int]$y); Start-Sleep -Milliseconds 60; for ($i = 0; $i -lt $n; $i++) { [JM]::mouse_event(2,0,0,0,[UIntPtr]::Zero); [JM]::mouse_event(4,0,0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 60 } }',
   PRELUDE_EXTRA,
 ].join('\n');
@@ -186,7 +209,7 @@ export const appControlTools: Record<string, Tool> = {
   },
   click_text: {
     description:
-      'Click visible on-screen text (button label, menu item, link, file name) found by OCR, in any app. text matches part of a line, case-insensitive; nth picks the match (default 1, top to bottom). mode: click, double or right.',
+      'Click visible on-screen text (button label, menu item, link, file name) found by OCR, in any app. text matches part of a line, case-insensitive; nth picks the match (default 1, top to bottom). mode: click, double or right. ROUND 28: the click is verified — the screen is OCR-read before and after, and an evidence-based [ACTION VERIFY] line is appended (a click is never its own proof; consequential labels require strong evidence).',
     parameters: {
       type: 'object',
       properties: {
@@ -194,12 +217,56 @@ export const appControlTools: Record<string, Tool> = {
         window: { type: 'string', description: 'Part of the window title to focus first. Optional.' },
         nth: { type: 'number' },
         mode: { type: 'string', enum: ['click', 'double', 'right'] },
+        expect: { type: 'string', description: 'The expected result that proves the intended outcome, e.g. "the Save dialog closes and the title bar shows saved".' },
       },
       required: ['text'],
     },
-    run: (args) => {
+    run: async (args) => {
       if (!str(args.text)) throw new Error('text is required.');
-      return ps(OCR_PS + CLICK_TEXT_PS, str(args.text), str(args.window), String(Math.max(1, Math.round(Number(args.nth) || 1))), str(args.mode), 30000);
+      const nth = String(Math.max(1, Math.round(Number(args.nth) || 1)));
+      const mode = str(args.mode) || 'click';
+      // ROUND 28 (Phase 4 §4.2): OBSERVE → CHECK AMBIGUITY → ACT → RE-OBSERVE → VERIFY.
+      // The observation passes reuse the EXISTING unmodified OCR scripts; the judgment is
+      // the pure, unit-tested desktopVerify layer (one verification vocabulary with the browser).
+      const observe = async (): Promise<ScreenState> => {
+        const raw = await ps(OCR_PS + SCREEN_TEXT_PS, '', str(args.window), '', '', 30000);
+        const lines = String(raw).split(/\r?\n/).filter((l) => l.trim());
+        const textOf = lines.map((l) => l.replace(/^\s*-?\d+,\s*-?\d+\s\s/, ''));
+        let title = '';
+        try {
+          title = String(await ps('(Fore)', '', '', '', '', 8000)).trim();
+        } catch {
+          title = '';
+        }
+        return { windowTitle: title, heading: textOf[0] ?? '', text: textOf.join('\n').slice(0, 3000) };
+      };
+      const before = await observe();
+      // AMBIGUITY GATE: several DIFFERENT matching texts means the click would guess —
+      // refuse and re-observe instead (the driver picks a better window or target text).
+      const ocrLines = before.text.split('\n').filter(Boolean);
+      const ambiguity = assessTargetAmbiguity(ocrLines, str(args.text));
+      if (ambiguity.ambiguous && ambiguity.candidates.length > 1 && Number(nth) === 1)
+        return `NOT DONE: ${ambiguity.reason}. Re-observe and retry with a more specific target (or nth).\n${ambiguity.candidates.map((c) => `  · ${c}`).join('\n')}`;
+      const clickResult = await ps(OCR_PS + CLICK_TEXT_PS, str(args.text), str(args.window), nth, mode, 30000);
+      let after: ScreenState | null = null;
+      let verifyNote = '';
+      try {
+        // ROUND 29 (Phase 4): a bounded settle pause before re-observation — many apps
+        // re-render (or open dialogs) a few hundred ms after a click; verifying against
+        // an un-re-rendered screen used to read as "nothing changed".
+        await new Promise((r) => setTimeout(r, 350));
+        after = await observe();
+        verifyNote = desktopVerifyBlock({
+          before,
+          after,
+          intent: `click "${str(args.text)}"`,
+          expected: str(args.expect) || undefined,
+          windowChanged: !!after && before.windowTitle !== after.windowTitle && !!before.windowTitle && !!after.windowTitle,
+        });
+      } catch (e) {
+        verifyNote = `[ACTION VERIFY: UNOBSERVED — the post-action screen could not be read (${String(e instanceof Error ? e.message : e).slice(0, 80)}); the click result above is the action's own report, not an observed outcome]`;
+      }
+      return `${clickResult}\n${verifyNote}`;
     },
   },
   scroll_at: {
@@ -212,7 +279,7 @@ export const appControlTools: Record<string, Tool> = {
     run: (args) => {
       const n = Math.min(30, Math.max(1, Math.round(Number(args.amount) || 3))) * (args.direction === 'up' ? 1 : -1);
       return ps(
-        'if ($env:JA -and $env:JB) { $x = $env:JA; $y = $env:JB } else { $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $x = $b.X + $b.Width / 2; $y = $b.Y + $b.Height / 2 }; Wheel $x $y ([int]$env:JC * 120); "Scrolled."',
+        'if ($env:JA -and $env:JB) { $x = $env:JA; $y = $env:JB } else { $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $x = $b.X + $b.Width / 2; $y = $b.Y + $b.Height / 2 }; Wheel $x $y ([int]$env:JC * 120); "Scrolled. After: foreground window is now " + (Fore) + ""; DialogLine',
         args.x === undefined ? '' : String(Math.round(Number(args.x))),
         args.y === undefined ? '' : String(Math.round(Number(args.y))),
         String(n)
@@ -229,10 +296,11 @@ export const appControlTools: Record<string, Tool> = {
     run: (args) => {
       const v = ['x1', 'y1', 'x2', 'y2'].map((k) => Math.round(Number(args[k])));
       if (v.some((n) => !Number.isFinite(n) || n < 0)) throw new Error('Invalid coordinates.');
-      return ps('Drag $env:JA $env:JB $env:JC $env:JD; "Dragged."', String(v[0]), String(v[1]), String(v[2]), String(v[3]));
+      return ps('Drag $env:JA $env:JB $env:JC $env:JD; "Dragged. After: foreground window is now " + (Fore) + ""; DialogLine', String(v[0]), String(v[1]), String(v[2]), String(v[3]));
     },
   },
   list_my_browser_tabs: {
+    parallelSafe: true,
     description:
       "List open tabs in the USER'S OWN browser (Chrome, Edge, Firefox, Brave...), not JARVIS's in-app browser. Optional text filters by tab title; optional browser limits to one.",
     parameters: {
@@ -289,13 +357,16 @@ export const appControlTools: Record<string, Tool> = {
           'elseif ($e.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$p)) { $p.Select(); "Selected." } ' +
           'elseif ($e.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern, [ref]$p)) { $p.Toggle(); "Toggled." } ' +
           'elseif ($e.TryGetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern, [ref]$p)) { $p.Expand(); "Expanded." } ' +
-          'else { $r = $e.Current.BoundingRectangle; Click ($r.X + $r.Width / 2) ($r.Y + $r.Height / 2) 1; "Clicked." }',
+          'else { $r = $e.Current.BoundingRectangle; Click ($r.X + $r.Width / 2) ($r.Y + $r.Height / 2) 1; "Clicked." }; ' +
+          // Round 19 (CHANGE 7): the acting process is gone from the PS session by now —
+          // the foreground window is the observable evidence that the UI received the action.
+          'Start-Sleep -Milliseconds 400; \'After: foreground window is now "\' + (Fore) + \'"\'; DialogLine',
         str(args.window),
         str(args.control)
       ),
   },
   set_control_text: {
-    description: 'Put text into a named text field of an open app window (search boxes, address bars, forms). Leave control empty for the first text field.',
+    description: 'Put text into a named text field of an open app window (search boxes, address bars, forms). Leave control empty for the first text field. The field value is read back after writing, so success means the text is really in the field.',
     parameters: {
       type: 'object',
       properties: {
@@ -309,7 +380,11 @@ export const appControlTools: Record<string, Tool> = {
       ps(
         '$w = Win $env:JA; $e = $null; ' +
           'if ($env:JC) { $e = El $w $env:JC } else { $c = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit); $e = $w.FindFirst($TS::Descendants, $c); if (-not $e) { throw "No text field found" } }; ' +
-          '$p = $e.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern); $p.SetValue($env:JB); "Text entered."',
+          // Round 19 (CHANGE 7) — VERIFY: read the value back through UIA. A SetValue
+          // that silently no-ops is reported as the failure it is, never as success.
+          '$p = $e.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern); $p.SetValue($env:JB); Start-Sleep -Milliseconds 200; $back = $p.Current.Value; ' +
+          'if ($back -ne $env:JB) { throw ("Verification failed: the field now holds \u0027" + $back + "\u0027 instead of the requested text.") } ' +
+          '"Text entered and verified by reading the field back."',
         str(args.window),
         String(args.text ?? ''),
         str(args.control)
@@ -323,7 +398,7 @@ export const appControlTools: Record<string, Tool> = {
       required: ['text'],
     },
     run: async (args) =>
-      ps('Focus $env:JA; [System.Windows.Forms.SendKeys]::SendWait($env:JB); "Typed."', str(args.window), escapeKeys(String(args.text ?? '')).slice(0, 2000)),
+      ps('Focus $env:JA; [System.Windows.Forms.SendKeys]::SendWait($env:JB); Start-Sleep -Milliseconds 300; \'Typed. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', str(args.window), escapeKeys(String(args.text ?? '')).slice(0, 2000)),
   },
   press_keys: {
     description:
@@ -334,7 +409,7 @@ export const appControlTools: Record<string, Tool> = {
       required: ['keys'],
     },
     run: async (args) =>
-      ps('Focus $env:JA; [System.Windows.Forms.SendKeys]::SendWait($env:JB); "Pressed."', str(args.window), String(args.keys ?? '').slice(0, 200)),
+      ps('Focus $env:JA; [System.Windows.Forms.SendKeys]::SendWait($env:JB); Start-Sleep -Milliseconds 300; \'Pressed. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', str(args.window), String(args.keys ?? '').slice(0, 200)),
   },
   click_at: {
     description: 'Click at absolute screen coordinates. Last resort when no named control exists.',
@@ -353,7 +428,7 @@ export const appControlTools: Record<string, Tool> = {
       const y = Math.round(Number(args.y));
       if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0) throw new Error('Invalid coordinates.');
       if (args.button === 'right') return ps('RClick $env:JA $env:JB; "Right-clicked."', String(x), String(y));
-      return ps('Click $env:JA $env:JB $env:JC; "Clicked."', String(x), String(y), args.double ? '2' : '1');
+      return ps('Click $env:JA $env:JB $env:JC; Start-Sleep -Milliseconds 400; \'Clicked. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', String(x), String(y), args.double ? '2' : '1');
     },
   },
   close_app: {

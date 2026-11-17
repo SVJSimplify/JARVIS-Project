@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import JarvisWindow from './components/JarvisWindow';
 import VoiceInput from './components/VoiceInput';
 import TextCommand from './components/TextCommand';
-import ConfirmCard from './components/ConfirmCard';
 import VisualCard from './components/VisualCard';
-import { dropConfirm, pushConfirm, type ConfirmRequest } from './lib/confirm';
 import { isModalOpen } from './lib/modalState';
 import { useJarvisMode } from './hooks/useJarvisMode';
 import { useVoiceAgent } from './hooks/useVoiceAgent';
@@ -14,7 +12,12 @@ import type { NotifyPayload } from './lib/protocol';
 import type { LogEntry } from './lib/jarvisMode';
 import './index.css';
 
-const LOG_LIMIT = 6;
+// Round 23: the in-session transcript moved into Settings → Transcript, where it has
+// room to be useful. The old right-rail tab kept only the last 6 entries — history that
+// silently vanished — so the session log now retains the whole session (memory-bounded,
+// not a display constraint). The durable full-fidelity record of every past session
+// remains in history.ts (Conversations), untouched.
+const LOG_LIMIT = 500;
 let lastSay = 0;
 
 const cleanError = (err: unknown) =>
@@ -25,6 +28,9 @@ export default function App() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [mini, setMini] = useState(false);
+  // Bumped after every finished turn (success, failure, interruption — history records
+  // all of them); the Conversations panel refetches when it sees the number change.
+  const [turnsCount, setTurnsCount] = useState(0);
   const [caption, subtitles] = useSubtitles();
   const { mode: imode, set: setImode } = useMode();
   const imodeRef = useRef(imode); // the speech gate must read the CURRENT mode, not a stale closure
@@ -89,7 +95,10 @@ export default function App() {
         if (live) subtitles.fail(message);
         setReply(message);
       } finally {
-        if (turnRef.current === my) setBusy(false);
+        if (turnRef.current === my) {
+          setBusy(false);
+          setTurnsCount((c) => c + 1); // the durable history has a new turn by now
+        }
       }
     },
     [subtitles]
@@ -114,22 +123,6 @@ export default function App() {
     }), []);
 
   useEffect(() => {
-    const offRequest = window.electronAPI.on('confirm-request', (r) => {
-      const req = r as ConfirmRequest;
-      pushConfirm(req);
-      // Approval prompts are spoken in BOTH modes: safety is above silence.
-      speakRef.current(`${req.title} Say yes or no.`);
-    });
-    const offClear = window.electronAPI.on('confirm-clear', (id) => dropConfirm(Number(id)));
-    return () => {
-      offRequest();
-      offClear();
-    };
-  }, []);
-
-  // The background-mode end-of-task notification: the ONE voice a silent turn gets,
-  // speaking the turn's real verdict (reply, honest failure or interruption).
-  useEffect(() => {
     const off = window.electronAPI.on('jarvis-notify', (p) => {
       const n = p as NotifyPayload;
       if (!n || typeof n.speakLine !== 'string' || !n.speakLine) return;
@@ -138,7 +131,7 @@ export default function App() {
     return off;
   }, []);
 
-  const voice = useVoiceAgent({ onCommand: handleCommand, onInterrupt: subtitles.stop, onCancel: cancelTurn, speak, busy });
+  const voice = useVoiceAgent({ onCommand: handleCommand, onCancel: cancelTurn, speak, busy });
   const mode = useJarvisMode(voice.mode !== 'idle' ? voice.mode : busy ? 'thinking' : 'idle');
 
   return (
@@ -152,10 +145,10 @@ export default function App() {
       caption={caption}
       mini={mini}
       voiceReady={voice.ready}
+      turnsCount={turnsCount}
     >
       <VoiceInput live={voice.live} mode={voice.mode} hint={voice.hint} onToggle={voice.toggle} />
       <TextCommand onSubmit={handleCommand} busy={busy} compact={mini} />
-      <ConfirmCard />
       <VisualCard />
     </JarvisWindow>
   );

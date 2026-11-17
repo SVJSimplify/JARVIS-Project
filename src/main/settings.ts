@@ -1,13 +1,15 @@
 import { app, safeStorage } from 'electron';
 import { promises as fs } from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { atomicWrite, loadJson } from './store';
 
+/** Default used until the user saves their own OpenAI-compatible endpoint (or sets JINI_BASE_URL). */
 export const BASE_URL = 'http://localhost:20128/v1';
 export const DEFAULT_VOICE = 'en-GB-RyanNeural';
 
 interface Stored {
+  /** OpenAI-compatible API base, e.g. https://api.openai.com/v1 or http://localhost:11434/v1. */
+  baseUrl?: string;
   apiKey?: string;
   apiKeyEncrypted?: boolean;
   groqKey?: string;
@@ -19,6 +21,10 @@ interface Stored {
   fallbackModels?: string[];
   voice?: string;
   awareness?: boolean;
+  /** LEGACY field, kept only so old settings.json files still parse. The three-level
+   *  autonomy selector is gone — JARVIS always runs fully autonomous; deletes, purchases,
+   *  credentials, installs and config changes stay hard-denied by the permission service. */
+  autonomy?: 'careful' | 'standard' | 'autonomous';
 }
 
 export interface PublicSettings {
@@ -30,9 +36,10 @@ export interface PublicSettings {
   fallbackModels: string[];
   voice: string;
   awareness: boolean;
+  autonomy: 'careful' | 'standard' | 'autonomous';
 }
 
-const file = () => path.join(app?.getPath ? app.getPath('userData') : (process.env.JARVIS_SETTINGS_DIR || path.join(os.tmpdir(), 'jarvis-settings')), 'settings.json');
+const file = () => path.join(app.getPath('userData'), 'settings.json');
 
 async function read(): Promise<Stored> {
   return loadJson<Stored>(file(), {});
@@ -71,6 +78,25 @@ export async function getTinyfishKey(): Promise<string> {
   return decrypt(s.tinyfishKey);
 }
 
+/** Normalise a user-entered base URL: http(s) only, no trailing slash. Returns '' when invalid. */
+export function normalizeBaseUrl(raw: string): string {
+  const v = raw.trim().replace(/\/+$/, '');
+  if (!v) return '';
+  try {
+    const u = new URL(v);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    return v;
+  } catch {
+    return '';
+  }
+}
+
+/** The active provider endpoint: saved setting, then JINI_BASE_URL, then the built-in default. */
+export async function getBaseUrl(): Promise<string> {
+  const stored = normalizeBaseUrl((await read()).baseUrl ?? '');
+  return stored || normalizeBaseUrl(process.env.JINI_BASE_URL ?? '') || BASE_URL;
+}
+
 export async function getModel(): Promise<string> {
   return (await read()).model ?? '';
 }
@@ -100,9 +126,19 @@ export async function getAwarenessEnabled(): Promise<boolean> {
   return (await read()).awareness !== false;
 }
 
+/**
+ * The autonomy level governing the permission service. SINGLE MODE: always 'autonomous',
+ * whatever an old settings.json says. Kept async and keyed by nothing so the permission
+ * service wiring does not change.
+ */
+export async function getAutonomy(): Promise<'autonomous'> {
+  await read().catch(() => undefined); // keep the same I/O profile; the value is irrelevant
+  return 'autonomous';
+}
+
 export async function getPublicSettings(): Promise<PublicSettings> {
   const s = await read();
-  return { baseUrl: BASE_URL, apiKeySet: Boolean(s.apiKey), groqKeySet: Boolean(s.groqKey), tinyfishKeySet: Boolean(s.tinyfishKey), model: s.model ?? '', fallbackModels: s.fallbackModels ?? [], voice: s.voice || DEFAULT_VOICE, awareness: s.awareness !== false };
+  return { baseUrl: await getBaseUrl(), apiKeySet: Boolean(s.apiKey), groqKeySet: Boolean(s.groqKey), tinyfishKeySet: Boolean(s.tinyfishKey), model: s.model ?? '', fallbackModels: s.fallbackModels ?? [], voice: s.voice || DEFAULT_VOICE, awareness: s.awareness !== false, autonomy: 'autonomous' as const };
 }
 
 // Read-modify-write must be serialised: two overlapping saves (Save button vs the awareness
@@ -111,10 +147,17 @@ export async function getPublicSettings(): Promise<PublicSettings> {
 let writeChain: Promise<unknown> = Promise.resolve();
 
 /** Only fields present in `patch` change. An empty apiKey removes the stored key. */
-export async function setSettings(patch: { apiKey?: string; groqKey?: string; tinyfishKey?: string; model?: string; fallbackModels?: string[]; voice?: string; awareness?: boolean }): Promise<void> {
+export async function setSettings(patch: { baseUrl?: string; apiKey?: string; groqKey?: string; tinyfishKey?: string; model?: string; fallbackModels?: string[]; voice?: string; awareness?: boolean }): Promise<void> {
   const job = writeChain.then(async () => {
     const s = await read();
 
+  if (patch.baseUrl !== undefined) {
+    const raw = patch.baseUrl.trim();
+    const url = normalizeBaseUrl(raw);
+    if (raw && !url) throw new Error('The API base URL must be a valid http:// or https:// address.');
+    if (url) s.baseUrl = url;
+    else delete s.baseUrl;
+  }
   if (patch.apiKey !== undefined) {
     const key = patch.apiKey.trim();
     if (!key) {

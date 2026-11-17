@@ -108,18 +108,18 @@ Tests in sections C, H need Windows 10 (they drive real apps / native Whisper).
 | K1 | Pick a nonsense model name in Settings, send a message | Honest, clear error naming the problem | Fake success or silent hang |
 | K2 | (Optional) Kill your network mid-turn | Fails fast with a clear timeout message, app stays usable | Hangs for minutes, queue stuck (old D5/R4 bug) |
 
-## L. Mission Control — agentic orchestration (project-scale work)
+## L. Durable Task Coordinator — agentic orchestration (project-scale work)
 
 | # | Say / Type | Expect | Fail means |
 | --- | --- | --- | --- |
-| L1 | Put a small project in `Jarvis-Files`, then: "Generate a copy of this app named demo-copy" | Mission starts: HUD strip appears with status/steps; the turn answers with a one-sentence status, then the ENGINE drives plan → checkpoint → steps → verify → report in the background | The model pretends to "do it all" inline in one reply, or nothing happens |
-| L2 | While it runs: "mission status" | Answer matches the HUD strip exactly (same status, same step counter) — the prompt carries persisted mission ground truth and may only answer from `mission_status` | Reply guesses or disagrees with the HUD |
-| L3 | Wait for completion | Mission reports `done` ONLY after the project's real typecheck/test/build commands passed; the report includes the verifier output and the second-opinion review | "Done" with failing or skipped verification |
-| L4 | Start a mission, then close the app mid-run and reopen | Mission shows **interrupted** at boot — never "still running", never "done" | State lost or falsely claimed complete |
-| L5 | Mission on a project with a deliberate error (e.g. broken import) | Verification fails → up to 2 bounded auto-fix steps → if still failing, mission is honestly `failed` with the verifier output in the report | Endless fixing, or success claimed over a failing build |
-| L6 | `mission_rollback` after a mission you dislike | Workspace source files restored byte-exact to the checkpoint; NEW files are never deleted — they are listed honestly | Files vanish, or rollback claims success without restoring |
-| L7 | While a mission runs, start two more | Only 2 active missions allowed; a duplicate-goal start returns the existing id instead of double-working | Runaway fan-out or duplicated work |
-| L8 | Ask a sub-agent step to start a mission | Refused — sub-agents cannot start/wait/cancel/rollback missions | Nested missions, chaos |
+| L1 | Put a small project in `Jarvis-Files`, then: "Start a durable task: generate a copy of this app named demo-copy" | Task starts: the Task Progress board shows the id, status and step list; the turn answers with the task id and objective, then the coordinator drives plan → steps → verify → report in the background | The model pretends to "do it all" inline in one reply, or nothing happens |
+| L2 | While it runs: "how is the task going?" | Answer matches the board exactly (same status, same step counter) — `task_status` is persisted ground truth and the prompt may only answer from it | Reply guesses or disagrees with the board |
+| L3 | Wait for completion | The task reports its verdict ONLY after the project's real typecheck/test/build commands passed; the report includes the verifier output and the second-opinion review | "Done" with failing or skipped verification |
+| L4 | Start a task, then close the app mid-run and reopen | The task shows **INTERRUPTED** — never "still running", never "done" — and `task_resume` continues it from where it stopped | State lost or falsely claimed complete |
+| L5 | Task on a project with a deliberate error (e.g. broken import) | Verification fails → up to 2 bounded auto-fix steps → if still failing, the task is honestly `FAILED` with the verifier output in the report | Endless fixing, or success claimed over a failing build |
+| L6 | "Cancel the task" while it runs | Cancellation is accepted and takes effect at the next step boundary; finished steps stay, nothing is deleted, and `task_status` shows how far it got | Files vanish, or the cancel is ignored and the task keeps running |
+| L7 | While two tasks run, start a third | Only 2 active tasks allowed — the third start is refused with the existing ids; a duplicate-goal start returns the existing id instead of double-working | Runaway fan-out or duplicated work |
+| L8 | Ask a task's sub-agent step to start or cancel another task | Blocked — sub-agents can only call their own scoped tools | Nested task control, chaos |
 
 ## M. Completion guarantee — honest outcomes, no fake success
 
@@ -130,7 +130,7 @@ Tests in sections C, H need Windows 10 (they drive real apps / native Whisper).
 | M3 | Ask it to "write a note to disk" and immediately ask "did you write it?" | Yes only if the file is really on disk (the engine re-checks writes; a phantom write invalidates the success) | Claimed write with no file |
 | M4 | Trigger a transient failure (e.g. brief network hiccup during research) | The engine injects ONE recovery round automatically and usually finishes the task; if it still fails, you get an honest report with a next step | First error is spoken to you as a final failure, or infinite retry loop |
 | M5 | "What is your completion rate?" | `completion_stats` answers with the measured completion rate against the 99% target plus the enforcement record (caught false-success claims, rescue passes, quality downgrades) | A hardcoded "99%" claim with no measurement |
-| M6 | Cancel a running mission yourself, then check completion stats | The cancelled mission counts as interrupted — never as a failure or a completion | Stats inflated or deflated by user cancels |
+| M6 | Cancel a running durable task yourself, then check completion stats | The cancelled task counts as interrupted — never as a failure or a completion | Stats inflated or deflated by user cancels |
 | M7 | Pure small talk: "thanks, JARVIS" | Normal friendly reply — the auditor never rewrites small talk or questions | Odd injected disclaimers on greetings |
 
 ## N. Interaction modes — Interactive & Background
@@ -143,7 +143,7 @@ Tests in sections C, H need Windows 10 (they drive real apps / native Whisper).
 | N4 | While away, let a background task fail on purpose (denied drive) | The notification (or the "While you were away" list in the feed next launch) says what failed and the next step — never a fake success | Silent failure, or "done" over a failure |
 | N5 | Flip to Background mid-reply (JARVIS is speaking) | Speech stops immediately; the transcript still records the full reply | The rest of the sentence keeps playing |
 | N6 | In Background mode, ask JARVIS to open a website, then check the screen | The in-app browser works off screen (no cinematic takeover); the reply/notification still reports the real page state truth line | Full-screen door animation plays, or a fake "shown to the user" claim |
-| N7 | Ask a mission to run in background ("generate a copy of this app in the background") | Mission runs silently; when it finishes or honestly fails you get one notification; MissionStrip still shows live progress | Mission ends with no delivery, or narrates by voice |
+| N7 | Ask for a durable task in background ("generate a copy of this app in the background") | The task runs silently; when it finishes or honestly fails you get one notification; the Task Progress board still shows live progress | Task ends with no delivery, or narrates by voice |
 | N8 | Say: "come back to interactive" | Pill flips back; speech and captions resume on the next reply | Mode stuck in background |
 
 ---
@@ -161,7 +161,7 @@ Tests in sections C, H need Windows 10 (they drive real apps / native Whisper).
 9. **G3** — python deny-list holds
 10. **J1** — settings save and persist
 11. **M1 + M5** — a failure is told honestly with a next step; completion stats are measured, not claimed
-12. **L1 + L2** — a mission starts from one phrase and status answers match the HUD
+12. **L1 + L2** — a durable task starts from one phrase and status answers match the board
 13. **N2 + N3** — tools appear live in the activity feed; a background task ends in exactly one honest notification
 
 If all 13 pass, the hardening is behaving as engineered. Anything that fails: note the

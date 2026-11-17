@@ -19,18 +19,56 @@ let resumeHandler: (() => boolean) | null = null;
 export const isMini = (): boolean => mini;
 export const hudVisible = (): boolean => !!win && !win.isDestroyed() && win.isVisible() && !win.isMinimized();
 export const raiseHud = (): void => win?.moveTop();
+
+/**
+ * Pushes that arrive while no HUD window exists, or while its page is loading or
+ * reloading, used to be dropped silently — a visual pushed at the wrong moment simply
+ * never appeared. They are held here and replayed as soon as the page can receive them.
+ */
+interface OutboxEntry {
+  channel: string;
+  args: unknown[];
+}
+const OUTBOX_LIMIT = 24;
+let outbox: OutboxEntry[] = [];
+let hudReady = false;
+
+const holdForHud = (channel: string, args: unknown[]): void => {
+  outbox.push({ channel, args });
+  if (outbox.length > OUTBOX_LIMIT) outbox.shift();
+};
+
+const flushOutbox = (): void => {
+  const w = win;
+  if (!w || w.isDestroyed() || !outbox.length) return;
+  const held = outbox;
+  outbox = [];
+  for (const e of held) {
+    try {
+      w.webContents.send(e.channel, ...e.args);
+    } catch {
+      outbox.unshift(e); // still undeliverable: keep it queued for the next flush
+      break;
+    }
+  }
+};
+
 export const sendToHud = (channel: string, ...args: unknown[]): boolean => {
-  if (!win || win.isDestroyed()) return false;
+  if (!win || win.isDestroyed() || !hudReady) {
+    holdForHud(channel, args);
+    return false;
+  }
   try {
     win.webContents.send(channel, ...args);
     return true;
   } catch {
     // The render frame can be disposed between the destroyed check and the send
-    // (renderer reload, crash or app teardown). Dropping the push is always correct.
+    // (renderer reload, crash or app teardown): hold the message for the next load.
+    holdForHud(channel, args);
     return false;
   }
 };
-/** Make sure the HUD is visible and on top (used for approval prompts). */
+/** Make sure the HUD is visible and on top (used for visuals and notification clicks). */
 export const attentionHud = (): void => {
   if (!win || win.isDestroyed()) return;
   if (win.isMinimized()) win.restore();
@@ -138,6 +176,17 @@ export function attachHud(w: BrowserWindow): void {
   win = w;
   mini = false;
   docked = false;
+  hudReady = false;
+  // Replay everything pushed while the page was loading. The 300 ms grace after
+  // did-finish-load covers the gap before React's first effect subscribes; without it
+  // the first visual after a cold start or a renderer reload still vanished.
+  w.webContents.on('did-finish-load', () => {
+    hudReady = true;
+    setTimeout(flushOutbox, 300);
+  });
+  w.webContents.on('did-start-loading', () => {
+    hudReady = false; // a reload is starting: hold every push until it can be received
+  });
   w.on('moved', () => {
     if (mini && !tweenTimer) miniBounds = w.getBounds();
   });

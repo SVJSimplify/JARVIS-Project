@@ -1,5 +1,6 @@
 import { getTinyfishKey } from './settings';
 import type { Tool } from './toolTypes';
+import { withTimeout } from './toolResult';
 
 const SEARCH_URL = 'https://api.search.tinyfish.ai';
 const FETCH_URL = 'https://api.fetch.tinyfish.ai';
@@ -30,7 +31,7 @@ async function call<T>(url: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: { 'X-API-Key': await key(), 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: withTimeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`TinyFish returned ${res.status}${res.status === 429 ? ' (rate limited)' : ''}.`);
   return (await res.json()) as T;
@@ -81,6 +82,7 @@ export async function tinyfishHits(query: string): Promise<Hit[] | null> {
 
 export const tinyfishTools: Record<string, Tool> = {
   tinyfish_search: {
+    parallelSafe: true,
     description:
       'Web search via TinyFish: fast ranked results (title, URL, snippet) built for agents. Preferred web search. Optional location, language, recency_minutes.',
     parameters: {
@@ -105,6 +107,7 @@ export const tinyfishTools: Record<string, Tool> = {
     },
   },
   tinyfish_fetch: {
+    parallelSafe: true,
     description:
       'Fetch up to 10 URLs via TinyFish (renders JavaScript, returns clean markdown). Better than fetch_url for JS-heavy or blocked pages.',
     parameters: {

@@ -1,8 +1,9 @@
 import { BrowserWindow, WebContentsView, app, screen, session } from 'electron';
-import * as path from 'path';
 import { dockHud, raiseHud, setLeaveHandler, setResumeHandler, undockHud } from './hud';
+import { isBackgroundMode } from './modes';
 import { barHtml } from './panelTabs';
 import { sceneHtml } from './panelScene';
+import { uniqueDownloadPath , verifyDownloadFile } from './fsTools';
 
 const BG = '#000000';
 const PARTITION = 'persist:jarvis-browser';
@@ -46,6 +47,13 @@ const easeInOut = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k 
 const pageBounds = (): Electron.Rectangle => ({ x: 0, y: BAR_H, width: size.width, height: Math.max(0, size.height - BAR_H) });
 const activeTab = (): Tab | undefined => tabs.find((t) => t.view === page);
 const alive = () => Boolean(host && !host.isDestroyed());
+/**
+ * STEALTH (background mode): the panel exists, pages load and run at full speed, but it is
+ * NEVER shown, focused, fullscreened or docked — autonomous research happens on a window
+ * nobody sees. Every show/focus path below checks this; there is no way to surface the
+ * panel while background mode is on.
+ */
+const stealth = (): boolean => isBackgroundMode();
 
 function animate(ms: number, ease: (k: number) => number, step: (k: number) => void): Promise<void> {
   return new Promise((resolve) => {
@@ -99,20 +107,45 @@ function wireDownloads(): void {
   if (dlWired) return;
   dlWired = true;
   session.fromPartition(PARTITION).on('will-download', (_e, item) => {
-    const file = path.join(app.getPath('downloads'), item.getFilename());
-    item.setSavePath(file);
-    item.once('done', (_d, state) => {
-      dlLog.push(`${state}: ${file}`);
-      if (dlLog.length > 20) dlLog.splice(0, dlLog.length - 20); // the log is read five-at-a-time; never let it grow unbounded
+    // Never overwrite: the save path is uniquified (name (1).ext, …) and confined to a
+    // bare filename inside the downloads directory. Code-enforced — page content cannot
+    // choose to replace an existing user file.
+    void uniqueDownloadPath(app.getPath('downloads'), item.getFilename()).then((file) => {
+      item.setSavePath(file);
+      item.once('done', (_d, state) => {
+        // Round 18 §8.5: a 'completed' download is VERIFIED (size + magic bytes) before
+        // it is reported — a click does not prove the file is real.
+        void verifyDownloadFile(file)
+          .then((v) => {
+            dlLog.push(state === 'completed' ? `${v.ok ? 'completed+verified' : 'completed UNVERIFIED'}: ${v.evidence}` : `${state}: ${file}`);
+          })
+          .catch(() => {
+            dlLog.push(`${state}: ${file}`);
+          })
+          .finally(() => {
+            if (dlLog.length > 20) dlLog.splice(0, dlLog.length - 20); // read five-at-a-time; never unbounded
+          });
+      });
     });
   });
 }
 
 /** Alerts, confirms and prompts never block the page: they are recorded, and answered per browser_dialog (default dismiss). */
-const DIALOG_JS = `(() => { if (window.__jvDlg) return; window.__jvDlg = []; window.__jvDlgMode = 'dismiss'; window.__jvDlgText = null;
+export const DIALOG_JS = `(() => { if (window.__jvDlg) return; window.__jvDlg = []; window.__jvDlgMode = 'dismiss'; window.__jvDlgText = null;
   window.alert = (m) => { window.__jvDlg.push('alert: ' + m); };
   window.confirm = (m) => { window.__jvDlg.push('confirm: ' + m); return window.__jvDlgMode === 'accept'; };
   window.prompt = (m, d) => { window.__jvDlg.push('prompt: ' + m); return window.__jvDlgMode === 'accept' ? (window.__jvDlgText === null ? (d || '') : window.__jvDlgText) : null; }; })()`;
+
+/**
+ * Round 20 (CHANGE 8): dialog-policy persistence hook. browser.ts registers its
+ * applyDialogPolicy here; the dom-ready hook below calls it AFTER DIALOG_JS re-installs
+ * the default-dismiss handlers, so a per-tab "accept dialogs" decision survives
+ * navigation instead of silently resetting.
+ */
+let dialogPolicyApplier: ((wc: Electron.WebContents) => void) | null = null;
+export const setDialogPolicyApplier = (fn: (wc: Electron.WebContents) => void): void => {
+  dialogPolicyApplier = fn;
+};
 
 function createTab(): Tab {
   wireDownloads();
@@ -192,8 +225,9 @@ export function panelState(): PanelSnapshot {
   return { state, hidden, tabCount: tabs.length, activeTitle: a?.title ?? '', activeUrl: url };
 }
 
-/** Bring a panel hidden behind the expanded HUD back on screen; false when there is nothing to show. */
+/** Bring a panel hidden behind the expanded HUD back on screen; false when there is nothing to show. Never shows in stealth. */
 export function showPanel(): boolean {
+  if (stealth()) return false;
   if (state === 'closed' || state === 'closing' || !hidden || !alive()) return false;
   hidden = false;
   host!.show();
@@ -284,6 +318,13 @@ function wirePage(wc: Electron.WebContents, tab: Tab): void {
   wc.on('dom-ready', () => {
     void wc.executeJavaScript(CLOSE_JS).catch(() => undefined);
     void wc.executeJavaScript(DIALOG_JS).catch(() => undefined);
+    // Round 20 (CHANGE 8): re-apply the persisted per-tab dialog policy on EVERY new
+    // document (after DIALOG_JS has re-installed its handlers).
+    try {
+      dialogPolicyApplier?.(wc);
+    } catch {
+      /* a stale policy must never break the page load */
+    }
     void wc.insertCSS('::-webkit-scrollbar{display:none}');
   });
   wc.on('console-message', (...a: unknown[]) => {
@@ -395,11 +436,13 @@ async function runClose(): Promise<void> {
   teardown();
 }
 
-/** Open (or reuse) the full-screen panel and return its page. `label` is shown during the intro. */
+/** Open (or reuse) the full-screen panel and return its page. `label` is shown during the intro.
+ *  In stealth (background mode) the same panel is built INVISIBLY: no doors, no animation,
+ *  no show/focus/fullscreen ever — the caller works against a hidden, live page. */
 export function ensurePanel(label = 'PANEL'): Electron.WebContents {
   if (!main || main.isDestroyed()) throw new Error('No window available.');
   if (page && state !== 'closing') {
-    if (hidden && alive()) {
+    if (hidden && alive() && !stealth()) {
       hidden = false;
       host!.show();
       goFullscreen();
@@ -427,7 +470,7 @@ export function ensurePanel(label = 'PANEL'): Electron.WebContents {
     fullscreenable: true,
     hasShadow: false,
     backgroundColor: BG,
-    webPreferences: { sandbox: true },
+    webPreferences: { sandbox: true, backgroundThrottling: false },
   });
   host.setAlwaysOnTop(true, 'screen-saver');
   host.setOpacity(0);
@@ -470,6 +513,13 @@ export function ensurePanel(label = 'PANEL'): Electron.WebContents {
   const first = createTab();
   activate(first);
 
+  if (stealth()) {
+    // Invisible open: no doors, no animation, no dock — the page is simply live and hidden.
+    hidden = true;
+    state = 'open';
+    return first.view.webContents;
+  }
+
   doors = [0, 1].map(() => {
     const v = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true } });
     v.setBackgroundColor(BG);
@@ -492,6 +542,11 @@ function suspendPanel(): void {
 
 export function closePanel(): string {
   if (state === 'closed') return 'Already closed.';
+  // Stealth never shows a hidden panel just to close it: teardown straight away.
+  if (stealth()) {
+    teardown();
+    return 'Closed.';
+  }
   if (hidden && alive()) {
     hidden = false;
     host!.show();
@@ -544,7 +599,7 @@ export function attachPanel(w: BrowserWindow): void {
   main = w;
   setLeaveHandler(suspendPanel);
   setResumeHandler(() => {
-    if (!hidden || !alive()) return false;
+    if (!hidden || !alive() || stealth()) return false;
     hidden = false;
     host!.show();
     raiseHud();
@@ -552,7 +607,7 @@ export function attachPanel(w: BrowserWindow): void {
   });
   // Restoring the HUD from the taskbar must not push the browser away: re-assert it, HUD on top.
   const reassert = (): void => {
-    if (state === 'closed' || hidden || !alive()) return;
+    if (state === 'closed' || hidden || !alive() || stealth()) return;
     host!.setAlwaysOnTop(true, 'screen-saver');
     host!.showInactive();
     host!.moveTop();

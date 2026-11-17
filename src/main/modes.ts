@@ -5,15 +5,16 @@ export type { ActivityEvent, ActivityKind, InteractionMode, ModeInfo, NotifyPayl
 /**
  * Interaction modes — the single source of truth for HOW JARVIS presents his work.
  *
- * - `interactive`: every action (tool start/result, progress note, approval, visual)
+ * - `interactive`: every action (tool start/result, progress note, visual)
  *   is streamed live to the HUD activity feed. Nothing is hidden.
  * - `background`: JARVIS works silently. Speech is held, no attention-grabbing pop-ups,
  *   live feed pushes stop; events are buffered into a per-turn digest and ONE honest
  *   summary notification is delivered when the turn ends (from the turn's real verdict,
  *   never a canned "done").
  *
- * Safety is above silence: approval prompts always surface, even in background mode —
- * a destructive action must never be waved through just because the user asked for quiet.
+ * There are no approval prompts anywhere in the system (the single policy), so there is
+ * nothing that needs to pierce background silence: the two hard restrictions are enforced
+ * at the tool gate in code, in both modes alike.
  *
  * This module is pure logic and electron-free (it never imports electron) so the whole
  * state machine is unit-testable; index.ts injects the real sink (HUD push) and the
@@ -29,6 +30,15 @@ interface ModesConfig {
   sink?: (channel: string, payload: unknown) => void;
   /** Native OS notifier (Electron Notification in the app). Must never throw. */
   notify?: (p: NotifyPayload) => void;
+  /**
+   * Mode-INDEPENDENT mirror of every activity event (wired to the live task
+   * progress tracker). Fires in background mode too — unlike the feed push
+   * below, this is how "what is JARVIS doing right now" stays answerable in
+   * real time while everything else stays silent.
+   */
+  onEvent?: (e: ActivityEvent) => void;
+  /** Turn lifecycle mirror for the progress tracker ('start' with the task, 'end' with the outcome). */
+  onTurn?: (phase: 'start' | 'end', task: string, res?: { failed?: boolean; interrupted?: boolean }) => void;
 }
 
 /** Everything the feed can show is kept here; a 60-round turn cannot balloon memory. */
@@ -61,6 +71,8 @@ let mode: InteractionMode = 'interactive';
 let file: string | undefined;
 let sink: ModesConfig['sink'];
 let notify: ModesConfig['notify'];
+let onEventHook: ModesConfig['onEvent'];
+let onTurnHook: ModesConfig['onTurn'];
 let seq = 0;
 let digest = freshDigest();
 const ring: ActivityEvent[] = [];
@@ -85,6 +97,8 @@ export function initModes(cfg: ModesConfig = {}): Promise<void> {
   file = cfg.file;
   sink = cfg.sink;
   notify = cfg.notify;
+  onEventHook = cfg.onEvent;
+  onTurnHook = cfg.onTurn;
   mode = 'interactive';
   digest = freshDigest();
   ring.length = 0;
@@ -146,6 +160,13 @@ export function emitActivity(e: Omit<ActivityEvent, 'id' | 't'>): ActivityEvent 
   };
   ring.push(ev);
   if (ring.length > RING_CAP) ring.splice(0, ring.length - RING_CAP);
+  // The progress mirror fires in BOTH modes (silence in background mode applies to the
+  // feed push, speech and notifications — never to "where is JARVIS right now").
+  try {
+    onEventHook?.(ev);
+  } catch {
+    /* a broken mirror must not break the tool being reported */
+  }
   if (digest.open && e.kind !== 'mode') {
     digest.steps++;
     if (e.status === 'fail') digest.failures++;
@@ -169,6 +190,11 @@ export function holdSpeech(text: string): boolean {
 /** Open the per-turn digest. Called once per conversational turn, before any tool runs. */
 export function beginTurn(task: string): void {
   digest = { ...freshDigest(), open: true, task: clip(oneLine(task), TASK_CAP), startedAt: Date.now(), background: isBackground() };
+  try {
+    onTurnHook?.('start', digest.task);
+  } catch {
+    /* the progress mirror must never break the turn starting */
+  }
 }
 
 /**
@@ -181,6 +207,13 @@ export function endTurn(res: { reply?: string; failed?: boolean; interrupted?: b
     if (!digest.open) return null;
     const d = digest;
     digest = freshDigest();
+    // The progress tracker learns the outcome in BOTH modes (before the background
+    // early-return below): a finished silent turn must still freeze its checklist.
+    try {
+      onTurnHook?.('end', d.task, { failed: res.failed, interrupted: res.interrupted });
+    } catch {
+      /* a broken mirror must not break the turn ending */
+    }
     if (!(isBackground() || d.background)) return null;
 
     const reply = clip(oneLine(res.reply ?? ''), REPLY_CAP);

@@ -49,7 +49,10 @@ export async function startListener(o: ListenerOptions): Promise<{ stop: () => v
     o.onLevel(Math.min(1, rms * 6));
 
     const gate = o.gate();
-    const voiced = rms > Math.max(MIN_THRESHOLD, floor * 3) * (gate === 'barge' ? 2.2 : 1);
+    // While JARVIS talks, a barge capture must be deliberate: a higher threshold and
+    // ~250 ms of sustained voice (vs 96 ms otherwise) reject speaker echo, clicks and
+    // door slams instead of letting them start an interrupt capture mid-sentence.
+    const voiced = rms > Math.max(MIN_THRESHOLD, floor * 3) * (gate === 'barge' ? 2.4 : 1);
 
     if (!inSpeech) {
       if (gate === 'deaf') {
@@ -64,7 +67,7 @@ export async function startListener(o: ListenerOptions): Promise<{ stop: () => v
         floor = floor * 0.95 + rms * 0.05;
         return;
       }
-      if (++loud >= (gate === 'barge' ? 5 : 3)) {
+      if (++loud >= (gate === 'barge' ? 8 : 3)) {
         inSpeech = true;
         barge = gate === 'barge';
         seg = [...pre];

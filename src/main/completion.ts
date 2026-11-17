@@ -3,8 +3,6 @@ import * as os from 'os';
 import * as path from 'path';
 import { atomicWrite, loadJson } from './store';
 import { FILES_ROOT } from './workspace';
-import { isBackground } from './mode';
-import { notifyTaskDone } from './notify';
 
 /**
  * COMPLETION VERDICT ENGINE — the code-enforced contract that a task is either truly
@@ -14,9 +12,9 @@ import { notifyTaskDone } from './notify';
  * closed the panel, and claims in general could not be trusted to match tool reality. Prompts
  * ask for honesty; this module ENFORCES it, deterministically, on every turn:
  *
- *  1. EVIDENCE LEDGER  — every tool result of the turn is classified (success/failed/blocked/
- *     approval) by its standardised prefix. This ledger, not the model's prose, is ground truth.
- *  2. VERDICT          — computed from the ledger: completed | partial | failed | needs_user |
+ *  1. EVIDENCE LEDGER  — every tool result of the turn is classified (success/failed/blocked)
+ *     by its standardised prefix. This ledger, not the model's prose, is ground truth.
+ *  2. VERDICT          — computed from the ledger: completed | partial | failed | blocked |
  *     no_action. A failure that was later fixed by a same-family success counts as resolved.
  *  3. REPLY AUDIT      — the final spoken reply is audited against the ledger. A success claim
  *     over unresolved failures is REWRITTEN into an honest status; an action claim with no
@@ -35,8 +33,10 @@ import { notifyTaskDone } from './notify';
  * reply — never inflate success. If the ledger is empty, the reply passes untouched.
  */
 
-export type Outcome = 'success' | 'failed' | 'blocked' | 'approval';
-export type Verdict = 'completed' | 'partial' | 'failed' | 'needs_user' | 'no_action' | 'interrupted';
+export type Outcome = 'success' | 'failed' | 'blocked';
+/** Truthful turn outcomes. `blocked` = a hard code-enforced block (deletion / OS resources)
+ *  ended the work — it is final and reported as disabled, never as something awaiting anyone. */
+export type Verdict = 'completed' | 'partial' | 'failed' | 'blocked' | 'no_action' | 'interrupted';
 
 export interface LedgerEntry {
   tool: string;
@@ -56,18 +56,19 @@ export interface Audit {
 
 // ---------------------------------------------------------------- outcome classification
 
-/** Deterministic: a result is a failure iff it starts with one of the standard prefixes. */
+/** Deterministic: a result is a failure iff it starts with one of the standard prefixes.
+ *  `NOT APPROVED` is the legacy prefix of the old permission flow: today it can only mean
+ *  the gate's deletion tooth, which is a HARD block — so it classifies as blocked. */
 export const classifyOutcome = (raw: string): Outcome => {
   const s = String(raw ?? '');
-  if (/^NOT APPROVED/.test(s)) return 'approval';
-  if (/^BLOCKED/.test(s)) return 'blocked';
+  if (/^NOT APPROVED/.test(s) || /^BLOCKED/.test(s)) return 'blocked';
   if (/^(Tool error|Unknown tool|NOT DONE|TIMEOUT\b)/.test(s)) return 'failed';
   return 'success';
 };
 
 export type FailureClass =
   | 'permission' | 'missing' | 'timeout' | 'network' | 'config' | 'routing'
-  | 'browser_closed' | 'input' | 'approval' | 'blocked' | 'other';
+  | 'browser_closed' | 'input' | 'blocked' | 'other';
 
 const CLASS_RES: Array<[RegExp, FailureClass]> = [
   [/EPERM|EACCES|access is denied|permission|BitLocker|Controlled Folder/i, 'permission'],
@@ -83,8 +84,7 @@ const CLASS_RES: Array<[RegExp, FailureClass]> = [
 /** Coarse, human-usable class of a failure from its raw error text. */
 export const failureClass = (raw: string): FailureClass => {
   const s = String(raw ?? '');
-  if (/^NOT APPROVED/.test(s)) return 'approval';
-  if (/^BLOCKED/.test(s)) return 'blocked';
+  if (/^NOT APPROVED/.test(s) || /^BLOCKED/.test(s)) return 'blocked';
   for (const [re, c] of CLASS_RES) if (re.test(s)) return c;
   return 'other';
 };
@@ -101,7 +101,6 @@ const CLASS_SPOKEN: Record<FailureClass, string> = {
   routing: 'the tool routing failed',
   browser_closed: 'the browser panel was closed',
   input: 'the details were invalid',
-  approval: 'your approval is needed',
   blocked: 'it is disabled by policy',
   other: 'the step errored',
 };
@@ -126,8 +125,6 @@ export const nextStepFor = (c: FailureClass): string => {
       return 'ask me to reopen the browser panel and I will finish the job';
     case 'input':
       return 'give me the corrected detail and I will redo it';
-    case 'approval':
-      return 'say the word and I will proceed';
     case 'blocked':
       return 'we need a different route; that action is disabled for safety';
     default:
@@ -166,9 +163,10 @@ export const verdictOf = (entries: LedgerEntry[]): Verdict => {
   if (!entries.length) return 'no_action';
   const unresolved = unresolvedFailures(entries);
   if (unresolved.length) return entries.some((e) => e.outcome === 'success') ? 'partial' : 'failed';
-  // Everything that failed was fixed. Leftover approval/blocked steps still block "completed".
-  const gate = entries.some((e) => e.outcome === 'approval' || e.outcome === 'blocked');
-  return gate ? 'needs_user' : 'completed';
+  // Everything that failed was fixed. Leftover blocked steps still block "completed":
+  // a policy-blocked step is not done, and no wording can make it done.
+  const gate = entries.some((e) => e.outcome === 'blocked');
+  return gate ? 'blocked' : 'completed';
 };
 
 // ----------------------------------------------------------------------- reply audit
@@ -245,7 +243,6 @@ export function auditReply(reply: string, entries: LedgerEntry[], request: strin
 
   const unresolved = unresolvedFailures(all);
   const successes = all.filter((e) => e.outcome === 'success');
-  const gates = all.filter((e) => e.outcome === 'approval' || e.outcome === 'blocked');
 
   // The verdict comes from the ledger, never from the reply's prose.
   let verdict = verdictOf(all);
@@ -270,11 +267,12 @@ export function auditReply(reply: string, entries: LedgerEntry[], request: strin
       replyText = `${replyText} Next: ${nextStepFor(failureClass(unresolved[0].raw))}.`;
       enforcement.push('next_step_added');
     }
-  } else if (verdict === 'needs_user') {
-    if (!/\b(approve|allow|say the word|shall i|want me to|confirm|go ahead)\b/i.test(replyText)) {
-      const blocked = gates.some((g) => g.outcome === 'blocked');
-      replyText = `${replyText} ${blocked ? 'That step is disabled for safety, sir.' : 'Your go-ahead is needed for that step, sir.'}`.trim();
-      enforcement.push('approval_ask_added');
+  } else if (verdict === 'blocked') {
+    if (!/\b(disabled|can'?t|cannot|policy|instead|different)\b/i.test(replyText)) {
+      // A blocked step is final (code-enforced): the reply must say the step is disabled,
+      // never invite an approval that cannot exist.
+      replyText = `${replyText} That step is disabled for safety, sir — we will need a different route.`.trim();
+      enforcement.push('blocked_step_stated');
     }
   } else if (verdict === 'no_action' || verdict === 'completed') {
     // Unverifiable claim: a past-tense action with NO supporting success anywhere. Only fired
@@ -451,7 +449,7 @@ interface Stats {
   completed: number;
   partial: number;
   failed: number;
-  needs_user: number;
+  blocked: number;
   no_action: number;
   interrupted: number;
   falseSuccessCaught: number;
@@ -462,7 +460,7 @@ interface Stats {
 }
 
 const emptyStats = (): Stats => ({
-  total: 0, completed: 0, partial: 0, failed: 0, needs_user: 0, no_action: 0, interrupted: 0,
+  total: 0, completed: 0, partial: 0, failed: 0, blocked: 0, no_action: 0, interrupted: 0,
   falseSuccessCaught: 0, unverifiableCaught: 0, qualityFails: 0, rescues: 0, recent: [],
 });
 
@@ -502,7 +500,7 @@ const note = (entries: LedgerEntry[], enforcement: string[], extra?: string): st
   return enforcement[0] ?? '';
 };
 
-/** Record one finished unit of work (a turn, or a background mission via recordMissionEnd). */
+/** Record one finished unit of work (a turn, or a scheduled job's summary). */
 async function recordOutcome(verdict: Verdict, entries: LedgerEntry[] = [], enforcement: string[] = [], extra?: string): Promise<void> {
   await loadStats();
   stats.total++;
@@ -510,15 +508,6 @@ async function recordOutcome(verdict: Verdict, entries: LedgerEntry[] = [], enfo
   stats.recent = [...stats.recent, { t: Date.now(), verdict, note: note(entries, enforcement, extra) }].slice(-20);
   await saveStats();
 }
-
-/** Background missions are tasks too: their end state feeds the same measured guarantee.
- *  Cancelled missions count as interrupted (the user stopped them), never as failures.
- *  BACKGROUND MODE: a mission that ends while the user is away notifies them — the same
- *  audited honesty, delivered as one notification instead of speech. */
-export const recordMissionEnd = async (outcome: 'completed' | 'failed' | 'interrupted', summary: string): Promise<void> => {
-  await recordOutcome(outcome, [], [], clip(summary, 140));
-  if (isBackground()) await notifyTaskDone({ verdict: outcome, reply: summary, source: 'mission' });
-};
 
 /** Human-readable measurement report, for the completion_stats tool. */
 export async function completionReport(): Promise<string> {
@@ -530,7 +519,7 @@ export async function completionReport(): Promise<string> {
     'Every non-completed task carried an honest status and a next step: YES (enforced in code — the reply is audited against the tool evidence ledger before it reaches you).';
   const recent = stats.recent.slice(-5).map((r) => `- [${r.verdict}] ${r.note || '(clean)'}`).join('\n');
   return [
-    `Task completion, last ${stats.total} measured: ${done} completed, ${pct(stats.partial)} partial, ${pct(stats.failed)} failed, ${pct(stats.needs_user)} awaiting your approval, ${pct(stats.interrupted)} stopped by you.`,
+    `Task completion, last ${stats.total} measured: ${done} completed, ${pct(stats.partial)} partial, ${pct(stats.failed)} failed, ${pct(stats.blocked)} stopped by a policy block, ${pct(stats.interrupted)} stopped by you.`,
     `Enforcement record: ${stats.falseSuccessCaught} false-success claim(s) caught and rewritten, ${stats.unverifiableCaught} unverifiable claim(s) caught, ${stats.qualityFails} quality check(s) failed and downgraded, ${stats.rescues} recovery pass(es) run.`,
     `Target: complete 99% of tasks or report the status honestly with what to do next. Honesty is enforced at 100%; the completion rate above is the live measurement to push toward the target.`,
     honest,

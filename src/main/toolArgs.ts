@@ -1,6 +1,15 @@
 import type { Tool } from './toolTypes';
 
-type Schema = { type?: string; properties?: Record<string, { type?: string; enum?: unknown[] }>; required?: string[] };
+type PropSchema = {
+  type?: string;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  description?: string;
+};
+type Schema = { type?: string; properties?: Record<string, PropSchema>; required?: string[] };
 
 const ALIASES: Record<string, string> = {
   open_browser: 'browser_open', browser_navigate: 'browser_open', browser_goto: 'browser_open', navigate: 'browser_open',
@@ -60,7 +69,10 @@ export function parseArgs(raw: string): Record<string, unknown> {
   throw new Error(`Arguments were not valid JSON: ${t.slice(0, 120)}`);
 }
 
-/** Coerce stringly-typed values to the schema and reject calls missing required fields with an actionable message. */
+/** Coerce stringly-typed values to the schema and reject calls missing required fields with an actionable message.
+ *  F-11: declared enums, numeric ranges and string length bounds are ENFORCED, not just
+ *  documentation — a schema violation fails with an actionable message instead of
+ *  reaching the tool and failing somewhere less explainable. */
 export function checkArgs(name: string, args: Record<string, unknown>, params: unknown): Record<string, unknown> {
   const sch = (params ?? {}) as Schema;
   const props = sch.properties ?? {};
@@ -90,6 +102,25 @@ export function checkArgs(name: string, args: Record<string, unknown>, params: u
   if (missing.length) {
     const sig = Object.entries(props).map(([k, d]) => `${k}${sch.required?.includes(k) ? '*' : ''}:${d.type ?? 'any'}`).join(', ');
     throw new Error(`${name} is missing required argument(s): ${missing.join(', ')}. Signature: ${sig}. Call it again with them.`);
+  }
+  // Constraint enforcement (F-11). Runs after coercion so "3" for an enum ["3"] works.
+  for (const [k, def] of Object.entries(props)) {
+    const v = out[k];
+    if (v === undefined || v === null) continue;
+    if (def.enum && !def.enum.some((e) => e === v || JSON.stringify(e) === JSON.stringify(v)))
+      throw new Error(`${name}.${k} must be one of: ${def.enum.map((e) => String(e)).join(' | ')} (got ${JSON.stringify(v)}). Call it again with a valid value.`);
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      if (def.minimum !== undefined && v < def.minimum)
+        throw new Error(`${name}.${k} must be ≥ ${def.minimum} (got ${v}). Call it again.`);
+      if (def.maximum !== undefined && v > def.maximum)
+        throw new Error(`${name}.${k} must be ≤ ${def.maximum} (got ${v}). Call it again.`);
+    }
+    if (typeof v === 'string') {
+      if (def.maxLength !== undefined && v.length > def.maxLength)
+        throw new Error(`${name}.${k} exceeds its maximum length of ${def.maxLength} characters (got ${v.length}). Trim it and call again.`);
+      if (def.minLength !== undefined && v.length < def.minLength)
+        throw new Error(`${name}.${k} must be at least ${def.minLength} characters (got ${v.length}). Call it again.`);
+    }
   }
   return out;
 }

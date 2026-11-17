@@ -7,7 +7,7 @@
 
 export type InteractionMode = 'interactive' | 'background';
 
-export type ActivityKind = 'tool' | 'progress' | 'speech' | 'visual' | 'confirm' | 'mode';
+export type ActivityKind = 'tool' | 'progress' | 'speech' | 'visual' | 'mode' | 'task' | 'agent' | 'verify';
 
 export interface ActivityEvent {
   id: number;
@@ -19,6 +19,18 @@ export interface ActivityEvent {
   detail?: string;
   status?: 'busy' | 'ok' | 'fail' | 'held';
   ms?: number;
+  /** Round 23 (task-scoped activity): the durable task that owns this invocation, when
+   *  one exists. Optional: conversational-turn calls run without one and are scoped by
+   *  the turn bucket in the invocation ledger instead. */
+  taskId?: string;
+  /** Round 23: the invocation was stopped by its execution scope (cancelled mid-run/before run). */
+  cancelled?: boolean;
+  /** Round 23: policy blocked the invocation — it never ran. */
+  blocked?: boolean;
+  /** Round 23: the invocation-ledger scope the event was recorded under (stamped by the
+   *  main process before the push). The renderer filters live pushes with it, so activity
+   *  from one task/prompt can never leak into another task's view. */
+  scope?: string;
 }
 
 export interface NotifyPayload {
@@ -38,4 +50,21 @@ export interface NotifyPayload {
 export interface ModeInfo {
   mode: InteractionMode;
   events: ActivityEvent[];
+}
+
+/**
+ * One full-fidelity conversation turn (history.ts): what the user asked and what JARVIS
+ * answered, stored verbatim — never a summary, never truncated. `actions` are the tool
+ * descriptions executed during the turn; `error` is set when the turn failed or was
+ * interrupted. `legacy` marks turns recovered from the old compact session log, whose
+ * text was clipped at write time.
+ */
+export interface HistoryTurn {
+  /** Epoch ms when the turn finished. */
+  t: number;
+  user: string;
+  actions: string[];
+  reply: string;
+  error?: string;
+  legacy?: boolean;
 }

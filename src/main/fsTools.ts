@@ -3,7 +3,9 @@ import * as path from 'path';
 import { Worker } from 'worker_threads';
 import type { Tool } from './toolTypes';
 import { atomicWrite } from './store';
-import { displayPath, fsExplain, resolveRead, resolveWrite } from './workspace';
+import { withWriteLock } from './writeCoord';
+import { callContext } from './toolRecord';
+import { displayPath, fsExplain, resolveRead, resolveWrite, revalidateReadTarget } from './workspace';
 
 const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist', 'release', '__pycache__', '.venv', '.next']);
 const MAX_WALK_FILES = 20_000;
@@ -199,6 +201,7 @@ const dirParam = { type: 'string', description: 'Folder to search. Relative path
 
 export const fsTools: Record<string, Tool> = {
   read: {
+    parallelSafe: true,
     description:
       'Read a file (numbered lines) or list a directory. Any path is readable; relative paths start at the Jarvis-Files workspace. Use offset/limit for large files.',
     parameters: {
@@ -212,6 +215,10 @@ export const fsTools: Record<string, Tool> = {
     },
     run: async (args) => {
       const target = resolveRead(args.path);
+      // ROUND 33 (§1.2): final-moment boundary revalidation immediately before the I/O —
+      // a symlink swapped in between resolveRead and this read cannot redirect a
+      // project-bound read outside the workspace (no-op without a binding).
+      await revalidateReadTarget(target);
       const stat = await fs.stat(target).catch((e) => {
         throw fsExplain(e, displayPath(target) || target);
       });
@@ -255,6 +262,7 @@ export const fsTools: Record<string, Tool> = {
     },
   },
   glob: {
+    parallelSafe: true,
     description: 'Find files by glob pattern (e.g. **/*.ts, src/**/*.{js,jsx}). Newest first. Skips node_modules and .git.',
     parameters: {
       type: 'object',
@@ -274,6 +282,7 @@ export const fsTools: Record<string, Tool> = {
     },
   },
   grep: {
+    parallelSafe: true,
     description: 'Search file contents with a regular expression. Returns file:line: text. Skips node_modules, .git and binaries.',
     parameters: {
       type: 'object',
@@ -354,16 +363,99 @@ export const fsTools: Record<string, Tool> = {
       const edits = args.edits as EditSpec[] | undefined;
       if (!Array.isArray(edits) || !edits.length) throw new Error('edits must be a non-empty array.');
       const file = await resolveWrite(args.path);
-      let text = await fs.readFile(file, 'utf8');
-      edits.forEach((e, i) => {
-        try {
-          text = applyEdit(text, e).text;
-        } catch (err) {
-          throw new Error(`Edit ${i + 1}: ${err instanceof Error ? err.message : String(err)} Nothing was changed.`);
-        }
+      const who2 = callContext();
+      const owner = `${who2.agent}${who2.taskId ? `:${who2.taskId}` : ''}`;
+      // F-21: the ENTIRE read-modify-write sits inside the per-path lock. Reading outside
+      // the lock used to let two engines both apply against the same base text and the
+      // second write silently clobber the first (last-writer-wins on stale data). Inside
+      // the lock, the second engine READS what the first wrote and fails LOUDLY when its
+      // old_text no longer matches.
+      return withWriteLock(file, owner, async () => {
+        let text = await fs.readFile(file, 'utf8');
+        edits.forEach((e, i) => {
+          try {
+            text = applyEdit(text, e).text;
+          } catch (err) {
+            throw new Error(`Edit ${i + 1}: ${err instanceof Error ? err.message : String(err)} Nothing was changed.`);
+          }
+        });
+        await atomicWrite(file, text);
+        return `Applied ${edits.length} edit(s) to ${displayPath(file)}.`;
       });
-      await atomicWrite(file, text);
-      return `Applied ${edits.length} edit(s) to ${displayPath(file)}.`;
     },
   },
 };
+
+/**
+ * DOWNLOAD OVERWRITE PROTECTION (code-enforced): page-driven downloads used to be saved
+ * straight to `~/Downloads/<filename>`, silently replacing whatever was already there —
+ * a data-loss path that ran outside every tool and outside the user's sight. This helper
+ * never returns an existing file: it uniquifies `name (1).ext`, `name (2).ext`, …, and it
+ * confines the name to a bare filename so a hostile `../` in the download suggestion
+ * cannot escape the downloads directory. Pure async fs; unit-tested without Electron.
+ */
+/**
+ * DOWNLOAD VERIFICATION (Round 18 §8.5): a finished download is verified, not trusted —
+ * the file must exist, be non-empty, and carry a magic-byte signature consistent with
+ * its extension when one is known. Returns an honest evidence line; 'unknown' is a
+ * verdict for unrecognized types (never a fake pass).
+ */
+export async function verifyDownloadFile(file: string): Promise<{ ok: boolean; evidence: string }> {
+  try {
+    const st = await fs.stat(file);
+    if (!st.isFile()) return { ok: false, evidence: `${file} is not a file` };
+    if (st.size === 0) return { ok: false, evidence: `${file} is EMPTY (0 bytes)` };
+    const head = Buffer.alloc(8);
+    const fh = await fs.open(file, 'r');
+    try {
+      await fh.read(head, 0, 8, 0);
+    } finally {
+      await fh.close();
+    }
+    const sniff = sniffFileType(head);
+    const ext = path.extname(file).slice(1).toLowerCase();
+    const mismatch =
+      sniff.magic && ext && !sniff.exts.includes(ext)
+        ? `signature says ${sniff.label} but the extension is .${ext}`
+        : null;
+    const evidence = `${file} (${(st.size / 1024).toFixed(1)} KB, ${sniff.label})${mismatch ? ` — MISMATCH: ${mismatch}` : ''}`;
+    return { ok: !mismatch, evidence };
+  } catch (e) {
+    return { ok: false, evidence: `${file} could not be verified: ${e instanceof Error ? e.message : e}` };
+  }
+}
+
+/** Magic-byte table for the formats a user actually downloads. */
+export function sniffFileType(head: Buffer): { label: string; magic: boolean; exts: string[] } {
+  const b = head.subarray(0, 8);
+  const startsWith = (bytes: number[]): boolean => bytes.every((x, i) => b[i] === x);
+  if (startsWith([0x25, 0x50, 0x44, 0x46])) return { label: 'PDF', magic: true, exts: ['pdf'] };
+  if (startsWith([0x50, 0x4b, 0x03, 0x04]) || startsWith([0x50, 0x4b, 0x05, 0x06]))
+    return { label: 'ZIP container (docx/xlsx/pptx/zip)', magic: true, exts: ['zip', 'docx', 'xlsx', 'pptx', 'odt', 'ods', 'epub'] };
+  if (startsWith([0x1f, 0x8b])) return { label: 'GZIP', magic: true, exts: ['gz', 'tgz'] };
+  if (startsWith([0x89, 0x50, 0x4e, 0x47])) return { label: 'PNG image', magic: true, exts: ['png'] };
+  if (startsWith([0xff, 0xd8, 0xff])) return { label: 'JPEG image', magic: true, exts: ['jpg', 'jpeg'] };
+  if (startsWith([0x47, 0x49, 0x46, 0x38])) return { label: 'GIF image', magic: true, exts: ['gif'] };
+  if (startsWith([0x00, 0x00, 0x01, 0x00])) return { label: 'ICO icon', magic: true, exts: ['ico'] };
+  if (b.subarray(0, 5).toString('latin1') === '<?xml') return { label: 'XML document', magic: false, exts: ['xml', 'svg'] };
+  // Plain-ish text: printable bytes dominate the head.
+  const printable = b.subarray(0, 8).filter((x) => x === 0x09 || x === 0x0a || x === 0x0d || (x >= 0x20 && x < 0x7f)).length;
+  if (printable >= 7) return { label: 'text file', magic: false, exts: ['txt', 'md', 'csv', 'json', 'log', 'html', 'js', 'ts'] };
+  return { label: 'binary data', magic: false, exts: [] };
+}
+
+export async function uniqueDownloadPath(dir: string, suggestedName: string): Promise<string> {
+  const base = path.basename(String(suggestedName ?? 'download')).replace(/[\\/:*?"<>|]/g, '_').trim() || 'download';
+  let candidate = path.join(dir, base);
+  const ext = path.extname(base);
+  const stem = ext ? base.slice(0, -ext.length) : base;
+  for (let i = 1; i < 1000; i++) {
+    const exists = await fs
+      .stat(candidate)
+      .then(() => true, () => false);
+    if (!exists) return candidate;
+    candidate = path.join(dir, `${stem} (${i})${ext}`);
+  }
+  // Practically unreachable; still correct rather than destructive.
+  return path.join(dir, `${stem}-${Date.now()}${ext}`);
+}

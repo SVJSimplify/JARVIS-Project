@@ -9,19 +9,19 @@ interface Group {
 
 /** Tools every request gets. Any tool not listed in a group is also always on, so nothing is ever lost. */
 const CORE = [
-  'get_current_time', 'tinyfish_search', 'tinyfish_fetch', 'web_search', 'fetch_url', 'get_weather', 'calculate', 'remember', 'save_contact', 'find_contact',
+  'get_current_time', 'tinyfish_search', 'tinyfish_fetch', 'web_search', 'web_browse', 'fetch_url', 'get_weather', 'calculate', 'remember', 'save_contact', 'find_contact',
   'list_memories', 'forget', 'tool_log', 'see_screen', 'ask_user', 'batch', 'task', 'research', 'parallel_tasks', 'chain', 'screen_text', 'click_text',
   'browser_play', 'browser_media', 'find_files', 'open_anything', 'read_document', 'read', 'load_tools', 'show_visual', 'quality_gate', 'decide', 'todo_write', 'write_file',
   'list_drives', 'bluetooth_scan', 'get_system_info', 'list_processes', 'schedule_task', 'list_scheduled', 'cancel_scheduled',
-  'goal_status', 'env_status', 'verify_file_change',
+  'start_task', 'task_status', 'task_cancel', 'task_resume', 'list_tasks',
 ];
 
 const GROUPS: Group[] = [
   {
     id: 'browser',
-    hint: 'in-app browser: open, read, click, type, tabs, maps',
+    hint: 'in-app browser: open, read, click, type, tabs, maps; native browser (your real Chrome/Edge): connect, background tabs, read, act',
     re: /\b(browse\w*|tabs?|web ?(site|page)|sites?|urls?|links?|open|go ?to|navigate|search|google|you ?tube|play|watch|videos?|maps?|directions?|amazon|reddit|wikipedia|github|spotify|twitter|click|scroll|close|dismiss|hide|http|login|log ?in|sign ?(in|up)|fill|form|submit|checkout|book|order|buy|upload|download|dropdown|select|type|\w+\.(com|org|net|in|io|ai))\b/i,
-    tools: ['open_url', 'open_in_my_browser', 'browser_open', 'browser_search', 'browser_tabs', 'browser_switch_tab', 'browser_close_tab', 'browser_read', 'browser_snapshot', 'browser_click', 'browser_click_text', 'browser_hover', 'browser_type', 'browser_fill_form', 'browser_select', 'browser_check', 'browser_upload', 'browser_wait', 'browser_eval', 'browser_key', 'browser_scroll', 'browser_click_at', 'browser_drag', 'browser_see', 'browser_back', 'browser_forward', 'browser_dialog', 'browser_downloads', 'browser_reload', 'browser_close', 'close_my_browser_tab', 'list_my_browser_tabs'],
+    tools: ['open_url', 'open_in_my_browser', 'browser_open', 'browser_search', 'browser_tabs', 'browser_switch_tab', 'browser_close_tab', 'browser_read', 'browser_snapshot', 'browser_click', 'browser_click_text', 'browser_hover', 'browser_type', 'browser_fill_form', 'browser_select', 'browser_check', 'browser_upload', 'browser_wait', 'browser_eval', 'browser_key', 'browser_scroll', 'browser_click_at', 'browser_drag', 'browser_see', 'browser_back', 'browser_forward', 'browser_dialog', 'browser_downloads', 'browser_reload', 'browser_close', 'close_my_browser_tab', 'list_my_browser_tabs', 'native_browser_status', 'native_browser_connect', 'native_browser_disconnect', 'native_browser_tabs', 'native_browser_open', 'native_browser_navigate', 'native_browser_read', 'native_browser_snapshot', 'native_browser_click', 'native_browser_type', 'native_browser_screenshot', 'native_browser_capture', 'native_browser_close_tab', 'native_browser_wait', 'native_browser_reconnect'],
   },
   {
     id: 'desktop',
@@ -31,9 +31,9 @@ const GROUPS: Group[] = [
   },
   {
     id: 'files',
-    hint: 'files, code editing, shell commands, git, diagnostics',
-    re: /\b(files?|folders?|director(y|ies)|read|write|edit|code|bug|errors?|fix|debug|run|command|script|terminal|powershell|npm|git|tests?|build|project|repo|function|class|typescript|python|grep|patch|workspace|document|plan|todo|refactor|implement|install|\w+\.(ts|tsx|js|py|json|md|txt|css|html))\b/i,
-    tools: ['list_files', 'write_file', 'edit_file', 'open_file', 'glob', 'grep', 'multi_edit', 'apply_patch', 'run_command', 'diagnostics', 'code_search', 'skill', 'copy_file', 'make_dir', 'move_file', 'todo_write', 'todo_read', 'plan_enter', 'plan_exit'],
+    hint: 'files, code editing, shell commands, git, GitHub issues/PRs/CI, Vercel deployments, diagnostics',
+    re: /\b(files?|folders?|director(y|ies)|read|write|edit|code|bug|errors?|fix|debug|run|command|script|terminal|powershell|npm|git|github|pull ?request|\bpr\b|issue|ci|pipeline|deploy|deployment|vercel|tests?|build|project|repo|function|class|typescript|python|grep|patch|workspace|document|plan|todo|refactor|implement|install|\w+\.(ts|tsx|js|py|json|md|txt|css|html))\b/i,
+    tools: ['list_files', 'write_file', 'edit_file', 'open_file', 'glob', 'grep', 'multi_edit', 'apply_patch', 'run_command', 'diagnostics', 'code_search', 'skill', 'copy_file', 'make_dir', 'move_file', 'todo_write', 'todo_read', 'plan_enter', 'plan_exit', 'make_document', 'read_document', 'inspect_project', 'project_context', 'analyze_impact', 'github_status', 'github_list_repos', 'github_repo_details', 'github_list_branches', 'github_list_commits', 'github_get_commit', 'github_list_issues', 'github_get_issue', 'github_create_issue', 'github_list_pulls', 'github_get_pull', 'github_create_pull', 'github_list_workflow_runs', 'github_workflow_failures', 'vercel_status', 'vercel_list_projects', 'vercel_project_details', 'vercel_list_deployments', 'vercel_deployment_details', 'vercel_deployment_logs', 'vercel_deploy'],
   },
   {
     id: 'productivity',
@@ -113,3 +113,10 @@ export function loadGroups(ids: unknown): string {
   rebuild();
   return hit.map((g) => `${g.id} loaded: ${g.tools.join(', ')}`).join('\n');
 }
+
+/** Group definitions for the runtime capability manifest (id, hint, tool names). */
+export const groupInfo = (): Array<{ id: string; hint: string; tools: string[] }> =>
+  GROUPS.map((g) => ({ id: g.id, hint: g.hint, tools: [...g.tools] }));
+
+/** Core tool names for manifest validation. */
+export const coreToolNames = (): string[] => [...core];

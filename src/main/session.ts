@@ -72,3 +72,13 @@ export async function getSessionPrompt(): Promise<string> {
     lines.join('\n')
   );
 }
+
+/**
+ * The compact log for the Conversations panel's LEGACY section (history.ts): entries the
+ * full-fidelity recorder was not yet keeping. Surfaces verbatim what was actually stored —
+ * clipped text stays clipped and is marked `legacy` by the caller; nothing is invented.
+ */
+export async function getSessionTurnsForHistory(): Promise<LogEntry[]> {
+  await load();
+  return [...log];
+}

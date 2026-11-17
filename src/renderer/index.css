@@ -40,7 +40,13 @@
   background: radial-gradient(ellipse at 50% 45%, transparent 40%, rgb(var(--void) / 0.95) 100%);
 }
 
-.hud-header { -webkit-app-region: drag; }
+.hud-header {
+  -webkit-app-region: drag;
+  /* Reserve exactly the native titlebar-overlay width (window controls) instead of a
+     fixed pr-40 guess: 100vw − titlebar-area-width IS the overlay's width, and the
+     fallback keeps the header correct where the env is unsupported. */
+  padding-right: calc(100vw - env(titlebar-area-width, 100vw));
+}
 .no-drag { -webkit-app-region: no-drag; }
 .hud-header::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
@@ -169,6 +175,7 @@ input:focus { transition: filter 0.3s; filter: drop-shadow(0 0 6px rgb(var(--acc
   margin: 0; font-family: var(--display); font-size: 13px; font-weight: 600; letter-spacing: 0.42em; text-transform: uppercase;
   color: rgb(216 253 255); text-shadow: 0 0 12px rgb(var(--h) / 0.8);
 }
+.holo-subtitle { margin: 2px 0 0; font-size: 11px; font-weight: 400; letter-spacing: 0.08em; color: rgb(143 195 204); text-shadow: none; }
 .holo-dot { width: 8px; height: 8px; border-radius: 9999px; background: rgb(var(--h)); box-shadow: 0 0 10px rgb(var(--h)); animation: holoPulse 2s ease-in-out infinite; }
 .holo-close { color: rgb(var(--h) / 0.7); transition: color 0.2s, text-shadow 0.2s; }
 .holo-close:hover { color: rgb(216 253 255); text-shadow: 0 0 10px rgb(var(--h)); }

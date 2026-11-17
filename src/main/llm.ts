@@ -1,4 +1,4 @@
-import { BASE_URL, getApiKey } from './settings';
+import { getApiKey, getBaseUrl } from './settings';
 
 /** Fail if the provider has not even started responding after this long; a streaming body is never cut off once it flows. */
 const FIRST_BYTE_TIMEOUT_MS = 180_000;
@@ -51,8 +51,40 @@ export interface ToolSchema {
   function: { name: string; description: string; parameters: Record<string, unknown> };
 }
 
+/**
+ * Token usage, when the provider reports it (Module J). Purely observational: the provider
+ * loop uses it for context-pressure decisions and the turn log; a gateway that omits the
+ * field costs nothing.
+ */
+export interface UsageInfo {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+let lastUsage: UsageInfo | null = null;
+
+/** Record one response's usage (the newest wins; 0/negative values are ignored). */
+export const noteUsage = (u: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined | null): void => {
+  if (!u || typeof u !== 'object') return;
+  const p = Number(u.prompt_tokens ?? 0);
+  const c = Number(u.completion_tokens ?? 0);
+  if (!Number.isFinite(p) && !Number.isFinite(c)) return;
+  lastUsage = {
+    promptTokens: Number.isFinite(p) ? p : 0,
+    completionTokens: Number.isFinite(c) ? c : 0,
+    totalTokens: Number.isFinite(Number(u.total_tokens)) ? Number(u.total_tokens) : (Number.isFinite(p) ? p : 0) + (Number.isFinite(c) ? c : 0),
+  };
+};
+
+export const lastTokenUsage = (): UsageInfo | null => lastUsage;
+export const resetTokenUsage = (): void => {
+  lastUsage = null;
+};
+
 export async function send(path: string, method: 'GET' | 'POST', body?: unknown, signal?: AbortSignal): Promise<Response> {
   const key = await getApiKey();
+  const baseUrl = await getBaseUrl();
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
   for (let attempt = 0; ; attempt++) {
     // A listener added after a signal is already aborted never fires: check before every attempt.
@@ -68,7 +100,7 @@ export async function send(path: string, method: 'GET' | 'POST', body?: unknown,
       ctl.abort();
     }, FIRST_BYTE_TIMEOUT_MS);
     try {
-      res = await fetch(`${BASE_URL}${path}`, {
+      res = await fetch(`${baseUrl}${path}`, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -88,7 +120,7 @@ export async function send(path: string, method: 'GET' | 'POST', body?: unknown,
         await wait(800 * (attempt + 1));
         continue;
       }
-      throw new Error(`Cannot reach ${BASE_URL} (${e instanceof Error ? e.message : String(e)}). Check your internet connection and the API URL.`);
+      throw new Error(`Cannot reach ${baseUrl} (${e instanceof Error ? e.message : String(e)}). Check your internet connection and the API URL.`);
     }
     clearTimeout(timer); // headers arrived; the caller's abort stays wired so body reads remain cancellable
     if (res.ok) return res;
@@ -144,7 +176,8 @@ export async function completeOnce(
   signal?: AbortSignal
 ): Promise<{ content: string; toolCalls: ToolCall[] }> {
   const res = await send('/chat/completions', 'POST', { model, messages, ...(tools.length ? { tools, tool_choice: 'auto' } : {}), stream: false }, signal);
-  const data = (await res.json()) as { choices: Array<{ message: { content: string | null; tool_calls?: ToolCall[] } }> };
+  const data = (await res.json()) as { choices: Array<{ message: { content: string | null; tool_calls?: ToolCall[] } }>; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+  noteUsage(data.usage);
   const msg = data.choices[0]?.message;
   if (!msg) throw new Error('Empty response from provider.');
   return { content: cleanThink(msg.content ?? ''), toolCalls: msg.tool_calls ?? [] };

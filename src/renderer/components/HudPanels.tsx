@@ -2,9 +2,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { Battery, HudAlert, Telemetry } from '../hooks/useTelemetry';
 import SystemPanel from './SystemPanel';
-import ActivityFeed from './ActivityFeed';
+import { TaskRailPanel } from './TaskProgress';
 import { useClock } from '../hooks/useClock';
-import { MODE_LABEL, type JarvisMode, type LogEntry } from '../lib/jarvisMode';
+import { MODE_LABEL, type JarvisMode } from '../lib/jarvisMode';
 import type { InteractionMode } from '../lib/protocol';
 import LevelMeter from './LevelMeter';
 
@@ -66,10 +66,14 @@ export function StatusPanel({ mode, levelRef, voiceReady, imode }: StatusProps) 
   );
 }
 
+/**
+ * The in-session transcript renderer: what the user asked and what JARVIS replied, as
+ * it happened. Round 23: this lives in Settings → Transcript now (the top-right rail
+ * keeps only the live task board); the component is reused there — one implementation.
+ */
 export function CommandLog({ log }: { log: LogEntry[] }) {
   return (
-    <aside className="rail w-72">
-      <h2 className="rail-title">Transcript</h2>
+    <div className="space-y-4">
       {log.length === 0 ? (
         <p className="text-sm text-steel">Nothing heard yet.</p>
       ) : (
@@ -91,7 +95,7 @@ export function CommandLog({ log }: { log: LogEntry[] }) {
           </AnimatePresence>
         </ol>
       )}
-    </aside>
+    </div>
   );
 }
 
@@ -102,7 +106,6 @@ interface RailProps extends StatusProps {
   alerts: HudAlert[];
 }
 const TAB_KEY = 'jarvis-left-tab';
-const RIGHT_TAB_KEY = 'jarvis-right-tab';
 
 /** Left rail with two views: Status and live System telemetry. Jumps to System when a critical alert appears. */
 export function LeftRail({ mode, levelRef, data, battery, online, alerts, voiceReady, imode }: RailProps) {
@@ -150,39 +153,11 @@ export function LeftRail({ mode, levelRef, data, battery, online, alerts, voiceR
   );
 }
 
-/** Right rail with two views: the spoken transcript and the live activity feed. */
-export function RightRail({ log }: { log: LogEntry[] }) {
-  const [tab, setTab] = useState<'transcript' | 'activity'>(() => {
-    try {
-      return localStorage.getItem(RIGHT_TAB_KEY) === 'activity' ? 'activity' : 'transcript';
-    } catch {
-      return 'transcript';
-    }
-  });
-  const pick = (t: 'transcript' | 'activity') => {
-    setTab(t);
-    try {
-      localStorage.setItem(RIGHT_TAB_KEY, t);
-    } catch {
-      /* optional */
-    }
-  };
-  const btn = (t: 'transcript' | 'activity', label: string) => (
-    <button
-      type="button"
-      onClick={() => pick(t)}
-      className={`no-drag font-display text-[11px] font-bold uppercase tracking-[0.3em] transition-colors ${tab === t ? 'text-accent' : 'text-steel hover:text-hot'}`}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div>
-      <div className="mb-3 flex justify-end gap-5 pr-[18px]">
-        {btn('transcript', 'Transcript')}
-        {btn('activity', 'Activity')}
-      </div>
-      {tab === 'activity' ? <ActivityFeed /> : <CommandLog log={log} />}
-    </div>
-  );
+/**
+ * Right rail. Round 23: the Transcript and Activity tabs moved into Settings
+ * (→ Transcript, → Activity) to declutter the execution interface; the rail keeps
+ * the one thing that is about RIGHT NOW: the persistent task board.
+ */
+export function RightRail() {
+  return <TaskRailPanel />;
 }

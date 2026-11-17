@@ -15,7 +15,6 @@ import {
   qualityAudit,
   recordFailedTurn,
   recordInterrupted,
-  recordMissionEnd,
   recordStep,
   setStatsFileForTests,
   takeRescue,
@@ -43,7 +42,7 @@ describe('outcome classification is deterministic', () => {
     expect(classifyOutcome('Unknown tool "writte_file".')).toBe('failed');
     expect(classifyOutcome('NOT DONE: the in-app browser panel was closed while this action was running')).toBe('failed');
     expect(classifyOutcome('BLOCKED: deleting files is disabled')).toBe('blocked');
-    expect(classifyOutcome('NOT APPROVED by the user, so it was NOT done: overwrite')).toBe('approval');
+    expect(classifyOutcome('NOT APPROVED by the user, so it was NOT done: overwrite')).toBe('blocked'); // legacy prefix: today only the deletion tooth emits it — a hard block
     expect(classifyOutcome('TIMEOUT after 60s\npartial output')).toBe('failed');
     expect(classifyOutcome('')).toBe('success');
   });
@@ -58,12 +57,12 @@ describe('outcome classification is deterministic', () => {
     expect(failureClass('NOT DONE: the in-app browser panel was closed while this action was running')).toBe('browser_closed');
     expect(failureClass('Tool error [x]: code is empty.')).toBe('input');
     expect(failureClass('BLOCKED: deleting is disabled')).toBe('blocked');
-    expect(failureClass('NOT APPROVED by the user')).toBe('approval');
+    expect(failureClass('NOT APPROVED by the user')).toBe('blocked'); // legacy prefix, hard block today
     expect(failureClass('Tool error [x]: something odd happened')).toBe('other');
   });
 
   it('gives every failure class a concrete spoken next step', () => {
-    for (const c of ['permission', 'missing', 'timeout', 'network', 'config', 'routing', 'browser_closed', 'input', 'approval', 'blocked', 'other'] as const) {
+    for (const c of ['permission', 'missing', 'timeout', 'network', 'config', 'routing', 'browser_closed', 'input', 'blocked', 'other'] as const) {
       expect(nextStepFor(c).length).toBeGreaterThan(10);
     }
   });
@@ -86,14 +85,14 @@ describe('families and resolution', () => {
 });
 
 describe('verdict from the ledger only', () => {
-  it('classifies clean, partial, failed, needs-user and empty turns', () => {
+  it('classifies clean, partial, failed, blocked and empty turns', () => {
     expect(verdictOf([])).toBe('no_action');
     expect(verdictOf([entry('read', 'hello')])).toBe('completed');
     expect(verdictOf([entry('write_file', 'Tool error: x')])).toBe('failed');
     expect(verdictOf([entry('read', 'ok'), entry('write_file', 'Tool error: x')])).toBe('partial');
     expect(verdictOf([entry('write_file', 'Tool error: x'), entry('edit_file', 'Edited notes.txt')])).toBe('completed');
-    expect(verdictOf([entry('write_file', 'BLOCKED: disabled')])).toBe('needs_user');
-    expect(verdictOf([entry('write_file', 'NOT APPROVED by the user')])).toBe('needs_user');
+    expect(verdictOf([entry('write_file', 'BLOCKED: disabled')])).toBe('blocked');
+    expect(verdictOf([entry('write_file', 'NOT APPROVED by the user')])).toBe('blocked'); // legacy prefix → blocked verdict
   });
 });
 
@@ -173,12 +172,13 @@ describe('the reply audit catches unverifiable claims', () => {
   });
 });
 
-describe('approval and blocked turns ask instead of pretending', () => {
-  it('adds the approval ask when the reply omits it', () => {
+describe('approval and blocked turns state the truth instead of pretending', () => {
+  it('a legacy NOT APPROVED step is a policy block: the reply says disabled, never "go-ahead needed"', () => {
     const a = auditReply('I would edit config.ini next, sir.', [entry('edit_file', 'NOT APPROVED by the user, so it was NOT done: editing config.ini')], 'edit my config', []);
-    expect(a.verdict).toBe('needs_user');
-    expect(a.enforcement).toContain('approval_ask_added');
-    expect(a.reply).toMatch(/go-ahead is needed/);
+    expect(a.verdict).toBe('blocked');
+    expect(a.enforcement).toContain('blocked_step_stated');
+    expect(a.reply).toMatch(/disabled for safety/);
+    expect(a.reply).not.toMatch(/go-ahead is needed/);
   });
 
   it('names policy blocks plainly', () => {
@@ -292,14 +292,13 @@ describe('endTask consumes the task and measures everything', () => {
     expect(report).toMatch(/honest status and a next step: YES/i);
   });
 
-  it('missions feed the same measured guarantee', async () => {
-    await recordMissionEnd('completed', 'clone finished and verified');
-    await recordMissionEnd('failed', 'step 3 failed');
-    await recordMissionEnd('interrupted', 'cancelled by the user');
+  it('every verdict is measured with an honest note', async () => {
+    beginTask('fix the log rotation');
+    recordStep('read', '{}', 'Tool error [read]: x');
+    const a = await endTask('Done, sir.');
+    expect(a.verdict).toBe('failed');
     const report = await completionReport();
-    expect(report).toMatch(/33% completed/);
-    expect(report).toMatch(/33% failed/);
-    expect(report).toMatch(/33% stopped by you/);
-    expect(report).toMatch(/clone finished and verified/);
+    expect(report).toMatch(/failed/);
+    expect(report).toMatch(/Enforcement record/);
   });
 });

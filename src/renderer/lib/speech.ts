@@ -19,6 +19,10 @@ interface QueuedJob extends SpeechJob {
 
 const MS_PER_CHAR_FALLBACK = 62;
 const SPEAKING_GRACE_MS = 400;
+/** Sentences shorter than this never hit the truncation probe — the risk (and the cost) is too low. */
+const TRUNCATION_CHECK_MIN_CHARS = 100;
+/** ≈22 chars/s is faster than any neural voice can speak: audio shorter than this for a long line was truncated. */
+const MIN_S_PER_CHAR = 0.045;
 
 const queue: QueuedJob[] = [];
 let playing = false;
@@ -34,7 +38,9 @@ export const isSpeaking = (): boolean =>
 async function fetchAudio(text: string): Promise<Blob | null> {
   try {
     const bytes = await window.electronAPI.tts.synthesize(text);
-    return new Blob([bytes], { type: 'audio/mpeg' });
+    // .slice() copies into a fresh, exactly-sized ArrayBuffer (TS 5.7 no longer accepts an
+    // ArrayBufferLike view directly as a BlobPart).
+    return new Blob([bytes.slice().buffer as ArrayBuffer], { type: 'audio/mpeg' });
   } catch {
     return null;
   }
@@ -44,6 +50,28 @@ function setAudible(value: boolean): void {
   audible = value;
   if (!value) lastAudibleAt = performance.now();
 }
+
+/** Metadata-only duration probe for a synthesized blob. NaN when it cannot be decoded at all. */
+function audioDuration(blob: Blob): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const probe = new Audio();
+    const done = (s: number): void => {
+      clearTimeout(timer);
+      probe.removeAttribute('src');
+      URL.revokeObjectURL(url);
+      resolve(s);
+    };
+    const timer = setTimeout(() => done(Number.NaN), 2000);
+    probe.preload = 'metadata';
+    probe.onloadedmetadata = () => done(Number.isFinite(probe.duration) ? probe.duration : Number.NaN);
+    probe.onerror = () => done(Number.NaN);
+    probe.src = url;
+  });
+}
+
+const looksTruncated = (duration: number, text: string): boolean =>
+  Number.isFinite(duration) && duration > 0 && duration < text.length * MIN_S_PER_CHAR;
 
 function pickVoice(): SpeechSynthesisVoice | undefined {
   const voices = speechSynthesis.getVoices();
@@ -83,11 +111,23 @@ function playSystem(job: QueuedJob, gen: number, finish: () => void): void {
   const voice = pickVoice();
   if (voice) utterance.voice = voice;
   utterance.rate = 0.95;
+  // Chromium drops utterances that run long while the process is busy or the window is
+  // backgrounded — the classic speechSynthesis cutoff. The pause/resume ping every 5 s is
+  // the canonical keepalive, so a long sentence ends with its last word, not in silence.
+  const kick = setInterval(() => {
+    if (!speechSynthesis.speaking) return;
+    speechSynthesis.pause();
+    speechSynthesis.resume();
+  }, 5000);
+  const done = () => {
+    clearInterval(kick);
+    finish();
+  };
   utterance.onboundary = (e) => {
     if (gen === generation) job.onBoundary(e.charIndex);
   };
-  utterance.onend = finish;
-  utterance.onerror = finish;
+  utterance.onend = done;
+  utterance.onerror = done;
   speechSynthesis.speak(utterance);
 }
 
@@ -99,8 +139,28 @@ async function next(): Promise<void> {
   }
   playing = true;
   const gen = generation;
-  const blob = await job.audio;
+  let blob = await job.audio;
   if (gen !== generation) return; // cancelled while waiting for audio
+
+  // Cut-off guard: Edge-TTS resolves on whatever the socket delivered, so a connection
+  // that died mid-sentence used to play as the first half of a long answer, then silence.
+  // Audio that is impossibly short for its text (or undecodable) is re-fetched once, and
+  // if that also fails the system voice reads the whole line — a half-spoken sentence
+  // must never reach the user.
+  if (blob && job.text.length >= TRUNCATION_CHECK_MIN_CHARS) {
+    const dur = await audioDuration(blob);
+    if (gen !== generation) return;
+    if (Number.isNaN(dur) || looksTruncated(dur, job.text)) {
+      const retry = await fetchAudio(job.text);
+      if (gen !== generation) return;
+      if (!retry) blob = null;
+      else {
+        const dur2 = await audioDuration(retry);
+        if (gen !== generation) return;
+        blob = Number.isNaN(dur2) || looksTruncated(dur2, job.text) ? null : retry;
+      }
+    }
+  }
 
   const finish = () => {
     if (gen !== generation) return;

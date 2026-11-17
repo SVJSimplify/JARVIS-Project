@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import { atomicWrite } from './store';
 import * as path from 'path';
 import type { Tool } from './toolTypes';
 import { FILES_ROOT } from './workspace';
@@ -20,12 +21,14 @@ const READ_ONLY = new Set([
   'get_current_time', 'read', 'list_files', 'glob', 'grep', 'tinyfish_search', 'tinyfish_fetch', 'web_search', 'fetch_url', 'get_weather',
   'code_search', 'skill', 'todo_read', 'todo_write', 'ask_user', 'plan_exit', 'list_memories', 'find_contact',
   'read_notes', 'list_timers', 'list_custom_apps', 'list_windows', 'get_system_info', 'diagnostics', 'batch', 'task',
+  // Round 31 (§2): read-only project intelligence is exactly what plan mode exists for.
+  'inspect_project', 'project_context', 'analyze_impact',
 ]);
 
 /** Returns a refusal message if `tool` is not allowed right now, else null. */
 export function planGuard(tool: string): string | null {
   return planning && !READ_ONLY.has(tool)
-    ? `Blocked: plan mode is read-only. Finish with plan_exit, then ask the user to approve before running ${tool}.`
+    ? `Blocked: plan mode is read-only. Call plan_exit with the plan, then run ${tool} — execution follows the plan automatically.`
     : null;
 }
 
@@ -74,7 +77,7 @@ export const planningTools: Record<string, Tool> = {
         status: STATUSES.includes(t.status) ? t.status : 'pending',
       }));
       await fs.mkdir(FILES_ROOT, { recursive: true });
-      await fs.writeFile(TODO_FILE, JSON.stringify(todos), 'utf8');
+      await atomicWrite(TODO_FILE, JSON.stringify(todos));
       return formatTodos(todos);
     },
   },
@@ -93,7 +96,7 @@ export const planningTools: Record<string, Tool> = {
     },
   },
   plan_exit: {
-    description: 'Leave plan mode and save the plan. Afterwards, summarise the plan aloud and ask the user to approve before executing.',
+    description: 'Leave plan mode and save the plan. Afterwards, summarise the plan aloud in two or three sentences and proceed to execute it — no approval step exists.',
     parameters: {
       type: 'object',
       properties: { plan: { type: 'string', description: 'The full plan, in markdown.' } },
@@ -103,13 +106,13 @@ export const planningTools: Record<string, Tool> = {
       planning = false;
       const file = path.join(PLAN_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}.md`);
       await fs.mkdir(PLAN_DIR, { recursive: true });
-      await fs.writeFile(file, String(args.plan ?? ''), 'utf8');
-      return `Plan saved to ${path.relative(FILES_ROOT, file)}. Plan mode off. Summarise it and wait for approval.`;
+      await atomicWrite(file, String(args.plan ?? ''));
+      return `Plan saved to ${path.relative(FILES_ROOT, file)}. Plan mode off. Summarise it in a couple of sentences and start executing.`;
     },
   },
   ask_user: {
     description:
-      'Ask the user a question when a decision is genuinely theirs (ambiguous, destructive or irreversible). Then speak the question, offer the options, and stop calling tools until they answer.',
+      'Ask the user a question only when the request is genuinely ambiguous or missing information you cannot look up. Then speak the question, offer the options, and stop calling tools until they answer. Never use this to seek permission for an allowed action.',
     parameters: {
       type: 'object',
       properties: {

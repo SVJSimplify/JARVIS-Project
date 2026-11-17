@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Notification, shell } from 'electron';
+import { atomicAppend, atomicWrite, withStoreLock } from './store';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { Tool } from './toolTypes';
@@ -45,6 +46,7 @@ const SAFE_MATH = /^[0-9+\-*/%().\s^]+$/;
 
 export const extraTools: Record<string, Tool> = {
   calculate: {
+    parallelSafe: true,
     description: 'Evaluate an arithmetic expression exactly. Supports + - * / % ^ and parentheses. Use for any maths instead of mental arithmetic.',
     parameters: {
       type: 'object',
@@ -88,6 +90,7 @@ export const extraTools: Record<string, Tool> = {
     },
   },
   list_timers: {
+    parallelSafe: true,
     description: 'List active timers and reminders with time remaining.',
     parameters: { type: 'object', properties: {} },
     run: () =>
@@ -121,12 +124,15 @@ export const extraTools: Record<string, Tool> = {
     run: async (args) => {
       const text = String(args.text ?? '').trim().slice(0, 2000);
       if (!text) throw new Error('Note is empty.');
+      // Round 18 §12 (W4): appends ride the atomic O_APPEND path — a crash can cost the
+      // tail of one line, never the file.
       await fs.mkdir(FILES_ROOT, { recursive: true });
-      await fs.appendFile(path.join(FILES_ROOT, 'notes.txt'), `[${new Date().toLocaleString()}] ${text}\n`, 'utf8');
+      await atomicAppend(path.join(FILES_ROOT, 'notes.txt'), `[${new Date().toLocaleString()}] ${text}\n`);
       return 'Noted.';
     },
   },
   read_notes: {
+    parallelSafe: true,
     description: 'Read the most recent notes from notes.txt.',
     parameters: { type: 'object', properties: { last: { type: 'number', description: 'How many recent notes. Default 10.' } } },
     run: async (args) => {
@@ -167,10 +173,14 @@ export const extraTools: Record<string, Tool> = {
       await fs.access(target).catch(() => {
         throw new Error('That file does not exist.');
       });
-      const apps = await loadApps();
-      if (Object.keys(apps).length >= MAX_APPS && !(name in apps)) throw new Error('Custom app list is full.');
-      apps[name] = target;
-      await fs.writeFile(APPS_FILE(), JSON.stringify(apps, null, 2), 'utf8');
+      // Round 18 §12 (W4): the read-modify-write is serialized (two overlapping
+      // registrations used to lose one of the apps).
+      await withStoreLock(APPS_FILE(), async () => {
+        const apps = await loadApps();
+        if (Object.keys(apps).length >= MAX_APPS && !(name in apps)) throw new Error('Custom app list is full.');
+        apps[name] = target;
+        await atomicWrite(APPS_FILE(), JSON.stringify(apps, null, 2));
+      });
       return `Registered ${name}.`;
     },
   },
@@ -179,14 +189,17 @@ export const extraTools: Record<string, Tool> = {
     parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
     run: async (args) => {
       const name = String(args.name ?? '').trim().toLowerCase();
-      const apps = await loadApps();
-      if (!(name in apps)) throw new Error('No such custom app.');
-      delete apps[name];
-      await fs.writeFile(APPS_FILE(), JSON.stringify(apps, null, 2), 'utf8');
+      await withStoreLock(APPS_FILE(), async () => {
+        const apps = await loadApps();
+        if (!(name in apps)) throw new Error('No such custom app.');
+        delete apps[name];
+        await atomicWrite(APPS_FILE(), JSON.stringify(apps, null, 2));
+      });
       return `Removed ${name}.`;
     },
   },
   list_custom_apps: {
+    parallelSafe: true,
     description: 'List registered custom app shortcuts.',
     parameters: { type: 'object', properties: {} },
     run: async () => Object.keys(await loadApps()).join(', ') || 'None registered.',

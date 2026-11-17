@@ -1,17 +1,19 @@
-import { getMemoryPrompt } from './memory';
+import { getMemoryPrompt, getStandingInstructionsPrompt, listAllMemories, projectScopesForRequest } from './memory';
+import { relevantMemoryBlock } from './semanticMemory';
+import { listAllProjectRecords } from './projectMemory';
+import { getEmbeddingProvider, embedWithCache, type EmbeddingProvider } from './embeddings';
 import { getSessionPrompt, recordTurn } from './session';
-import { send, cleanThink, withModelFallback, type Message, type ToolCall } from './llm';
+import { appendConversationTurn } from './history';
+import { send, cleanThink, withModelFallback, noteUsage, lastTokenUsage, type Message, type ToolCall } from './llm';
 import { getModel, getFallbackModels } from './settings';
 import { checkClockDrift, clockWarning } from './clock';
 import { dateContext, extractReportContents, researchViolations, todayParts } from './quality';
-import { isParallelSafe, runTool, schemasFor } from './tools';
+import { beginTask, recordStep, needsRescue, takeRescue, endTask, recordInterrupted, recordFailedTurn } from './completion';
+import { isParallelSafe, runToolDetailed, schemasFor, capabilityPrompt } from './tools';
+import type { ToolResultEnvelope } from './toolResult';
+import { runWithExecutionScope } from './toolResult';
 import { currentSchemas, endTurn, unloadedGroups } from './toolRouter';
-import { denyAllPending } from './guard';
 import { resetPlanMode } from './planning';
-import { beginTask, endTask, recordFailedTurn, recordInterrupted, recordStep } from './completion';
-import { createGoal, updateGoalStatus } from './goalEngine';
-import { selectStrategy } from './strategySelector';
-import { evaluateExecutionState } from './metacognition';
 
 
 /** Optional extra request fields as JSON, e.g. JARVIS_EXTRA_BODY={"temperature":0.2}; check your API host's docs for a thinking/reasoning option. */
@@ -27,9 +29,10 @@ import { DECISION_RULES } from './decision';
 import { getLearningPrompt } from './agi';
 import { learnFromTurn, lessonFor } from './learn';
 import { drainImages } from './vision';
-import { answerPendingVisual, pendingVisualNote } from './visual';
 import { buildUserContext, observeTurn, observeUser } from './userModel';
+import { assembleTurnContext, type ContextBlock } from './contextBudget';
 import { getAwarenessPrompt } from './awareness';
+import { getTaskPrompt } from './taskStore';
 import { currentTurnSignal, setTurnSignal } from './turnSignal';
 import { beginTurn, emitActivity, endTurn as endModeTurn } from './modes';
 
@@ -39,6 +42,8 @@ const FULL_TURNS = 3;
 const MAX_TOOL_CHARS = 12000;
 /** Tool-result characters tolerated in the current turn before older rounds are collapsed: every round re-sends them all. */
 const TURN_CHAR_BUDGET = 90_000;
+/** Prompt-token level (when the provider reports usage) that triggers the same compaction. */
+const PROMPT_TOKEN_PRESSURE = 60_000;
 /** Rounds kept verbatim when the budget is exceeded. */
 const KEEP_ROUNDS = 2;
 
@@ -47,13 +52,13 @@ interface ChatResponse {
 }
 
 const BASE_PROMPT =
-  'You are J.A.R.V.I.S., Just A Rather Very Intelligent System: a refined, dry-witted British AI butler and engineering aide, in the manner of the one built by Tony Stark. ' +
-  'Address the user as "sir" naturally, not in every sentence. Speak with calm, understated confidence, polished British English and occasional light, deadpan wit; never grovelling, never gushing. ' +
+  'You are JINI, a personal intelligence: a calm, capable and candid assistant that works for one user across their desktop and phone. ' +
+  'Speak with understated confidence and occasional light wit; never grovelling, never gushing. ' +
   'Never announce what you are about to do. Report results like a status briefing: what was done and the answer first, then at most one useful extra; "Done, sir." is enough when nothing needs saying. ' +
   'Be anticipatory: if something obvious should follow, offer it in one short clause. Flag risks plainly but briefly. Admit failure honestly and offer an alternative. ' +
   'Replies are spoken aloud: one to three short sentences, conversational, no markdown, lists, emoji or symbols; say numbers, units and times the way a person would speak them. Never say you are an AI language model; stay in character. ' +
   'Show general intelligence, not literalism: understand the purpose behind each request, anticipate what the user will need next, use sound judgement about effort and scope, and deliver finished, usable results. Big requests get the PROJECT WORKFLOW below; the spoken reply is only the short conclusion. ' +
-  'Work autonomously: do routine steps without asking permission and chain as many tools as the request needs; stop to ask only for destructive or genuinely ambiguous actions. For anything current, factual or unknown, look it up instead of guessing. Never delete files. ' +
+  'Work autonomously: every supported action runs automatically — there are no approval dialogs and nothing waits for permission. Deletion and modification of operating-system resources are hard-blocked in code and can NEVER be approved; a result starting BLOCKED means disabled, so say so and move on, never retry it another way. Stop to ask only when genuinely ambiguous. For anything current, factual or unknown, look it up instead of guessing. Never delete files, records or site data — it is impossible, not inadvisable. ' +
   'Long-term memory: save automatically, without being asked, whenever the user reveals something lasting (preferences, habits, facts, people, recurring tasks), and use what you know to act the way the user likes. Look people up before calling, messaging or emailing them. Mention recurring tasks that are due when relevant. ' +
   'Forms and details: fill every field yourself from remembered facts and context; ask only for what is genuinely unknown, then remember it. ' +
   'Memory below is background only: act ONLY on the current user message, and claim an action succeeded only if a tool result in THIS turn confirms it; otherwise say it failed. ' +
@@ -75,7 +80,7 @@ let turnContext = '';
 
 /** Static prefix first (provider prompt caching), turn-dependent parts last; memory and session are read once per turn, not per round. */
 async function systemMessage(): Promise<Message> {
-  return { role: 'system', content: [BASE_PROMPT, OPERATING_PRINCIPLES, DECISION_RULES, TOOL_GUIDE, projectTurn ? WORKFLOW : '', toolCatalog(), turnContext].filter(Boolean).join('\n\n') };
+  return { role: 'system', content: [BASE_PROMPT, OPERATING_PRINCIPLES, DECISION_RULES, TOOL_GUIDE, capabilityPrompt(), projectTurn ? WORKFLOW : '', toolCatalog(), turnContext].filter(Boolean).join('\n\n') };
 }
 
 let history: Message[] = [];
@@ -98,6 +103,8 @@ interface StreamChunk {
       }>;
     };
   }>;
+  /** Some gateways attach usage to the final chunk of a stream. */
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 }
 
 /** Streaming filter that withholds <think> reasoning from the spoken deltas. */
@@ -154,7 +161,8 @@ async function complete(model: string, onDelta: (d: string) => void, signal?: Ab
 
   // Some gateways ignore `stream`; accept a plain JSON reply too.
   if (!(res.headers.get('content-type') ?? '').includes('event-stream')) {
-    const data = (await res.json()) as ChatResponse;
+    const data = (await res.json()) as ChatResponse & { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+    noteUsage(data.usage);
     const msg = data.choices[0]?.message;
     if (!msg) throw new Error('Empty response from provider.');
     const text = cleanThink(msg.content ?? '');
@@ -189,6 +197,7 @@ async function complete(model: string, onDelta: (d: string) => void, signal?: Ab
       } catch {
         continue;
       }
+      if (chunk.usage) noteUsage(chunk.usage);
       const delta = chunk.choices?.[0]?.delta;
       if (!delta) continue;
 
@@ -274,26 +283,58 @@ function describe(call: ToolCall): string {
 }
 
 let turnAbort: AbortController | null = null;
+/** F-13: WHERE the current turn came from. Execution sources are isolated: a scheduled
+ *  task must never abort an interactive turn (or another scheduled one); a user message
+ *  always takes precedence over background work. */
+let turnSource: 'interactive' | 'scheduled' = 'interactive';
 let turnChain: Promise<unknown> = Promise.resolve();
 
 /** Stop whatever JARVIS is doing right now (the turn resolves with an empty reply). */
 export function cancelChat(): void {
   turnAbort?.abort();
-  denyAllPending();
 }
 
-/** A new request interrupts the running one; turns never overlap, so history stays consistent. */
-export function chat(text: string, onDelta: (d: string) => void, onProgress?: (p: string) => void): Promise<string> {
-  turnAbort?.abort();
-  denyAllPending();
+/**
+ * A new INTERACTIVE request interrupts the running one (existing product behaviour,
+ * preserved); a SCHEDULED turn never aborts anything — it queues behind the current turn
+ * and runs when the chain frees up. The actual interruption source is recorded on the
+ * interrupted turn (session ledger shows "interrupted by a new interactive request").
+ *
+ * The source may arrive as a bare string ('interactive' | 'scheduled') or as an opts
+ * object — both shapes are accepted so every caller (renderer bridge, scheduler, tests)
+ * gets exactly the same isolation semantics.
+ */
+export function chat(
+  text: string,
+  onDelta: (d: string) => void,
+  onProgress?: (p: string) => void,
+  opts: string | { source?: 'interactive' | 'scheduled' } = {}
+): Promise<string> {
+  const source: 'interactive' | 'scheduled' =
+    typeof opts === 'object' ? (opts.source ?? 'interactive') : opts === 'scheduled' ? 'scheduled' : 'interactive';
+  if (source === 'interactive') {
+    // The user is talking: an in-flight scheduled turn yields, and so does a previous
+    // interactive turn (the newest user message wins).
+    turnAbort?.abort();
+  }
+  // source === 'scheduled': no abort. The turnChain serializes; a due scheduled task
+  // simply waits for the user's turn to finish instead of killing it.
   const ctl = new AbortController();
-  turnAbort = ctl;
-  setTurnSignal(ctl.signal); // sub-agents check this so Stop also stops them
-  const p = turnChain.then(() => (ctl.signal.aborted ? '' : runTurn(text, onDelta, ctl.signal, onProgress)));
+  // Ownership (turnAbort/turnSource/turnSignal) transfers only when this turn ACTUALLY
+  // starts running — a queued scheduled turn must never steal the running turn's signal
+  // while it waits (Stop must keep stopping the turn that is really executing).
+  const p = turnChain.then(() => {
+    if (ctl.signal.aborted) return '';
+    turnAbort = ctl;
+    turnSource = source;
+    setTurnSignal(ctl.signal); // sub-agents check this so Stop also stops them
+    return runTurn(text, onDelta, ctl.signal, onProgress);
+  });
   turnChain = p
     .catch(() => undefined)
     .then(() => {
       if (currentTurnSignal() === ctl.signal) setTurnSignal(null);
+      if (turnAbort === ctl) turnAbort = null;
     });
   return p;
 }
@@ -335,6 +376,11 @@ function compactTurn(turnStart: number): void {
 async function runTurn(text: string, onDelta: (d: string) => void, signal: AbortSignal, onProgress?: (p: string) => void): Promise<string> {
   const model = await getModel();
   if (!model) throw new Error('No model set. Open Settings and choose one.');
+  // EVIDENCE-BACKED COMPLETION (Pillar 7): this turn is tracked from here on. Every tool
+  // result enters a ledger; the final reply is audited against that ledger, so a false
+  // success claim is rewritten before it reaches the user (completion.ts — the engine
+  // that used to exist only in tests).
+  beginTask(text);
   // A retired model (closed to new users, removed from the gateway) must not dead-end the
   // turn with a raw 503: permanent rejections walk the fallback chain; everything else —
   // timeouts, rate limits, network — still fails honestly and fast, exactly as before.
@@ -347,37 +393,65 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   resetPlanMode();
   if (Date.now() - lastTurnAt > IDLE_RESET_MS) history = [];
   lastTurnAt = Date.now();
-  // "Ready to see it?" answered yes or no: handled instantly, no model call.
-  const quick = answerPendingVisual(text);
-  if (quick) {
-    const u: Message = { role: 'user', content: text };
-    turnStarts.add(u);
-    history.push(u, { role: 'assistant', content: quick });
-    trimHistory();
-    onDelta(quick);
-    void recordTurn({ user: text, actions: ['show_visual'], reply: quick });
-    return quick;
-  }
   schemasFor(text);
   projectTurn = PROJECT_RE.test(text) || (prevProject && text.length < 60);
   prevProject = PROJECT_RE.test(text);
   const freshTurn = FRESH_RE.test(text);
   await observeUser(text).catch(() => undefined);
-  const goal = await createGoal(text).catch(() => null);
-  const strategyAssessment = selectStrategy(text);
-  turnContext = (await Promise.all([getMemoryPrompt(), getSessionPrompt(), getLearningPrompt(text), buildUserContext().catch(() => ''), Promise.resolve(getAwarenessPrompt()), Promise.resolve(pendingVisualNote())])).filter(Boolean).join('\n\n');
+  // ROUND 31 (§3.5): the per-turn context is ASSEMBLED under one budget by the context
+  // budgeter — priority-ordered (task context first), deduplicated across blocks
+  // (memory retrieval and the learning prompt overlap by design), clipped on line
+  // boundaries, and honest about anything omitted. Recency alone no longer decides what
+  // the model sees.
+  const CONTEXT_BUDGET_CHARS = 14_000;
+  // ROUND 32 (§5.2): the allowed project scopes for THIS request, computed from the
+  // stable project registry — project-scoped memories outside this set are another
+  // project's private context and are excluded from retrieval (isolation, not ranking).
+  const allowedProjectScopes = await projectScopesForRequest(text).catch(() => new Set<string>());
+  // ROUND 32 (§5.5): standing instructions are their own priority-0 block — BINDING
+  // context survives any budget pressure (the budget trims low priorities first).
+  const rawBlocks: ContextBlock[] = [
+    { id: 'task-state', priority: 0, text: await getTaskPrompt().catch(() => '') },
+    { id: 'standing-instructions', priority: 0, text: await getStandingInstructionsPrompt().catch(() => '') },
+    { id: 'awareness', priority: 1, text: getAwarenessPrompt() },
+    { id: 'memory-relevant', priority: 1, text: await relevantMemoryBlock(
+        text,
+        async () => {
+          // ROUND 32 (§5.2): the corpus carries each record's REAL scope (project:<id> for
+          // scoped records, the category otherwise) and includes every project's own
+          // recorded decisions/progress — the retrieval layer enforces isolation on it.
+          const all = await listAllMemories();
+          const projects = await listAllProjectRecords().catch(() => []);
+          return [
+            ...all.map((m) => ({ id: m.id, text: m.label, scope: m.scope ?? m.category, count: m.count, updated: m.updated })),
+            ...projects.map((m) => ({ id: m.id, text: m.text, scope: m.scope, count: 1, updated: m.updated })),
+          ];
+        },
+        5,
+        // Round 20 (CHANGE 7/11): the turn-context retrieval goes through the persistent
+        // embedding cache too — the same memory texts are not re-embedded every turn.
+        await getEmbeddingProvider()
+          .catch(() => null)
+          .then((p: EmbeddingProvider | null): EmbeddingProvider | null => (p ? { ...p, embed: (texts: string[]) => embedWithCache(p, texts) } : null)),
+        { allowedProjectScopes }
+      ) },
+    { id: 'session', priority: 2, text: await getSessionPrompt().catch(() => '') },
+    { id: 'learning', priority: 2, text: await getLearningPrompt(text).catch(() => '') },
+    { id: 'user-model', priority: 3, text: await buildUserContext().catch(() => '') },
+    { id: 'memory-all', priority: 4, text: await getMemoryPrompt().catch(() => '') },
+  ];
+  const assembled = assembleTurnContext(rawBlocks, CONTEXT_BUDGET_CHARS);
+  turnContext = assembled.text;
   // The date anchor leads the per-turn context: a report dated "1 November 2025" when today
   // is 1 November 2026 sailed through every gate before this line existed. The clock probe
   // is once per process and fail-open; a badly wrong PC clock is warned about, not trusted.
   const clock = clockWarning(await checkClockDrift());
-  const strategyNote = `[STRATEGY: ${strategyAssessment.strategy}] ${strategyAssessment.reason}`;
-  turnContext = [dateContext(todayParts()), clock ? `[CLOCK WARNING] ${clock}` : '', strategyNote, turnContext].filter(Boolean).join('\n\n');
+  turnContext = [dateContext(todayParts()), clock ? `[CLOCK WARNING] ${clock}` : '', turnContext].filter(Boolean).join('\n\n');
   const turnStart = history.length;
   const userMsg: Message = { role: 'user', content: text };
   turnStarts.add(userMsg);
   history.push(userMsg);
   beginTurn(text); // the interaction-mode digest opens here: background turns summarise at endTurn
-  beginTask(text);
   const actions: string[] = [];
   const used: Array<{ name: string; args: string }> = [];
   /** Tool result bodies seen this turn — the evidence pool the provenance gate checks figures against. */
@@ -387,6 +461,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   let turnChars = 0;
   let lastNote = '';
   let gateRetried = false;
+  let historyCompacted = false;
   const failLog: Array<{ tool: string; args: string; error: string }> = [];
 
   try {
@@ -394,8 +469,23 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       // Stop must also stop the NEXT model call: without this check a turn interrupted during a
       // tool run would launch a fresh completion, burn it, and answer after the user pressed Stop.
       if (signal.aborted) throw new Error('Interrupted');
-      // Nothing is spoken while a round is still deciding: a round with tool calls is only a progress note, the last round is the answer.
-      const { content, toolCalls } = await withModelFallback(chain, (m) => complete(m, () => undefined, signal), onFallback);
+      // F-12: REAL STREAMING. Deltas flow to the renderer live while each round streams.
+      // A round that turns out to carry tool calls was only narration (it is also sent
+      // through the progress channel); the LAST round streams its answer token-by-token,
+      // and the non-streaming fallback (gateway ignores stream) replays once, guarded by
+      // the streamed flag so nothing is delivered twice.
+      let streamedThisRound = false;
+      const { content, toolCalls } = await withModelFallback(
+        chain,
+        (m) =>
+          complete(m, (d) => {
+            if (d) {
+              streamedThisRound = true;
+              onDelta?.(d);
+            }
+          }, signal),
+        onFallback
+      );
       if (toolCalls.length) {
         const note = progressNote(content);
         if (note && note !== lastNote) {
@@ -405,7 +495,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         }
       } else {
         reply = content;
-        if (content) onDelta(content);
+        if (content && !streamedThisRound) onDelta(content);
       }
       history.push({ role: 'assistant', content: content || null, tool_calls: toolCalls.length ? toolCalls : undefined });
 
@@ -447,40 +537,52 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         } else if (projectTurn && reply.trim()) {
           actions.push('quality_gate PASS (code-enforced)');
         }
-        const audited = await endTask(final);
-        final = audited.reply;
-        if (goal) {
-          void updateGoalStatus(
-            goal.id,
-            audited.verdict === 'completed' ? 'completed' : audited.verdict === 'failed' ? 'failed' : 'active'
-          ).catch(() => null);
-        }
         trimHistory();
         endTurn();
         lastTurnAt = Date.now();
         void recordTurn({ user: text, actions, reply: final });
+        void appendConversationTurn({ user: text, actions, reply: final });
         learnFromTurn({ user: text, actions, reply: final, failed: failLog });
         void observeTurn(text, used).catch(() => undefined);
         endModeTurn({ reply: final, failed: failures >= actions.length && actions.length > 0 });
+        // HONEST COMPLETION: the reply is audited against the turn's evidence ledger;
+        // false-success and unverifiable claims are rewritten here, in code, before the
+        // user sees them. The audit must never block the reply itself.
+        try {
+          const audit = await endTask(final);
+          final = audit.reply;
+        } catch {
+          /* the honesty audit is best-effort by design */
+        }
         return final;
       }
-      // Several independent read-only calls in one step run together instead of one after another.
-      const early =
+      // Round 18 §11 (S1): the turn's AbortSignal now governs the tool dispatch itself —
+      // the dispatch runs inside a signal-bearing execution scope, so a stopped turn
+      // reaches the in-flight tool (cancelled-before-run, mid-run cancellation, web
+      // request aborts) instead of only taking effect at the next round boundary.
+      const early: ToolResultEnvelope[] | null =
         toolCalls.length > 1 && toolCalls.every((c) => isParallelSafe(c.function.name))
-          ? await Promise.all(toolCalls.map((c) => runTool(c.function.name, c.function.arguments)))
+          ? await runWithExecutionScope({ signal }, () =>
+              Promise.all(toolCalls.map((c) => runToolDetailed(c.function.name, c.function.arguments)))
+            )
           : null;
       // CODE-ENFORCED TOPIC ANCHOR: every 8 tool rounds, the current request is stamped onto
       // the next tool result. Unlike a prompt rule, the model cannot skip this — it arrives
       // attached to evidence mid-loop, exactly where long multi-step turns used to drift.
       const anchor = round > 0 && round % 8 === 0 ? `\n[ANCHOR — the user's current request is still: "${text.replace(/\s+/g, ' ').slice(0, 200)}". Finish exactly that before anything else.]` : '';
-      for (let i = 0; i < toolCalls.length; i++) {
+      await runWithExecutionScope({ signal }, async () => {
+        for (let i = 0; i < toolCalls.length; i++) {
         const call = toolCalls[i];
         if (signal.aborted) throw new Error('Interrupted');
-        const raw = String(early ? early[i] : await runTool(call.function.name, call.function.arguments));
-        recordStep(call.function.name, call.function.arguments, raw);
-        const failed = /^(Tool error|Unknown tool|BLOCKED|NOT APPROVED|NOT DONE)/.test(raw);
+        // F-07: structured status decides failure — the text prefixes remain only as the
+        // display contract, not as the mechanism.
+        const res = early ? early[i] : await runToolDetailed(call.function.name, call.function.arguments);
+        const raw = res.text;
+        const failed = res.status !== 'success';
+        recordStep(call.function.name, describe(call), raw); // per-turn evidence ledger
         if (failed) failures++;
-        if (/^(Tool error|Unknown tool|NOT DONE)/.test(raw)) failLog.push({ tool: call.function.name, args: describe(call), error: raw.slice(0, 200).replace(/\s+/g, ' ') });
+        if (res.status === 'error' || res.status === 'cancelled')
+          failLog.push({ tool: call.function.name, args: describe(call), error: raw.slice(0, 200).replace(/\s+/g, ' ') });
         actions.push(describe(call) + (failed ? ' FAILED' : ''));
         if (!failed) used.push({ name: call.function.name, args: call.function.arguments });
         const body = raw.length > MAX_TOOL_CHARS ? raw.slice(0, MAX_TOOL_CHARS) + '… [truncated]' : raw;
@@ -497,7 +599,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
             : body + (i === 0 ? anchor : ''),
         });
         turnChars += body.length;
-      }
+        }
+      });
       const images = drainImages();
       if (images.length) {
         dropOldImages();
@@ -515,50 +618,49 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
           .slice(turnStart)
           .reduce((n, m) => (m.role === 'tool' && typeof m.content === 'string' ? n + m.content.length : n), 0);
       }
-      const metacog = evaluateExecutionState({
-        round,
-        maxRounds: MAX_TOOL_ROUNDS,
-        recentToolCalls: actions.map((a) => ({
-          tool: a.split(' ')[0],
-          args: a,
-          outcome: a.includes('FAILED') ? 'failed' : 'success',
-        })),
-        evidenceItems: evidence,
-        originalObjective: goal?.objective ?? text,
-        consecutiveFailures: failures,
-        totalCharsConsumed: turnChars,
-        charsBudget: TURN_CHAR_BUDGET,
-      });
-      if (metacog.directive && round > 0 && round % 4 === 0) {
-        history.push({ role: 'user', content: metacog.directive });
+      // Token-based pressure (Module J): when the provider reports prompt usage, a growing
+      // prompt triggers the same compaction before the window overflows — chars alone can
+      // understate CJK-heavy content and image parts.
+      const usage = lastTokenUsage();
+      if (usage && usage.promptTokens > PROMPT_TOKEN_PRESSURE && !historyCompacted) {
+        compactTurn(turnStart);
+        historyCompacted = true; // once per turn: compaction is for the OLDEST rounds
+      }
+      // BOUNDED SELF-CORRECTION (Pillar 7): retryable unresolved failures (timeouts,
+      // transient errors) trigger ONE rescue pass with the concrete next step — tracked,
+      // never an unbounded retry loop.
+      if (needsRescue(signal, MAX_TOOL_ROUNDS - round - 1)) {
+        history.push({ role: 'user', content: await takeRescue() });
       }
     }
     throw new Error('Too many tool steps without an answer.');
   } catch (err) {
     if (signal.aborted) {
-      // Interrupted by the user: remember what was already done so the next request has context.
+      // Interrupted — record WHO pulled the plug (F-13): a user Stop, a newer interactive
+      // request, or a cancellation aimed at this source. Already-done work stays in context.
+      const why = turnSource === 'scheduled' ? 'interrupted (scheduled turn cancelled)' : 'interrupted';
       void recordInterrupted();
-      if (goal) void updateGoalStatus(goal.id, 'cancelled').catch(() => null);
       history.length = turnStart;
-      const note = actions.length ? `Interrupted by the user. Already done: ${actions.join('; ')}.` : 'Interrupted by the user before I did anything.';
+      const note = actions.length ? `Interrupted. Already done: ${actions.join('; ')}.` : 'Interrupted before I did anything.';
       const u: Message = { role: 'user', content: text };
       turnStarts.add(u);
       history.push(u, { role: 'assistant', content: note });
       trimHistory();
-      void recordTurn({ user: text, actions, reply: '', error: 'interrupted' });
+      void recordTurn({ user: text, actions, reply: '', error: why });
+      void appendConversationTurn({ user: text, actions, reply: '', error: why });
       endModeTurn({ interrupted: true });
       return '';
     }
     const message = err instanceof Error ? err.message : String(err);
-    void recordFailedTurn(message);
-    if (goal) void updateGoalStatus(goal.id, 'failed').catch(() => null);
     // Keep the request and the failure in context instead of silently forgetting the turn.
     history.length = turnStart;
     const failed: Message = { role: 'user', content: text };
     turnStarts.add(failed);
     history.push(failed, { role: 'assistant', content: `I could not finish that: ${message}` });
     trimHistory();
+    void recordFailedTurn(message);
     void recordTurn({ user: text, actions, reply: '', error: message });
+    void appendConversationTurn({ user: text, actions, reply: '', error: message });
     learnFromTurn({ user: text, actions, reply: '', failed: failLog, error: message });
     endModeTurn({ failed: true, error: message });
     throw err;
