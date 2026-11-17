@@ -1,6 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-vi.mock('electron', () => ({ app: { getPath: () => '/tmp' }, safeStorage: { isEncryptionAvailable: () => false } }));
+vi.mock('electron', () => ({
+  app: { getPath: () => '/tmp' },
+  safeStorage: { isEncryptionAvailable: () => false },
+  screen: { getPrimaryDisplay: () => ({ id: 1, size: { width: 1920, height: 1080 }, bounds: { x: 0, y: 0 }, scaleFactor: 1.5 }) },
+  desktopCapturer: { getSources: async () => [{ display_id: '1', thumbnail: { getSize: () => ({ width: 1400, height: 788 }), toJPEG: () => Buffer.from('x') } }] },
+}));
 
 import { getProgressSnapshot, initProgress, isRelatedRequest, noteActivity, noteTurnEnd, noteTurnStart, onProgress, resetProgressForTests } from '../../src/main/progress';
 import { bodyRetryHintMs, transientMessage } from '../../src/main/llm';
@@ -81,5 +86,15 @@ describe('chats', () => {
     await deleteChat(a.id);
     expect(await chatTurns(a.id)).toEqual([]);
     expect(await getActiveChatId()).not.toBe(a.id);
+  });
+});
+
+import { captureScreen, imageToScreen } from '../../src/main/vision';
+
+describe('desktop coordinates', () => {
+  it('maps screenshot pixels to physical pixels at 150% scaling', async () => {
+    await captureScreen();
+    expect(imageToScreen(700, 394)).toEqual({ x: 1440, y: 810 });
+    expect(imageToScreen(0, 0)).toEqual({ x: 0, y: 0 });
   });
 });

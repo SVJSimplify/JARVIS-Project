@@ -1,5 +1,6 @@
 import { runPs } from './psHost';
 import type { Tool } from './toolTypes';
+import { captureScreen, imageToScreen } from './vision';
 import { assessTargetAmbiguity, desktopVerifyBlock, type ScreenState } from './desktopVerify';
 
 const requireWindows = () => {
@@ -200,6 +201,32 @@ if ($hits.Count -eq 0) { 'No matching tabs found in the user''s own browser.' } 
 `;
 const escapeKeys = (s: string) => s.replace(/[+^%~(){}[\]]/g, '{$&}');
 
+/** Coordinates from see_screen's image are mapped to physical pixels (DPI-correct); 'screen' passes raw. */
+const toPhys = (x: number, y: number, space: unknown): { x: number; y: number; note: string } => {
+  if (space !== 'screen') {
+    const m = imageToScreen(x, y);
+    if (m) return { ...m, note: ` (image ${x},${y} → screen ${m.x},${m.y})` };
+  }
+  return { x, y, note: '' };
+};
+
+/** Screenshot → act → SEE: every pointer/keyboard action is followed by a fresh look (default on). */
+const observeAfter = async (args: Record<string, unknown>, out: unknown): Promise<string> => {
+  if (args.observe === false) return String(out);
+  try {
+    await new Promise((r) => setTimeout(r, 450)); // let the app re-render
+    const { note } = await captureScreen();
+    return `${String(out)}\n[AFTER] ${note} Check the image: did the intended change actually happen? If not, adjust and retry — never report success unseen.`;
+  } catch {
+    return String(out);
+  }
+};
+
+const COORD_PROPS = {
+  space: { type: 'string', enum: ['image', 'screen'], description: 'image (default): coordinates read off the latest see_screen image. screen: raw physical pixels.' },
+  observe: { type: 'boolean', description: 'Take a screenshot after acting so you can verify (default true).' },
+} as const;
+
 export const appControlTools: Record<string, Tool> = {
   screen_text: {
     description:
@@ -273,30 +300,33 @@ export const appControlTools: Record<string, Tool> = {
     description: 'Scroll the mouse wheel at screen coordinates (default: screen centre) in any app. direction up or down; amount in notches (default 3).',
     parameters: {
       type: 'object',
-      properties: { direction: { type: 'string', enum: ['up', 'down'] }, amount: { type: 'number' }, x: { type: 'integer' }, y: { type: 'integer' } },
+      properties: { direction: { type: 'string', enum: ['up', 'down'] }, amount: { type: 'number' }, x: { type: 'integer' }, y: { type: 'integer' }, ...COORD_PROPS },
       required: ['direction'],
     },
-    run: (args) => {
+    run: async (args) => {
       const n = Math.min(30, Math.max(1, Math.round(Number(args.amount) || 3))) * (args.direction === 'up' ? 1 : -1);
-      return ps(
+      const p = args.x === undefined || args.y === undefined ? null : toPhys(Math.round(Number(args.x)), Math.round(Number(args.y)), args.space);
+      return observeAfter(args, await ps(
         'if ($env:JA -and $env:JB) { $x = $env:JA; $y = $env:JB } else { $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $x = $b.X + $b.Width / 2; $y = $b.Y + $b.Height / 2 }; Wheel $x $y ([int]$env:JC * 120); "Scrolled. After: foreground window is now " + (Fore) + ""; DialogLine',
-        args.x === undefined ? '' : String(Math.round(Number(args.x))),
-        args.y === undefined ? '' : String(Math.round(Number(args.y))),
+        p ? String(p.x) : '',
+        p ? String(p.y) : '',
         String(n)
-      );
+      ));
     },
   },
   drag_at: {
     description: 'Drag with the left mouse button from one screen point to another in any app (sliders, canvases, moving windows or items).',
     parameters: {
       type: 'object',
-      properties: { x1: { type: 'integer' }, y1: { type: 'integer' }, x2: { type: 'integer' }, y2: { type: 'integer' } },
+      properties: { x1: { type: 'integer' }, y1: { type: 'integer' }, x2: { type: 'integer' }, y2: { type: 'integer' }, ...COORD_PROPS },
       required: ['x1', 'y1', 'x2', 'y2'],
     },
-    run: (args) => {
+    run: async (args) => {
       const v = ['x1', 'y1', 'x2', 'y2'].map((k) => Math.round(Number(args[k])));
       if (v.some((n) => !Number.isFinite(n) || n < 0)) throw new Error('Invalid coordinates.');
-      return ps('Drag $env:JA $env:JB $env:JC $env:JD; "Dragged. After: foreground window is now " + (Fore) + ""; DialogLine', String(v[0]), String(v[1]), String(v[2]), String(v[3]));
+      const a = toPhys(v[0], v[1], args.space);
+      const b = toPhys(v[2], v[3], args.space);
+      return observeAfter(args, await ps('Drag $env:JA $env:JB $env:JC $env:JD; "Dragged. After: foreground window is now " + (Fore) + ""; DialogLine', String(a.x), String(a.y), String(b.x), String(b.y)));
     },
   },
   list_my_browser_tabs: {
@@ -394,30 +424,32 @@ export const appControlTools: Record<string, Tool> = {
     description: 'Type text into whatever is focused, optionally focusing a window first. Use when set_control_text does not work.',
     parameters: {
       type: 'object',
-      properties: { text: { type: 'string' }, window: { type: 'string', description: 'Window to focus first. Optional.' } },
+      properties: { text: { type: 'string' }, window: { type: 'string', description: 'Window to focus first. Optional.' }, observe: COORD_PROPS.observe },
       required: ['text'],
     },
     run: async (args) =>
-      ps('Focus $env:JA; [System.Windows.Forms.SendKeys]::SendWait($env:JB); Start-Sleep -Milliseconds 300; \'Typed. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', str(args.window), escapeKeys(String(args.text ?? '')).slice(0, 2000)),
+      observeAfter(args, await ps('Focus $env:JA; [System.Windows.Forms.SendKeys]::SendWait($env:JB); Start-Sleep -Milliseconds 300; \'Typed. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', str(args.window), escapeKeys(String(args.text ?? '')).slice(0, 2000))),
   },
   press_keys: {
     description:
       'Press a key or shortcut in the focused app, optionally focusing a window first. SendKeys syntax: ^ is Ctrl, % is Alt, + is Shift, and {ENTER} {TAB} {ESC} {F5} {DOWN} are special keys. Example: ^t for Ctrl+T, %{F4} to close.',
     parameters: {
       type: 'object',
-      properties: { keys: { type: 'string' }, window: { type: 'string', description: 'Window to focus first. Optional.' } },
+      properties: { keys: { type: 'string' }, window: { type: 'string', description: 'Window to focus first. Optional.' }, observe: COORD_PROPS.observe },
       required: ['keys'],
     },
     run: async (args) =>
-      ps('Focus $env:JA; [System.Windows.Forms.SendKeys]::SendWait($env:JB); Start-Sleep -Milliseconds 300; \'Pressed. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', str(args.window), String(args.keys ?? '').slice(0, 200)),
+      observeAfter(args, await ps('Focus $env:JA; [System.Windows.Forms.SendKeys]::SendWait($env:JB); Start-Sleep -Milliseconds 300; \'Pressed. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', str(args.window), String(args.keys ?? '').slice(0, 200))),
   },
   click_at: {
-    description: 'Click at absolute screen coordinates. Last resort when no named control exists.',
+    description:
+      'Click at a point you SAW: read x,y off the latest see_screen image (mapped to real pixels automatically, DPI included). Prefer click_control / click_text when the target has a name or visible text. A fresh screenshot follows so you can verify.',
     parameters: {
       type: 'object',
       properties: {
         x: { type: 'integer' },
         y: { type: 'integer' },
+        ...COORD_PROPS,
         double: { type: 'boolean', description: 'Double click. Default false.' },
         button: { type: 'string', enum: ['left', 'right'], description: 'Default left.' },
       },
@@ -427,8 +459,9 @@ export const appControlTools: Record<string, Tool> = {
       const x = Math.round(Number(args.x));
       const y = Math.round(Number(args.y));
       if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0) throw new Error('Invalid coordinates.');
-      if (args.button === 'right') return ps('RClick $env:JA $env:JB; "Right-clicked."', String(x), String(y));
-      return ps('Click $env:JA $env:JB $env:JC; Start-Sleep -Milliseconds 400; \'Clicked. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', String(x), String(y), args.double ? '2' : '1');
+      const p = toPhys(x, y, args.space);
+      if (args.button === 'right') return observeAfter(args, `${await ps('RClick $env:JA $env:JB; "Right-clicked."', String(p.x), String(p.y))}${p.note}`);
+      return observeAfter(args, `${await ps('Click $env:JA $env:JB $env:JC; Start-Sleep -Milliseconds 400; \'Clicked. After: foreground window is now "\' + (Fore) + \'"\'; DialogLine', String(p.x), String(p.y), args.double ? '2' : '1')}${p.note}`);
     },
   },
   close_app: {
