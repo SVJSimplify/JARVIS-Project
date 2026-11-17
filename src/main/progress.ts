@@ -85,6 +85,31 @@ let turn: TurnProgress | null = null;
  */
 const turnStepStats = new Map<string, ProgressStep['status']>();
 const tasks = new Map<string, TaskProgressView>();
+/** Finished tasks/agents last touched before this instant belong to an unrelated earlier
+ *  request and are hidden from the board (active ones always show). */
+let boardEpoch = 0;
+/** Extra snapshot listeners (the paired-phone link) — the SAME snapshot the HUD gets. */
+const listeners = new Set<(s: ProgressSnapshot) => void>();
+export const onProgress = (fn: (s: ProgressSnapshot) => void): (() => void) => {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+};
+
+const STOPWORDS = new Set('a an the to of in on for and or with my me i it this that is are be do can you please jini now then just'.split(' '));
+const words = (t: string): Set<string> => new Set(t.toLowerCase().match(/[a-z0-9]{3,}/g)?.filter((w) => !STOPWORDS.has(w)) ?? []);
+const FOLLOW_UP = /^\s*(?:and|also|then|now|next|continue|keep going|go on|again|retry|try again|do it|same|that|it|this|those|them|yes|ok(?:ay)?|instead|fix (?:it|that)|what about)\b/i;
+/** Is `next` a continuation of `prev` (follow-up wording, or meaningful word overlap within 10 min)? */
+export function isRelatedRequest(prev: { task: string; endedAt?: number; startedAt: number } | null, next: string, now = Date.now()): boolean {
+  if (!prev) return false;
+  if (now - (prev.endedAt ?? prev.startedAt) > 10 * 60_000) return false;
+  if (FOLLOW_UP.test(next)) return true;
+  const a = words(prev.task);
+  const b = words(next);
+  if (!a.size || !b.size) return false;
+  let shared = 0;
+  for (const w of b) if (a.has(w)) shared++;
+  return shared / Math.min(a.size, b.size) >= 0.34;
+}
 
 /** Round 23: live invocation summary provider (wired from index.ts to invocations.ts). */
 let invocationsProvider: (() => ProgressSnapshot['invocations']) | null = null;
@@ -132,8 +157,11 @@ export function getProgressSnapshot(): ProgressSnapshot {
     busy: hasActiveWork(),
     now: nowLine && Date.now() - nowLine.since < NOW_STALE_MS ? { ...nowLine } : null,
     turn: turn ? { ...turn, steps: [...turn.steps] } : null,
-    tasks: [...tasks.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, TASK_CAP),
-    ...(agents && agents.length ? { agents } : {}),
+    tasks: [...tasks.values()]
+      .filter((t) => ACTIVE_TASK.has(t.status) || t.updatedAt >= boardEpoch)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, TASK_CAP),
+    ...(agents && (agents = agents.filter((a) => a.status === 'running' || a.status === 'waiting' || (a.endedAt ?? a.startedAt) >= boardEpoch)).length ? { agents } : {}),
     ...(invocations ? { invocations } : {}),
     updatedAt,
   };
@@ -142,7 +170,15 @@ export function getProgressSnapshot(): ProgressSnapshot {
 function push(): void {
   try {
     updatedAt = Date.now();
-    sink('jarvis-progress', getProgressSnapshot());
+    const snap = getProgressSnapshot();
+    sink('jarvis-progress', snap);
+    for (const fn of listeners) {
+      try {
+        fn(snap);
+      } catch {
+        /* a broken listener must not starve the others */
+      }
+    }
   } catch {
     /* a dead renderer must never break the work being reported */
   }
@@ -175,6 +211,8 @@ export function resetProgressForTests(): void {
   tasks.clear();
   tasksProvider = null;
   agentsProvider = null;
+  boardEpoch = 0;
+  listeners.clear();
   updatedAt = 0;
 }
 
@@ -182,8 +220,16 @@ export function resetProgressForTests(): void {
 
 /** modes.ts beginTurn hook — opens a fresh checklist for the new request. */
 export function noteTurnStart(task: string): void {
-  turn = { task: clip(task, 160), startedAt: Date.now(), outcome: 'running', steps: [], done: 0, failed: 0, calls: 0 };
-  turnStepStats.clear();
+  const now = Date.now();
+  if (turn && isRelatedRequest(turn, task, now)) {
+    // A follow-up continues the same checklist: earlier steps stay, the turn re-opens.
+    turn = { ...turn, task: clip(task, 160), outcome: 'running', endedAt: undefined };
+  } else {
+    // An unrelated request starts a clean board: previous turn, finished tasks and agents clear.
+    turn = { task: clip(task, 160), startedAt: now, outcome: 'running', steps: [], done: 0, failed: 0, calls: 0 };
+    turnStepStats.clear();
+    boardEpoch = now;
+  }
   push();
 }
 

@@ -155,6 +155,13 @@ export function cancelTask(id: string): boolean {
   return false;
 }
 
+/** Cancel every task this process is driving (the user said "stop"). Returns how many. */
+export function cancelAllTasks(): number {
+  let n = 0;
+  for (const id of [...controllers.keys()]) if (cancelTask(id)) n++;
+  return n;
+}
+
 /** Pause a running coordinator task (the USER path, Round 26 §6.4): the driver stops at
  *  the next boundary, mid-flight steps are reconciled honestly, completed work is
  *  preserved, and the task settles PAUSED — resumable with task_resume. */

@@ -9,7 +9,7 @@ import * as path from 'path';
 import { DeviceHub, type Cipher } from './deviceHub';
 import { buildDeviceOps } from './deviceOps';
 import type { ApprovalRequestView } from '../approval';
-import type { TaskProgressView } from '../progressTypes';
+import type { ProgressSnapshot, TaskProgressView } from '../progressTypes';
 
 let hub: DeviceHub | null = null;
 
@@ -66,14 +66,14 @@ export function linkApprovalEvent(event: 'requested' | 'resolved', view: Approva
 }
 
 let taskTimer: NodeJS.Timeout | null = null;
-/** Task boards change often: coalesce into at most one 'tasks' event per second. */
+/** Task boards change often: coalesce bursts into one 'tasks' event (≤ 250 ms behind). */
 export function linkTasksChanged(views: () => Promise<TaskProgressView[]>): void {
   if (!hub || taskTimer) return;
   taskTimer = setTimeout(() => {
     taskTimer = null;
     void views()
       .then((v) =>
-        hub?.append('tasks', {
+        hub?.replaceLatest('tasks', {
           tasks: v.slice(0, 30).map((t) => ({
             id: t.id,
             objective: t.objective.slice(0, 300),
@@ -88,7 +88,7 @@ export function linkTasksChanged(views: () => Promise<TaskProgressView[]>): void
         })
       )
       .catch(() => undefined);
-  }, 1000);
+  }, 250);
 }
 
 /** Devices panel IPC — every channel goes through the caller's trusted-renderer assertion. */
@@ -120,4 +120,36 @@ export function registerDeviceIpc(assertTrusted: (e: Electron.IpcMainInvokeEvent
     if (typeof id !== 'string' || id.length > 40) throw new Error('device id required');
     return deviceHub().forgetDevice(id);
   });
+}
+
+let progressTimer: NodeJS.Timeout | null = null;
+let pendingProgress: ProgressSnapshot | null = null;
+/** Mirror the HUD's live progress snapshot (same source) to the phone, ≤ 4 updates/s. */
+export function linkProgress(snap: ProgressSnapshot): void {
+  if (!hub) return;
+  pendingProgress = snap;
+  if (progressTimer) return;
+  progressTimer = setTimeout(() => {
+    progressTimer = null;
+    const p = pendingProgress;
+    pendingProgress = null;
+    if (!p || !hub) return;
+    hub.replaceLatest('progress', {
+      busy: p.busy,
+      now: p.now ? { label: p.now.label.slice(0, 160), status: p.now.status } : null,
+      turn: p.turn
+        ? {
+            task: p.turn.task,
+            startedAt: p.turn.startedAt,
+            endedAt: p.turn.endedAt ?? null,
+            outcome: p.turn.outcome,
+            done: p.turn.done,
+            failed: p.turn.failed,
+            calls: p.turn.calls,
+            steps: p.turn.steps.slice(-14).map((s) => ({ label: s.label.slice(0, 120), status: s.status })),
+          }
+        : null,
+      agents: (p.agents ?? []).slice(0, 8).map((a) => ({ name: a.agent.slice(0, 60), status: a.status })),
+    });
+  }, 250);
 }

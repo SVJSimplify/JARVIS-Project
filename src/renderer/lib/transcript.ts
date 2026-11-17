@@ -1,6 +1,6 @@
 // \s? inside the name: Whisper often splits it ("jar vis"), as called out in OPERATING_PRINCIPLES.
-const WAKE = /^\W*(?:(?:hey|hi|ok|okay|yo)\W+)?(?:j[aeo]r?\s?[vw][ie]s+|jarvus|travis|gervais)\b\W*/i;
-const NAME = /j[aeo]r?\s?[vw][ie]s+|jarvus|travis|gervais/i;
+const WAKE = /^\W*(?:(?:hey|hi|ok|okay|yo)\W+)?(?:j[aeo]r?\s?[vw][ie]s+|jarvus|travis|gervais|jini|jinni|jinny|jeannie|jeanie|genie|gini|ginny)\b\W*/i;
+const NAME = /j[aeo]r?\s?[vw][ie]s+|jarvus|travis|gervais|jini|jinni|jinny|jeannie|jeanie|genie|gini|ginny/i;
 const TRAILING = new RegExp(`[\\s,.!?]*(?:${NAME.source})\\W*$`, 'i');
 const STOP = /^(?:stop|quiet|silence|enough|cancel|shut up|be quiet|never ?mind|that'?s enough)\b/i;
 const JUNK = new Set([

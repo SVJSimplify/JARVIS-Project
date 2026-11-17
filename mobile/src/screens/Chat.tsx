@@ -7,15 +7,21 @@ import TaskActivity from '../components/TaskActivity';
 
 /**
  * Where a message runs is decided per message, not by one fixed rule:
- *  - desktop connected → desktop JINI (full memory, tools, agents);
- *  - desktop offline + plain chat + provider configured → answered on the phone, labelled so;
- *  - desktop offline + a task for the computer → queued, clearly marked, sent on reconnect.
+ *  - Chat + provider configured → answered on the phone, regardless of desktop state;
+ *  - Chat without a provider → desktop if online;
+ *  - Task → desktop if online, else queued and sent on reconnect.
  */
-function route(kind: ChatMessage['kind']): 'desktop' | 'phone' | 'queue' | 'none' {
+const STOP_RE = /^\s*(?:hey\s+)?(?:jini|genie)?[\s,]*(?:stop|cancel|abort|halt|enough|never ?mind|stop (?:it|that|everything|all)|cancel (?:it|that|everything|the task))[\s.!]*$/i;
+
+export function route(kind: ChatMessage['kind'], text = ''): 'desktop' | 'phone' | 'queue' | 'none' {
   const s = getState();
-  if (s.link && !s.link.revoked && s.connection === 'online') return 'desktop';
+  const paired = Boolean(s.link && !s.link.revoked);
+  const online = paired && s.connection === 'online';
+  const isStopText = STOP_RE.test(text);
+  if (online && isStopText) return 'desktop'; // "stop" always reaches the desktop
   if (kind === 'chat' && providerReady()) return 'phone';
-  if (s.link && !s.link.revoked) return 'queue';
+  if (online) return 'desktop';
+  if (paired && kind === 'task') return 'queue';
   return 'none';
 }
 
@@ -34,7 +40,7 @@ export default function ChatScreen() {
   const send = async () => {
     const t = text.trim();
     if (!t) return;
-    const r = route(kind);
+    const r = route(kind, t);
     if (r === 'none') {
       setState({ toast: 'Pair a desktop or add a provider in Settings first.' });
       return;
@@ -55,7 +61,7 @@ export default function ChatScreen() {
       }
       return;
     }
-    enqueue(kind === 'task' ? 'task.send' : 'chat', { text: t, threadId: id });
+    enqueue(kind === 'task' && !STOP_RE.test(t) ? 'task.send' : 'chat', { text: t, threadId: id });
   };
 
   return (

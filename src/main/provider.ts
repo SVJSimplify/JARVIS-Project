@@ -35,6 +35,8 @@ import { getAwarenessPrompt } from './awareness';
 import { getTaskPrompt } from './taskStore';
 import { currentTurnSignal, setTurnSignal } from './turnSignal';
 import { beginTurn, emitActivity, endTurn as endModeTurn } from './modes';
+import { cancelAllTasks } from './coordinator';
+import { browserPreferencePrompt } from './nativeBrowser';
 
 const MAX_TOOL_ROUNDS = 60;
 const MAX_TURNS = 12;
@@ -289,9 +291,21 @@ let turnAbort: AbortController | null = null;
 let turnSource: 'interactive' | 'scheduled' = 'interactive';
 let turnChain: Promise<unknown> = Promise.resolve();
 
-/** Stop whatever JARVIS is doing right now (the turn resolves with an empty reply). */
+/** Stop whatever JINI is doing right now (the turn resolves with an empty reply). */
 export function cancelChat(): void {
   turnAbort?.abort();
+}
+
+/** A bare stop command ("stop", "cancel that", "JINI stop"…), never a sentence that merely contains it. */
+export const isStopCommand = (t: string): boolean =>
+  /^\s*(?:hey\s+)?(?:jini|genie|jarvis)?[\s,]*(?:stop|cancel|abort|halt|enough|never ?mind|stop it|stop that|cancel (?:it|that|everything|the task)|stop everything|stop all)[\s.!]*$/i.test(t);
+
+/** "Stop" means everything: the live turn, its subagents (via the turn signal) and every running task. */
+export function stopEverything(): number {
+  turnAbort?.abort();
+  let n = 0;
+  try { n = cancelAllTasks(); } catch { /* coordinator not initialised */ }
+  return n;
 }
 
 /**
@@ -312,6 +326,12 @@ export function chat(
 ): Promise<string> {
   const source: 'interactive' | 'scheduled' =
     typeof opts === 'object' ? (opts.source ?? 'interactive') : opts === 'scheduled' ? 'scheduled' : 'interactive';
+  if (source === 'interactive' && isStopCommand(text)) {
+    const n = stopEverything();
+    const reply = n ? `Stopped. Cancelled ${n} running task${n > 1 ? 's' : ''}.` : 'Stopped.';
+    onDelta(reply);
+    return Promise.resolve(reply);
+  }
   if (source === 'interactive') {
     // The user is talking: an in-flight scheduled turn yields, and so does a previous
     // interactive turn (the newest user message wins).
@@ -414,6 +434,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
     { id: 'task-state', priority: 0, text: await getTaskPrompt().catch(() => '') },
     { id: 'standing-instructions', priority: 0, text: await getStandingInstructionsPrompt().catch(() => '') },
     { id: 'awareness', priority: 1, text: getAwarenessPrompt() },
+    { id: 'browser-choice', priority: 1, text: browserPreferencePrompt() },
     { id: 'memory-relevant', priority: 1, text: await relevantMemoryBlock(
         text,
         async () => {

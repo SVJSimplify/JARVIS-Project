@@ -113,7 +113,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     connect: (opts?: { browser?: string; mode?: 'A' | 'B'; port?: number }): Promise<unknown> => ipcRenderer.invoke('native-browser-connect', opts),
     disconnect: (opts?: { closeBrowser?: boolean }): Promise<string> => ipcRenderer.invoke('native-browser-disconnect', opts),
     reconnect: (): Promise<string> => ipcRenderer.invoke('native-browser-reconnect'),
-    setConfig: (patch: { selectedBrowser?: string; mode?: 'A' | 'B'; attachPort?: number; visibility?: 'normal' | 'minimized'; autoReconnect?: boolean; keepOpenOnQuit?: boolean }): Promise<unknown> => ipcRenderer.invoke('native-browser-set-config', patch),
+    setConfig: (patch: { selectedBrowser?: string; mode?: 'A' | 'B'; attachPort?: number; visibility?: 'normal' | 'minimized'; autoReconnect?: boolean; keepOpenOnQuit?: boolean; defaultBrowser?: 'panel' | 'native' }): Promise<unknown> => ipcRenderer.invoke('native-browser-set-config', patch),
     activateTab: (tabId: string): Promise<string> => ipcRenderer.invoke('native-browser-activate-tab', tabId)
   },
   // Round 29 (§1.1): user action approvals. The renderer can only RESPOND to requests

@@ -21,7 +21,7 @@ import {
   type LinkKey,
   type RpcResponse,
 } from '@link';
-import { getState, setState, toast, uid, type ApprovalView, type ChatMessage, type LinkState, type MemoryView, type TaskView } from './store';
+import { getState, setState, toast, uid, type ApprovalView, type ChatMessage, type LinkState, type LiveProgress, type MemoryView, type TaskView } from './store';
 
 const counter = makeCounter();
 let key: LinkKey | null = null;
@@ -187,6 +187,9 @@ function applyEvent(e: LinkEvent): void {
     }
     case 'tasks':
       setState({ tasks: (d.tasks as TaskView[]) ?? [] });
+      return;
+    case 'progress':
+      setState({ progress: { ...(d as unknown as Omit<LiveProgress, 'at'>), at: e.at } });
       return;
     case 'approval':
       setState((s) => ({ approvals: [...s.approvals.filter((a) => a.id !== d.id), d as unknown as ApprovalView] }));

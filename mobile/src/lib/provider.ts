@@ -42,12 +42,31 @@ export async function askProvider(text: string, history: ChatMessage[]): Promise
     .filter((m) => m.state === 'done' && m.text)
     .slice(-12)
     .map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
-  const res = await fetch(`${p.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(p.apiKey ? { Authorization: `Bearer ${p.apiKey}` } : {}) },
-    body: JSON.stringify({ model: p.model, messages: [{ role: 'system', content: system }, ...turns, { role: 'user', content: text }], stream: false }),
-  });
-  const body = await res.text();
+  const req = () =>
+    fetch(`${p.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(p.apiKey ? { Authorization: `Bearer ${p.apiKey}` } : {}) },
+      body: JSON.stringify({ model: p.model, messages: [{ role: 'system', content: system }, ...turns, { role: 'user', content: text }], stream: false }),
+    });
+  let res: Response | null = null;
+  let body = '';
+  // Transient gateway failures (429/5xx, dropped upstream sessions) get backoff retries;
+  // "reset after Ns" in the body is honoured once.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      res = await req();
+    } catch (e) {
+      if (attempt === 3) throw new Error(`Cannot reach the provider (${e instanceof Error ? e.message : String(e)}). Check the API URL and your connection.`);
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+      continue;
+    }
+    body = await res.text();
+    if (res.ok || ![429, 500, 502, 503, 504].includes(res.status)) break;
+    if (attempt === 3) throw new Error(`Couldn't get a reply: the provider is temporarily unavailable (HTTP ${res.status}). Tried 4 times — try again in a moment.`);
+    const hint = /(?:reset|retry)\s+(?:after|in)\s+(\d+)\s*s/i.exec(body);
+    await new Promise((r) => setTimeout(r, hint && attempt === 0 ? Math.min(Number(hint[1]) * 1000 + 500, 25_000) : 1000 * 2 ** attempt));
+  }
+  if (!res) throw new Error('No response from the provider.');
   if (!res.ok) throw new Error(`Provider returned ${res.status}: ${body.slice(0, 160)}`);
   const data = JSON.parse(body) as { choices?: Array<{ message?: { content?: string } }> };
   const out = data.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, '').trim();

@@ -60,7 +60,7 @@ export function useVoiceAgent(o: Options) {
         const text = cleanTranscript(await transcribe(audio));
         if (!text || NOISE.test(text) || !liveRef.current) return;
         const { woke, command } = parseWake(text);
-        if (woke && !command) return cb.speak('Yes, sir?');
+        if (woke && !command) return cb.speak('Yes?');
         if (isStop(command)) return cb.onCancel(); // "stop" silences JARVIS and cancels the running request
         // While JARVIS is talking, only a wake-word command may interrupt: ambient noise,
         // the echo of JARVIS's own voice off the speakers and stray chatter are dropped

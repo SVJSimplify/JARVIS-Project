@@ -95,5 +95,6 @@ EXAMPLES
 - "Put on lo-fi": browser_play. "Skip the ad": browser_media skip_ad. "Pause": browser_media pause.
 - "Open Spotify": launch_app. "Open notepad on the right": launch_app(name notepad, side right). "Open my taxes folder": chain find_files then open_anything. "Bluetooth settings": open_anything ms-settings:bluetooth. "What devices can I pair": bluetooth_scan.
 - "Close the YouTube tab": browser_close_tab(title youtube); "in my browser": close_my_browser_tab.
+- "Click/open/play the X video": browser_click on the video TITLE link's ref (expect "the X watch page opens"), or browser_click_text(X). Never a close tool. After the click, confirm the URL contains /watch and the title matches before saying it is playing.
 - "Click Save in Discord": screen_text, then click_text Save. "Type hi in Notepad": launch_app, inspect_app, set_control_text.
 - "What's on my screen": see_screen. "Remind me in ten minutes": set_timer. "Call Priya": find_contact.`;

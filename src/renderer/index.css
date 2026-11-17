@@ -150,3 +150,32 @@ input, textarea, select { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---- Form controls (warm paper): no browser-default outlines on cream ---- */
+.jini-check {
+  appearance: none; width: 34px; height: 20px; border-radius: 999px; flex-shrink: 0;
+  background: #E6DECF; position: relative; cursor: pointer; transition: background .18s ease;
+}
+.jini-check::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px;
+  background: #FFFDF9; box-shadow: 0 1px 2px rgba(31, 27, 22, .18); transition: transform .18s ease;
+}
+.jini-check:checked { background: #1F1B16; }
+.jini-check:checked::after { transform: translateX(14px); }
+.jini-check:focus-visible, .jini-range:focus-visible, .jini-chip-btn:focus-visible {
+  outline: 2px solid #B05A33; outline-offset: 2px;
+}
+.jini-range { appearance: none; height: 20px; background: transparent; cursor: pointer; outline: none; }
+.jini-range::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: #E6DECF; }
+.jini-range::-webkit-slider-thumb {
+  appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 999px;
+  background: #FFFDF9; border: 1px solid #D8CDBB; box-shadow: 0 1px 3px rgba(31, 27, 22, .16);
+}
+.jini-range:active::-webkit-slider-thumb { border-color: #1F1B16; }
+.jini-chip-btn {
+  height: 30px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  color: #1F1B16; background: #FFFDF9; border: 1px solid #E6DECF; transition: background .15s ease, border-color .15s ease;
+}
+.jini-chip-btn:hover { background: #F3EEE4; border-color: #D8CDBB; }
+.jini-chip-btn--quiet { color: #6E665B; }
+.jini-chip-btn--quiet:hover { color: #B4473A; }

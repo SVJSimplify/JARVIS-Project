@@ -569,6 +569,13 @@ export class DeviceHub {
     return e;
   }
 
+  /** Snapshot-style events (task board, live progress): only the newest copy is kept in the
+   *  log, so frequent updates never push real history (chat, approvals) out of the window. */
+  replaceLatest(type: LinkEvent['type'], data: Record<string, unknown>): LinkEvent {
+    this.events = this.events.filter((e) => e.type !== type);
+    return this.append(type, data);
+  }
+
   private async hintAll(seq: number): Promise<void> {
     for (const [id, set] of this.sockets) {
       const d = this.devices.get(id);

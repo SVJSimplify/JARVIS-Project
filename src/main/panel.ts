@@ -17,7 +17,7 @@ const LOAD_CAP_MS = 4000;
 const BAR_H = 38;
 const TAB_MSG = '__jtab__';
 const CLOSE_MSG = '__jarvis_close__';
-const CLOSE_JS = `(()=>{if(document.getElementById('__jx'))return;const b=document.createElement('button');b.id='__jx';b.textContent='✕  Close';b.onclick=()=>console.log('${CLOSE_MSG}');b.style.cssText='position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147483647;padding:8px 18px;border-radius:999px;border:1px solid #ffffff;background:#000000dd;color:#ffffff;font:500 12px Futura,Jost,system-ui;letter-spacing:.1em;cursor:pointer';document.documentElement.appendChild(b)})()`;
+const CLOSE_JS = `(()=>{if(document.getElementById('__jx'))return;const b=document.createElement('button');b.id='__jx';b.textContent='✕  Close';b.onclick=()=>{if(Date.now()-(window.__jvBusy||0)<2500)return;console.log('${CLOSE_MSG}')};b.style.cssText='position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147483647;padding:8px 18px;border-radius:999px;border:1px solid #ffffff;background:#000000dd;color:#ffffff;font:500 12px Futura,Jost,system-ui;letter-spacing:.1em;cursor:pointer';document.documentElement.appendChild(b)})()`;
 
 interface Tab {
   id: number;

@@ -77,9 +77,13 @@ export interface NativeBrowserConfig {
   autoReconnect: boolean;
   /** Leave the managed browser running when JARVIS quits (default: keep it). */
   keepOpenOnQuit: boolean;
+  /** Which browser JINI uses for web tasks: the built-in panel, or the real installed
+   *  browser (in `mode`: B = JINI's own Chrome profile, A = the user's running Chrome).
+   *  Choosing 'native' is the user's standing permission to connect it when needed. */
+  defaultBrowser: 'panel' | 'native';
 }
 
-const DEFAULT_CONFIG: NativeBrowserConfig = { mode: 'B', visibility: 'normal', autoReconnect: true, keepOpenOnQuit: true };
+const DEFAULT_CONFIG: NativeBrowserConfig = { mode: 'B', visibility: 'normal', autoReconnect: true, keepOpenOnQuit: true, defaultBrowser: 'panel' };
 
 const configFile = (): string => path.join(FILES_ROOT, 'brain', 'native-browser.json');
 
@@ -95,10 +99,27 @@ export async function getNativeConfig(): Promise<NativeBrowserConfig> {
     visibility: raw.visibility === 'minimized' ? 'minimized' : 'normal',
     autoReconnect: raw.autoReconnect !== false,
     keepOpenOnQuit: raw.keepOpenOnQuit !== false,
+    defaultBrowser: raw.defaultBrowser === 'native' ? 'native' : 'panel',
     attachPort: typeof raw.attachPort === 'number' && raw.attachPort > 0 ? Math.floor(raw.attachPort) : undefined,
     selectedBrowser: typeof raw.selectedBrowser === 'string' ? raw.selectedBrowser : undefined,
   };
   return { ...configCache };
+}
+
+/** Synchronous view for prompt assembly (cache warmed at startup / on every change). */
+export function browserPreferencePrompt(): string {
+  const c = configCache;
+  if (!c || c.defaultBrowser !== 'native') return '';
+  return c.mode === 'A'
+    ? "BROWSER CHOICE (user setting): web tasks run in the user's OWN running Chrome (native_browser_* tools, Mode A attach) — their real logins and saved passwords. If not connected, call native_browser_connect (permission is standing). If Chrome isn't listening on the debug port, tell the user how to start it once; don't fall back silently. Use browser_* panel tools only if the user asks for the in-app browser."
+    : "BROWSER CHOICE (user setting): web tasks run in JINI's own real Chrome profile (native_browser_* tools, Mode B) — a persistent profile where the user's sign-ins and Chrome-saved passwords live. If not connected, call native_browser_connect (permission is standing). Use browser_* panel tools only if the user asks for the in-app browser. Never type passwords yourself; Chrome's password manager autofills, and the user signs in once.";
+}
+
+/** Auto-connect when the user made the native browser their default (their standing choice). */
+async function ensureNativeForDefault(): Promise<void> {
+  const cfg = await getNativeConfig();
+  if (cfg.defaultBrowser !== 'native' || (st.info && st.info.status === 'connected')) return;
+  await connectNativeBrowser({ mode: cfg.mode });
 }
 
 export async function setNativeConfig(patch: Partial<NativeBrowserConfig>): Promise<NativeBrowserConfig> {
@@ -111,6 +132,7 @@ export async function setNativeConfig(patch: Partial<NativeBrowserConfig>): Prom
       visibility: patch.visibility === 'minimized' || patch.visibility === 'normal' ? patch.visibility : cur.visibility,
       autoReconnect: typeof patch.autoReconnect === 'boolean' ? patch.autoReconnect : cur.autoReconnect,
       keepOpenOnQuit: typeof patch.keepOpenOnQuit === 'boolean' ? patch.keepOpenOnQuit : cur.keepOpenOnQuit,
+      defaultBrowser: patch.defaultBrowser === 'native' || patch.defaultBrowser === 'panel' ? patch.defaultBrowser : cur.defaultBrowser,
       attachPort: typeof patch.attachPort === 'number' ? Math.max(0, Math.floor(patch.attachPort)) || undefined : cur.attachPort,
       selectedBrowser: patch.selectedBrowser === undefined ? cur.selectedBrowser : String(patch.selectedBrowser) || undefined,
     };
@@ -311,7 +333,7 @@ const noteActivity = (action: string, detail = ''): void => {
 
 const sessionTag = (): string =>
   st.info && st.info.status === 'connected'
-    ? `[NATIVE SESSION ${st.info.sessionId} · ${st.info.browserName} · mode ${st.info.mode === 'A' ? 'A: attached to your running browser' : 'B: JARVIS-managed profile'}]`
+    ? `[NATIVE SESSION ${st.info.sessionId} · ${st.info.browserName} · mode ${st.info.mode === 'A' ? 'A: attached to your running browser' : 'B: JINI-managed profile'}]`
     : '[NATIVE SESSION none — native_browser_connect first]';
 
 /** Persisted session record (durable evidence of the last session; no secrets). */
@@ -2249,6 +2271,7 @@ export const nativeBrowserTools: Record<string, Tool> = {
       "Open a URL in the connected NATIVE browser as a BACKGROUND tab (default) — your current tab keeps focus. focus=true ONLY when the user explicitly asked to SEE the page now (it brings the tab to the front). Requires an active session (native_browser_connect).",
     parameters: { type: 'object', properties: { url: { type: 'string' }, background: { type: 'boolean' }, focus: { type: 'boolean' } }, required: ['url'] },
     run: async (args) => {
+      await ensureNativeForDefault();
       const url = normalizeUrl(String(args.url ?? ''));
       const res = await openNativeTab(url, { background: args.background !== false, focus: args.focus === true });
       const state = await waitNativeTab(res.tabId, 8000).catch(() => '');
@@ -2260,6 +2283,7 @@ export const nativeBrowserTools: Record<string, Tool> = {
     description: 'Navigate a NATIVE browser tab (tabId from native_browser_tabs, default the newest) to a URL in the background. Returns the reached title/URL — a navigation is not yet an outcome.',
     parameters: { type: 'object', properties: { url: { type: 'string' }, tabId: { type: 'string' } }, required: ['url'] },
     run: async (args) => {
+      await ensureNativeForDefault();
       const res = await navigateNativeTab(String(args.url ?? ''), typeof args.tabId === 'string' ? args.tabId : undefined);
       return `Navigated to "${res.title.slice(0, 80)}" (${res.url})${res.ok ? '' : ' [the page did not settle — treat as unverified]'}\n${sessionTag()}`;
     },

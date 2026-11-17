@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAppState, type TaskView } from '../lib/store';
+import { setState, useAppState, type LiveProgress, type TaskView } from '../lib/store';
 import { enqueue, fullRefresh } from '../lib/linkClient';
 import { Empty, ScreenHeader, ago } from '../components/ui';
 
@@ -9,7 +9,7 @@ const TERMINAL = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
 const statusText = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, ' ');
 
 export default function TasksScreen() {
-  const { tasks, paired, online, lastSync } = useAppState((s) => ({ tasks: s.tasks, paired: Boolean(s.link && !s.link.revoked), online: s.connection === 'online', lastSync: s.lastSync }));
+  const { tasks, progress, paired, online, lastSync } = useAppState((s) => ({ tasks: s.tasks, progress: s.progress, paired: Boolean(s.link && !s.link.revoked), online: s.connection === 'online', lastSync: s.lastSync }));
   const [busy, setBusy] = useState(false);
 
   if (!paired) return <Empty title="No desktop paired" hint="Tasks run on your computer. Pair it in Settings to send and follow tasks from here." />;
@@ -40,7 +40,9 @@ export default function TasksScreen() {
       />
       <p className="px-1 text-meta text-faint">{online ? 'Live from your desktop' : lastSync ? `Last synced ${ago(lastSync)}` : 'Not synced yet'}</p>
 
-      {tasks.length === 0 && <Empty title="No tasks yet" hint="In Chat, choose Run on desktop and describe what you need done." />}
+      {online && progress?.turn && <LiveCard p={progress} />}
+
+      {tasks.length === 0 && !progress?.turn && <Empty title="No tasks yet" hint="In Chat, choose Run on desktop and describe what you need done." />}
 
       {active.length > 0 && (
         <>
@@ -91,12 +93,60 @@ function ActiveRow({ t }: { t: TaskView }) {
               Pause
             </button>
           )}
-          <button className="text-danger active:opacity-70" onClick={() => enqueue('task.cancel', { id: t.id })}>
+          <button
+            className="text-danger active:opacity-70"
+            onClick={() => {
+              // Optimistic: the row reflects the request at once; the desktop's next board push confirms it.
+              setState((s) => ({ tasks: s.tasks.map((x) => (x.id === t.id ? { ...x, status: 'CANCELLING', note: 'Stopping…' } : x)) }));
+              enqueue('task.cancel', { id: t.id });
+            }}
+          >
             Cancel
           </button>
         </span>
       </div>
       {t.note && <p className="mt-2 text-meta text-faint">{t.note}</p>}
     </li>
+  );
+}
+
+const DOT: Record<string, string> = { ok: 'bg-ok', fail: 'bg-danger', running: 'bg-accent animate-pulse', held: 'bg-warn' };
+
+/** What the desktop is doing right now — the same snapshot as its Task Progress rail. */
+function LiveCard({ p }: { p: LiveProgress }) {
+  const t = p.turn!;
+  const running = !t.endedAt;
+  return (
+    <>
+      <p className="section-label">{running ? 'Working now' : 'Last request'}</p>
+      <div className="group-list">
+        <div className="group-row">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-body text-text">{t.task}</p>
+            {running && (
+              <button className="shrink-0 text-[14px] font-medium text-danger active:opacity-70" onClick={() => enqueue('chat', { text: 'stop', threadId: `stop_${Date.now()}` })}>
+                Stop
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-meta text-muted">
+            {running ? (p.now?.label ?? 'Thinking…') : t.outcome === 'ok' ? 'Done' : t.outcome === 'interrupted' ? 'Stopped' : 'Failed'} · {t.done} of {t.calls} steps
+          </p>
+          {t.steps.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {t.steps.slice(-6).map((s, i) => (
+                <li key={i} className="flex items-center gap-2.5 text-meta text-muted">
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT[s.status] ?? 'bg-faint'}`} />
+                  <span className="truncate">{s.label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {p.agents.length > 0 && (
+            <p className="mt-3 text-meta text-faint">Subagents: {p.agents.map((a) => `${a.name} (${a.status})`).join(', ')}</p>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

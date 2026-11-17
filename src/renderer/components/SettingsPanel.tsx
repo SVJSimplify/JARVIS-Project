@@ -365,7 +365,7 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
                 setAwareness(e.target.checked);
                 void window.electronAPI.settings.set({ awareness: e.target.checked });
               }}
-              className="h-4 w-4 accent-[#FFFDF9]"
+              className="jini-check"
             />
           </label>
         </div>
@@ -379,7 +379,7 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
                 type="checkbox"
                 checked={prefs[t.key]}
                 onChange={(e) => setVoicePrefs({ [t.key]: e.target.checked })}
-                className="h-4 w-4 accent-[#FFFDF9]"
+                className="jini-check"
               />
             </label>
           ))}
@@ -387,19 +387,22 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
             <span>
               {vp.clips !== null ? `Enrolling… ${vp.clips}/${ENROL_CLIPS} (speak near the mic)` : vp.enrolled ? 'Voice profile saved' : 'No voice profile'}
             </span>
-            <span className="flex gap-4">
-              <button type="button" onClick={startEnrol} className="text-accent hover:text-hot">
+            <span className="flex gap-2">
+              <button type="button" onClick={startEnrol} className="jini-chip-btn">
                 {vp.enrolled ? 'Re-enrol' : 'Enrol voice'}
               </button>
               {vp.enrolled && (
-                <button type="button" onClick={clearPrint} className="hover:text-hot">
+                <button type="button" onClick={clearPrint} className="jini-chip-btn jini-chip-btn--quiet">
                   Remove
                 </button>
               )}
             </span>
           </div>
           <label className="flex items-center justify-between gap-4 text-sm text-steel">
-            Lock strictness (strict ← → loose)
+            <span>
+              Voice lock strictness
+              <span className="mt-0.5 block text-xs text-faint">Strict ← → Loose</span>
+            </span>
             <input
               type="range"
               min={1.5}
@@ -407,7 +410,8 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
               step={0.1}
               value={prefs.lockStrictness}
               onChange={(e) => setVoicePrefs({ lockStrictness: Number(e.target.value) })}
-              className="w-32 accent-[#FFFDF9]"
+              className="jini-range w-36"
+              aria-label="Voice lock strictness"
             />
           </label>
         </div>

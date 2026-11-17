@@ -565,6 +565,7 @@ export default function OperationsPanel({ open, onClose }: { open: boolean; onCl
                     <label className="ml-auto flex items-center gap-1 font-mono text-[12px] text-steel" title="When on, the supervisor runs the ELIGIBLE bounded recoveries itself (memory re-drain, managed-browser reconnect, occurrence recovery) within the hourly budget. Everything is recorded below.">
                       <input
                         type="checkbox"
+                        className="jini-check"
                         checked={recovery.settings.autoRecovery}
                         onChange={(e) => void window.electronAPI.ops.recoverySettings({ autoRecovery: e.target.checked }).then(() => refresh())}
                       />

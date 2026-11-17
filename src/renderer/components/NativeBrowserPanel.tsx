@@ -173,20 +173,43 @@ export default function NativeBrowserPanel({ open, onClose }: { open: boolean; o
               </Section>
 
               {/* Mode + preferences — explicit, user-controlled, never hidden */}
-              <Section title="Mode & preferences">
-                <div className="flex flex-wrap items-center gap-2">
-                  {(['B', 'A'] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      className={`${actionBtn} ${((data.session?.mode ?? data.config.mode) === m) ? 'border-accent text-accent' : ''}`}
-                      disabled={busy || connected}
-                      onClick={() => act(() => window.electronAPI.nativeBrowser.setConfig({ mode: m }), () => `Default mode set to ${m}.`)}
-                    >
-                      Mode {m} ({m === 'A' ? 'attach to running' : 'managed profile'})
-                    </button>
-                  ))}
+              <Section title="Which browser JINI uses">
+                <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Browser JINI uses">
+                  {([
+                    { id: 'panel', label: 'In-app browser', hint: 'Built into JINI. Fast, sandboxed, its own sign-ins.' },
+                    { id: 'B', label: "JINI's Chrome profile", hint: 'Your real Chrome with a dedicated JINI profile. Sign in once; Chrome saves passwords there. Recommended.' },
+                    { id: 'A', label: 'My Chrome', hint: 'Attach to your own running Chrome (all your logins). Chrome must be started with remote debugging.' },
+                  ] as const).map((o) => {
+                    const cur = data.config.defaultBrowser === 'native' ? data.config.mode : 'panel';
+                    const on = cur === o.id;
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        title={o.hint}
+                        className={`${actionBtn} ${on ? 'border-accent text-accent' : ''}`}
+                        disabled={busy || (connected && o.id !== 'panel' && o.id !== data.session?.mode)}
+                        onClick={() =>
+                          act(
+                            () => window.electronAPI.nativeBrowser.setConfig(o.id === 'panel' ? { defaultBrowser: 'panel' } : { defaultBrowser: 'native', mode: o.id }),
+                            () => `JINI will use: ${o.label}.`
+                          )
+                        }
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="pt-1 text-[12px] text-steel">
+                  {data.config.defaultBrowser !== 'native'
+                    ? 'Web tasks run in the in-app browser.'
+                    : data.config.mode === 'A'
+                      ? 'Web tasks run in your own Chrome. Recent Chrome versions only allow this when Chrome is started with --remote-debugging-port and a separate --user-data-dir.'
+                      : "Web tasks run in real Chrome using JINI's own profile — sign in to your sites once there and Chrome keeps the logins and saved passwords."}
+                </p>
                 {mode === 'A' && (
                   <div className="flex items-center gap-2 pt-1">
                     <label htmlFor="nb-port" className="font-mono text-[12px] text-steel">debugging port</label>
@@ -217,6 +240,7 @@ export default function NativeBrowserPanel({ open, onClose }: { open: boolean; o
                   <label className="ml-2 flex items-center gap-1 font-mono text-[12px] text-steel" title="The supervisor may relaunch the managed browser if its connection drops. Mode A is never re-attached automatically.">
                     <input
                       type="checkbox"
+                      className="jini-check"
                       checked={data.config.autoReconnect}
                       onChange={(e) => act(() => window.electronAPI.nativeBrowser.setConfig({ autoReconnect: e.target.checked }), () => `Automatic recovery ${e.target.checked ? 'enabled' : 'disabled'}.`)}
                     />
@@ -225,6 +249,7 @@ export default function NativeBrowserPanel({ open, onClose }: { open: boolean; o
                   <label className="ml-2 flex items-center gap-1 font-mono text-[12px] text-steel" title="When JINI quits, leave the managed browser running.">
                     <input
                       type="checkbox"
+                      className="jini-check"
                       checked={data.config.keepOpenOnQuit}
                       onChange={(e) => act(() => window.electronAPI.nativeBrowser.setConfig({ keepOpenOnQuit: e.target.checked }), () => `Browser ${e.target.checked ? 'stays open' : 'closes'} when JINI quits.`)}
                     />

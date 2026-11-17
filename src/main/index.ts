@@ -1,13 +1,13 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Notification, safeStorage, shell } from 'electron';
 import * as path from 'path';
-import { cancelChat, chat, listModels } from './provider';
+import { chat, listModels, stopEverything } from './provider';
 import { getPublicSettings, setSettings } from './settings';
 import { migrateEmbeddingsKeyStorage, setEmbeddingsCipher } from './embeddings';
 import { synthesize } from './tts';
 import { attachPanel } from './panel';
 import { attachHud, attentionHud, isMini, sendToHud, setMini } from './hud';
 import { initModes, modeInfo, setMode } from './modes';
-import { getProgressSnapshot, initProgress, noteActivity, noteTurnEnd, noteTurnStart, refreshTasks, setAgentProvider, setInvocationProvider, setTaskProvider } from './progress';
+import { getProgressSnapshot, initProgress, noteActivity, noteTurnEnd, noteTurnStart, onProgress, refreshTasks, setAgentProvider, setInvocationProvider, setTaskProvider } from './progress';
 import { invocationScopes, invocationSummary, noteInvocationEvent, openInvocationTurnScope, queryInvocations } from './invocations';
 import { setTaskChangeNotifier, taskViews } from './taskStore';
 import { loadStt, stopStt, transcribeStt } from './stt';
@@ -32,6 +32,7 @@ import {
   discoverInstalledBrowsers,
   nativeBrowserStatusView,
   setNativeConfig,
+  getNativeConfig,
   setNativeProfileRoot,
   shutdownNativeBrowser,
   activateNativeTab,
@@ -40,7 +41,7 @@ import {
 } from './nativeBrowser';
 import { pendingApprovalViews, respondApproval, dismissApproval, setApprovalUiPush, setNativeConfirmationPresenter, type ApprovalRequestView } from './approval';
 import { senderIsTrustedAppFrame, expectedRendererSpec, noteIpcTrustRefusal, setTrustedRendererSpec, type TrustedRendererSpec } from './ipcTrust';
-import { initDeviceLink, linkApprovalEvent, linkTasksChanged, registerDeviceIpc } from './devices/desktopLink';
+import { initDeviceLink, linkApprovalEvent, linkProgress, linkTasksChanged, registerDeviceIpc } from './devices/desktopLink';
 import { credentialInfoIpc, credentialSetIpc, credentialTestIpc, credentialRevokeIpc, setCredentialCipher } from './credentials';
 
 // Failures must be observable, never silent: log them with the component that owns them.
@@ -243,6 +244,8 @@ app.whenReady().then(() => {
     void refreshTasks();
     linkTasksChanged(taskViews);
   });
+  onProgress(linkProgress);
+  void getNativeConfig().catch(() => undefined); // warms the cache the prompt reads synchronously
   void initDeviceLink();
   void refreshTasks();
   if (!globalShortcut.isRegistered('Control+Alt+B')) {
@@ -339,7 +342,7 @@ ipcMain.handle('ai-chat', (event, text: string) => {
   return chat(text, (delta) => deliver('ai-delta', delta), (note) => deliver('ai-progress', note));
 });
 ipcMain.handle('ai-models', () => listModels());
-ipcMain.handle('ai-cancel', () => cancelChat());
+ipcMain.handle('ai-cancel', () => { stopEverything(); });
 ipcMain.handle('tts-synthesize', (_, text: string) => {
   const s = typeof text === 'string' ? text : '';
   if (!s.trim()) throw new Error('Nothing to speak.');
@@ -478,6 +481,7 @@ ipcMain.handle('native-browser-set-config', async (_, patch: unknown) => {
     visibility: p.visibility === 'minimized' || p.visibility === 'normal' ? p.visibility : undefined,
     autoReconnect: typeof p.autoReconnect === 'boolean' ? p.autoReconnect : undefined,
     keepOpenOnQuit: typeof p.keepOpenOnQuit === 'boolean' ? p.keepOpenOnQuit : undefined,
+    defaultBrowser: p.defaultBrowser === 'native' || p.defaultBrowser === 'panel' ? p.defaultBrowser : undefined,
   });
 });
 ipcMain.handle('ops-recovery-status', () => recoveryStatus());

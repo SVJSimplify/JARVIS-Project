@@ -95,7 +95,7 @@ export default function DevicesSection() {
       </p>
 
       <label className="mb-5 flex items-center gap-3 text-sm text-hot">
-        <input type="checkbox" checked={Boolean(status?.enabled)} disabled={busy} onChange={(e) => void toggle(e.target.checked)} />
+        <input type="checkbox" className="jini-check" checked={Boolean(status?.enabled)} disabled={busy} onChange={(e) => void toggle(e.target.checked)} />
         Allow phone connections
       </label>
 

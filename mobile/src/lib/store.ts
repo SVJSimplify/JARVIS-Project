@@ -37,6 +37,15 @@ export interface TaskView {
   steps?: Array<{ title: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped' }>;
 }
 
+/** The desktop's live progress snapshot (same source as its Task Progress rail). */
+export interface LiveProgress {
+  busy: boolean;
+  now: { label: string; status: string } | null;
+  turn: { task: string; startedAt: number; endedAt: number | null; outcome: string; done: number; failed: number; calls: number; steps: Array<{ label: string; status: string }> } | null;
+  agents: Array<{ name: string; status: string }>;
+  at: number;
+}
+
 export interface MemoryView {
   id: string;
   label: string;
@@ -76,6 +85,7 @@ export interface AppState {
   lastSync: number;
   messages: ChatMessage[];
   tasks: TaskView[];
+  progress: LiveProgress | null;
   memories: MemoryView[];
   approvals: ApprovalView[];
   outbox: OutboxItem[];
@@ -92,6 +102,7 @@ let state: AppState = {
   lastSync: 0,
   messages: [],
   tasks: [],
+  progress: null,
   memories: [],
   approvals: [],
   outbox: [],

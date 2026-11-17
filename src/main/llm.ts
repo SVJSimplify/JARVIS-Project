@@ -31,6 +31,31 @@ export function providerRejection(status: number, body: string): string | null {
 /** Thrown only for a PERMANENT model rejection (retired / restricted / unknown to the gateway). */
 export class ModelGoneError extends Error {}
 
+/** Thrown when retries are exhausted on a TRANSIENT provider failure; the fallback chain may try the next model. */
+export class ProviderUnavailableError extends Error {}
+
+/** Relay/gateway lost ITS upstream connection (HTTP/2 session destroyed, socket reset…): transient, worth waiting out. */
+const UPSTREAM_DROP_RE = /fetch failed|ERR_HTTP2|session has been destroyed|ECONNRESET|socket hang up|upstream|EPIPE|ETIMEDOUT|other side closed|terminated/i;
+
+/** "reset after 20s" / "retry after 20 seconds" hints in a relay's error body → ms (capped). */
+export function bodyRetryHintMs(body: string): number {
+  const m = /(?:reset|retry)\s+(?:after|in)\s+(\d+(?:\.\d+)?)\s*(ms|s|sec|seconds?)?/i.exec(body);
+  if (!m) return 0;
+  const n = Number(m[1]);
+  return Math.min(m[2] === 'ms' ? n : n * 1000, 25_000);
+}
+
+/** Human message for a transient provider failure (shown instead of the raw relay JSON). */
+export function transientMessage(status: number, body: string, attempts: number): string {
+  const drop = UPSTREAM_DROP_RE.test(body);
+  const what = drop
+    ? `the provider's gateway lost its connection to the model (HTTP ${status}, upstream connection reset)`
+    : status === 429
+      ? 'the provider is rate-limiting requests (HTTP 429)'
+      : `the provider is temporarily unavailable (HTTP ${status})`;
+  return `Couldn't get a reply: ${what}. Tried ${attempts} times. This is on the provider's side — try again in a moment, or add a fallback model in Settings.`;
+}
+
 export interface ToolCall {
   id: string;
   type: 'function';
@@ -130,11 +155,23 @@ export async function send(path: string, method: 'GET' | 'POST', body?: unknown,
     // burning retries on a permanent rejection just delays the honest answer.
     const rejection = providerRejection(res.status, bodyText);
     if (rejection) throw new ModelGoneError(rejection);
-    // Hosted APIs rate-limit and hiccup; retry briefly before failing the turn.
-    if ([429, 500, 502, 503, 504].includes(res.status) && attempt < 2) {
-      const ra = Number(res.headers.get('retry-after'));
-      await wait(ra > 0 ? Math.min(ra * 1000, 5000) : 800 * (attempt + 1));
-      continue;
+    // Hosted APIs rate-limit and hiccup; retry with backoff before failing the turn. A relay that
+    // lost its upstream session says when it resets ("reset after 20s"): wait that out once
+    // instead of burning every retry inside the reset window.
+    if ([429, 500, 502, 503, 504].includes(res.status)) {
+      const maxAttempts = UPSTREAM_DROP_RE.test(bodyText) ? 4 : 3;
+      if (attempt < maxAttempts - 1) {
+        const ra = Number(res.headers.get('retry-after'));
+        const hint = bodyRetryHintMs(bodyText);
+        const backoff = 1000 * 2 ** attempt + Math.floor(Math.random() * 400);
+        const ms = ra > 0 ? Math.min(ra * 1000, 25_000) : hint && attempt === 0 ? hint + 500 : backoff;
+        await new Promise<void>((resolve, reject) => {
+          const t = setTimeout(resolve, ms);
+          signal?.addEventListener('abort', () => (clearTimeout(t), reject(new Error('Interrupted'))), { once: true });
+        });
+        continue;
+      }
+      throw new ProviderUnavailableError(transientMessage(res.status, bodyText, attempt + 1));
     }
     throw new Error(`Provider returned ${res.status}: ${bodyText.slice(0, 200)}`);
   }
@@ -160,8 +197,8 @@ export async function withModelFallback<T>(
       return await job(models[i]);
     } catch (e) {
       last = e;
-      if (!(e instanceof ModelGoneError) || i === models.length - 1) throw e;
-      console.warn(`[llm] model "${models[i]}" was rejected as unavailable — falling back to "${models[i + 1]}"`);
+      if (!(e instanceof ModelGoneError || e instanceof ProviderUnavailableError) || i === models.length - 1) throw e;
+      console.warn(`[llm] model "${models[i]}" ${e instanceof ModelGoneError ? 'was rejected as unavailable' : 'is temporarily unreachable'} — falling back to "${models[i + 1]}"`);
       onFallback?.(models[i], models[i + 1]);
     }
   }

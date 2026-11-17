@@ -263,6 +263,6 @@ export interface RpcResponse {
 export interface LinkEvent {
   seq: number;
   at: number;
-  type: 'chat' | 'task' | 'tasks' | 'approval' | 'approval-resolved' | 'memory' | 'notice';
+  type: 'chat' | 'task' | 'tasks' | 'progress' | 'approval' | 'approval-resolved' | 'memory' | 'notice';
   data: Record<string, unknown>;
 }

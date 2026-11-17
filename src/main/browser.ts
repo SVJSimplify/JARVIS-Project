@@ -214,8 +214,18 @@ async function locate(ref: unknown): Promise<Spot> {
     e.scrollIntoView({ block: 'center', inline: 'center' });
     const a = abs(e);
     const x = Math.round(a.x + a.w / 2), y = Math.round(a.y + a.h / 2);
-    const t = document.elementFromPoint(x, y);
-    return { x, y, hit: e.ownerDocument !== document || e.getRootNode() !== document || (!!t && (e === t || e.contains(t) || t.contains(e))) };
+    window.__jvBusy = Date.now(); // the page's own Close pill ignores clicks while the agent acts
+    // Deep hit-test: descend through open shadow roots so YouTube-style components are judged
+    // by what is REALLY under the point, never assumed hit (the old shortcut let a real mouse
+    // click land on whatever covered the element — including the panel's Close pill).
+    let t = document.elementFromPoint(x, y);
+    while (t && t.shadowRoot) { const u = t.shadowRoot.elementFromPoint(x, y); if (!u || u === t) break; t = u; }
+    const up = (n) => n && (n.parentNode || n.host);
+    const within = (a, b) => { for (let n = a; n; n = up(n)) if (n === b) return true; return false; };
+    const pill = document.getElementById('__jx');
+    const covered = !t || t === pill || (pill && pill.contains(t));
+    const hit = !covered && (e.ownerDocument !== document ? true : e === t || within(t, e) || within(e, t));
+    return { x, y, hit };
   })()`)) as { x: number; y: number; hit: boolean };
   return { i, ...p };
 }
@@ -582,6 +592,7 @@ export const browserTools: Record<string, Tool> = {
       const wc = page();
       const before = { url: wc.getURL(), title: wc.getTitle() };
       const recovered = await clickRefRecovered(args.ref, args.button === 'right' ? 'right' : 'left', args.double === true ? 2 : 1);
+      if (panelState().tabCount === 0) return `[ACTION VERIFY] FAILED: the browser panel closed after this click — the click did not reach ref ${args.ref}. Reopen the page (browser_open) and use browser_click_text or browser_see to retry; do NOT report success.`;
       const snap = await settled();
       const after = { url: wc.getURL(), title: wc.getTitle() };
       // Round 27 §1.2: TARGET-AWARE verification — the snapshot's record of the intended
@@ -823,6 +834,7 @@ export const browserTools: Record<string, Tool> = {
     description: 'Click viewport coordinates (maps, canvases, anything without elements). Use browser_see first. button right, double true supported.',
     parameters: { type: 'object', properties: { ...xy, double: { type: 'boolean' }, button: { type: 'string', enum: ['left', 'right'] } }, required: ['x', 'y'] },
     run: async (args) => {
+      await page().executeJavaScript('window.__jvBusy = Date.now()').catch(() => undefined);
       click(num(args.x, 'x'), num(args.y, 'y'), args.button === 'right' ? 'right' : 'left', args.double === true ? 2 : 1);
       await sleep(SETTLE_MS);
       // Round 20 (CHANGE 8): coordinate clicks RE-OBSERVE too — "Clicked. Use browser_see
