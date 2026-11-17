@@ -3,6 +3,7 @@ import { getState, setState, uid, useAppState, type ChatMessage } from '../lib/s
 import { enqueue } from '../lib/linkClient';
 import { askProvider, providerReady } from '../lib/provider';
 import { Empty, Icon } from '../components/ui';
+import TaskActivity from '../components/TaskActivity';
 
 /**
  * Where a message runs is decided per message, not by one fixed rule:
@@ -66,9 +67,19 @@ export default function ChatScreen() {
             hint={paired ? 'Ask a question, or switch to Run on desktop to have your computer do the work.' : 'Answers come from your own AI provider until you pair a desktop.'}
           />
         )}
-        {messages.map((m) => (
-          <Message key={m.id} m={m} />
-        ))}
+        {messages.map((m) => {
+          // A desktop task is shown as one live activity row; its reply renders inside it.
+          if (m.role === 'jini' && m.kind === 'task' && m.replyTo) return null;
+          if (m.role === 'user' && m.kind === 'task' && m.via === 'desktop') {
+            return (
+              <div key={m.id} className="space-y-2">
+                <Message m={{ ...m, state: m.state === 'queued' || m.state === 'sending' ? 'done' : m.state }} />
+                <TaskActivity msg={m} reply={messages.find((r) => r.replyTo === m.id)} />
+              </div>
+            );
+          }
+          return <Message key={m.id} m={m} />;
+        })}
         <div ref={end} />
       </div>
       <div className="sticky bottom-0 -mx-4 bg-bg px-4 pb-3 pt-2">
@@ -136,9 +147,13 @@ function Message({ m }: { m: ChatMessage }) {
   }
 
   return (
-    <div className="max-w-[92%]">
+    <div className="anim-enter max-w-[92%]">
       {m.state === 'running' && !m.text ? (
-        <p className="text-body text-muted">{m.via === 'phone' ? 'Thinking…' : 'Working on your desktop…'}</p>
+        <p className="typing-dots py-2 text-muted" role="status" aria-label={m.via === 'phone' ? 'Thinking' : 'Your desktop is working'}>
+          <span />
+          <span />
+          <span />
+        </p>
       ) : (
         <p className={`whitespace-pre-wrap text-body ${m.state === 'failed' ? 'text-danger' : 'text-text'}`}>{m.text}</p>
       )}

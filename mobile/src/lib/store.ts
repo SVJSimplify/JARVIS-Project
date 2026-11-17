@@ -34,6 +34,7 @@ export interface TaskView {
   done: number;
   total: number;
   updatedAt: number;
+  steps?: Array<{ title: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped' }>;
 }
 
 export interface MemoryView {

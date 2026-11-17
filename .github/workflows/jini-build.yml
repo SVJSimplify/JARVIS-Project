@@ -24,7 +24,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: android-actions/setup-android@v3
+      # GitHub's Ubuntu runners ship the Android SDK; point Gradle at it (and accept licences).
+      - name: Use preinstalled Android SDK
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - name: Install
         run: npm ci
       - name: Typecheck + build web bundle (fails the job on any error)

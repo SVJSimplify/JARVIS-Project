@@ -30,4 +30,28 @@ body {
 }
 
 :focus-visible { outline: 2px solid #b4a3ff; outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---- Motion: purposeful, short, consistent easing ---- */
+@keyframes jini-spin { to { transform: rotate(360deg); } }
+@keyframes jini-dot { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+@keyframes jini-draw { to { stroke-dashoffset: 0; } }
+@keyframes jini-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes jini-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+.anim-spin { animation: jini-spin 0.9s linear infinite; transform-origin: center; }
+.anim-enter { animation: jini-enter 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.anim-pulse { animation: jini-pulse 1.6s ease-in-out infinite; }
+.anim-draw { stroke-dasharray: 24; stroke-dashoffset: 24; animation: jini-draw 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) 0.05s forwards; }
+.typing-dots span { display: inline-block; width: 5px; height: 5px; margin-right: 4px; border-radius: 9999px; background: currentColor; animation: jini-dot 1.2s ease-in-out infinite; }
+.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.3s; margin-right: 0; }
+
+/* Expandable region: animates real height without measuring. */
+.expand { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.28s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.expand[data-open='true'] { grid-template-rows: 1fr; }
+.expand > div { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+  .anim-draw { stroke-dashoffset: 0; }
+}

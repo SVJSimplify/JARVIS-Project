@@ -74,7 +74,17 @@ export function linkTasksChanged(views: () => Promise<TaskProgressView[]>): void
     void views()
       .then((v) =>
         hub?.append('tasks', {
-          tasks: v.slice(0, 30).map((t) => ({ id: t.id, objective: t.objective.slice(0, 300), status: t.status, note: t.note.slice(0, 300), done: t.done, total: t.total, updatedAt: t.updatedAt })),
+          tasks: v.slice(0, 30).map((t) => ({
+            id: t.id,
+            objective: t.objective.slice(0, 300),
+            status: t.status,
+            note: t.note.slice(0, 300),
+            done: t.done,
+            total: t.total,
+            updatedAt: t.updatedAt,
+            // Step titles + states drive the phone's live activity row.
+            steps: t.steps.slice(0, 22).map((s) => ({ title: s.title.slice(0, 120), status: s.status })),
+          })),
         })
       )
       .catch(() => undefined);
