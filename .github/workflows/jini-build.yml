@@ -112,7 +112,10 @@ jobs:
         run: |
           mkdir pub
           cp dl/JINI-mobile-apk/JINI-mobile-debug.apk pub/
-          cp dl/JINI-desktop-installer/JINI-Desktop-Setup.exe pub/
+          # git refuses files over 100 MB: ship the installer in 90 MB parts plus its checksum.
+          (cd dl/JINI-desktop-installer && sha256sum JINI-Desktop-Setup.exe > ../../pub/JINI-Desktop-Setup.exe.sha256)
+          split -b 90m -d dl/JINI-desktop-installer/JINI-Desktop-Setup.exe pub/JINI-Desktop-Setup.exe.part
+          (cd dl/JINI-mobile-apk && sha256sum JINI-mobile-debug.apk > ../../pub/JINI-mobile-debug.apk.sha256)
           echo "Built from ${GITHUB_SHA} on ${GITHUB_REF_NAME}" > pub/BUILD.txt
           cd pub
           git init -q -b builds-latest
