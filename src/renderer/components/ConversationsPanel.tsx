@@ -12,7 +12,7 @@ interface Props {
 }
 
 const backBtn =
-  'no-drag mb-4 inline-flex items-center gap-2 font-display text-[11px] font-bold uppercase tracking-[0.3em] text-steel transition-colors hover:text-accent outline-none';
+  'no-drag mb-4 inline-flex items-center gap-2 font-display text-[12px] font-bold text-steel transition-colors hover:text-accent outline-none';
 
 /** Renders one reply: fenced code blocks as styled <pre>, everything else with its original
  *  line breaks, lists and indentation preserved (pre-wrap). No truncation, ever. */
@@ -24,7 +24,7 @@ function ReplyBody({ reply }: { reply: string }) {
       {blocks.map((b, i) =>
         b.code ? (
           <pre key={i} className="overflow-x-auto rounded-sm border border-line bg-[rgb(var(--accent)/0.06)] p-3 font-mono text-[12.5px] leading-relaxed text-accent/90">
-            {b.lang ? <span className="mb-1 block text-[10px] uppercase tracking-[0.2em] text-steel">{b.lang}</span> : null}
+            {b.lang ? <span className="mb-1 block text-[12px] text-steel">{b.lang}</span> : null}
             {b.content}
           </pre>
         ) : (
@@ -42,15 +42,15 @@ function TurnRow({ turn, detailed }: { turn: HistoryTurn; detailed: boolean }) {
   return (
     <div className="space-y-2 border-b border-line/30 py-3 last:border-b-0">
       <div className="flex items-baseline gap-3">
-        <span className="shrink-0 font-display text-[10px] font-bold uppercase tracking-[0.3em] text-accent">You</span>
-        <span className="font-mono text-[10px] text-steel/70">{stamp(turn.t)}</span>
-        {turn.error && <span className="font-mono text-[10px] uppercase tracking-wider text-hot">{turn.error === 'interrupted' ? '· interrupted' : '· failed'}</span>}
-        {clipped && <span className="font-mono text-[10px] text-steel/60">· compact record (full text was never stored)</span>}
+        <span className="shrink-0 font-display text-[12px] font-bold text-accent">You</span>
+        <span className="font-mono text-[12px] text-steel/70">{stamp(turn.t)}</span>
+        {turn.error && <span className="font-mono text-[12px] text-hot">{turn.error === 'interrupted' ? '· interrupted' : '· failed'}</span>}
+        {clipped && <span className="font-mono text-[12px] text-steel/60">· compact record (full text was never stored)</span>}
       </div>
       <p className={`break-words text-[13.5px] leading-relaxed text-hot ${detailed ? 'whitespace-pre-wrap' : ''}`}>{turn.user}</p>
       <div className="flex items-baseline gap-3 pt-1">
-        <span className="shrink-0 font-display text-[10px] font-bold uppercase tracking-[0.3em] text-accent/80">J.A.R.V.I.S</span>
-        {turn.actions.length > 0 && <span className="truncate font-mono text-[10px] text-steel/60" title={turn.actions.join(' · ')}>{turn.actions.join(' · ')}</span>}
+        <span className="shrink-0 font-display text-[12px] font-bold text-accent/80">J.A.R.V.I.S</span>
+        {turn.actions.length > 0 && <span className="truncate font-mono text-[12px] text-steel/60" title={turn.actions.join(' · ')}>{turn.actions.join(' · ')}</span>}
       </div>
       {detailed ? (
         <ReplyBody reply={turn.reply} />
@@ -67,8 +67,8 @@ function GroupHeader({ g }: { g: ConversationGroup }) {
   const n = g.turns.length;
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-accent/20 pb-1.5">
-      <h3 className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent/80">{label}</h3>
-      <span className="shrink-0 font-mono text-[10px] text-steel/60">{n} message{n === 1 ? '' : 's'}</span>
+      <h3 className="font-mono text-[12px] text-accent/80">{label}</h3>
+      <span className="shrink-0 font-mono text-[12px] text-steel/60">{n} message{n === 1 ? '' : 's'}</span>
     </div>
   );
 }
@@ -117,12 +117,12 @@ export default function ConversationsPanel({ open, onClose, refreshKey }: Props)
 
   return (
     <div
-      className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-[rgb(var(--void)/0.75)] backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto overscroll-contain bg-[rgba(52,38,24,0.22)] p-6"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div ref={scrollRef} className="rail m-auto max-h-[86vh] w-[46rem] max-w-[92vw] overflow-y-auto bg-[rgb(var(--void)/0.95)] p-6">
+      <div ref={scrollRef} className="holo-panel max-h-[86vh] w-[46rem] max-w-[92vw] overflow-y-auto p-7">
         <div className="mb-5 flex items-baseline justify-between gap-4">
-          <h2 className="rail-title mb-0">Conversations</h2>
+          <h2 className="holo-title">History</h2>
           <button type="button" onClick={onClose} aria-label="Close conversations" className="no-drag grid h-8 w-8 shrink-0 place-items-center rounded-sm text-steel transition-colors hover:bg-accent/10 hover:text-accent outline-none">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
               <path d="M6 6l12 12M18 6L6 18" />
@@ -137,7 +137,7 @@ export default function ConversationsPanel({ open, onClose, refreshKey }: Props)
             <button type="button" onClick={() => setOpenGroup(null)} className={backBtn}>
               ← All conversations
             </button>
-            <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-steel/70">{fullStamp(active.start)}</div>
+            <div className="mb-2 font-mono text-[12px] text-steel/70">{fullStamp(active.start)}</div>
             {active.turns.map((t, i) => (
               <TurnRow key={`${t.t}-${i}`} turn={t} detailed />
             ))}

@@ -146,9 +146,16 @@ export default function App() {
       mini={mini}
       voiceReady={voice.ready}
       turnsCount={turnsCount}
+      onSuggest={handleCommand}
     >
-      <VoiceInput live={voice.live} mode={voice.mode} hint={voice.hint} onToggle={voice.toggle} />
-      <TextCommand onSubmit={handleCommand} busy={busy} compact={mini} />
+      <TextCommand
+        onSubmit={handleCommand}
+        busy={busy}
+        compact={mini}
+        mode={imode}
+        onModeChange={setImode}
+        leading={<VoiceInput live={voice.live} mode={voice.mode} hint={voice.hint} onToggle={voice.toggle} compact={mini} />}
+      />
       <VisualCard />
     </JarvisWindow>
   );

@@ -50,7 +50,7 @@ export function ConnectionStatus() {
 export function ScreenHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-end justify-between px-1 pb-2 pt-2">
-      <h2 className="text-title text-text">{title}</h2>
+      <h2 className="font-serif-display text-title text-text">{title}</h2>
       {action}
     </div>
   );

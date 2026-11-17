@@ -122,7 +122,7 @@ function MemorySheet({ initial, title, onSave, onCancel }: { initial: string; ti
   const [text, setText] = useState(initial);
   const [cat, setCat] = useState('fact');
   return (
-    <div className="fixed inset-0 z-40 flex items-end bg-black/60" onClick={onCancel}>
+    <div className="fixed inset-0 z-40 flex items-end bg-[rgba(52,38,24,0.25)]" onClick={onCancel}>
       <div role="dialog" aria-modal="true" aria-label={title} className="safe-bottom w-full rounded-t-[24px] bg-surface px-5 pt-3" onClick={(e) => e.stopPropagation()}>
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-hairline" />
         <p className="text-[17px] font-semibold text-text">{title}</p>

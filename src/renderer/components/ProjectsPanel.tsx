@@ -78,19 +78,17 @@ interface TemplateInfo {
 
 const PAGE_SIZE = 8;
 
-const backBtn =
-  'no-drag mb-4 inline-flex items-center gap-2 font-display text-[11px] font-bold uppercase tracking-[0.3em] text-steel transition-colors hover:text-accent outline-none';
 const chip = (status: string): string => {
-  const base = 'rounded-sm px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ';
-  if (status === 'completed') return base + 'bg-[rgba(53,208,160,0.12)] text-[#35d0a0]';
-  if (status === 'active') return base + 'bg-[rgba(127,233,255,0.10)] text-accent';
-  if (status === 'blocked' || status === 'failed') return base + 'bg-[rgba(255,95,122,0.12)] text-hot';
-  if (status === 'paused') return base + 'bg-[rgba(233,196,106,0.12)] text-[#e9c46a]';
-  if (status === 'cancelled') return base + 'bg-[rgba(91,107,125,0.18)] text-steel';
-  return base + 'bg-[rgba(70,88,108,0.18)] text-steel';
+  const base = 'rounded-sm px-2 py-0.5 font-mono text-[12px]   ';
+  if (status === 'completed') return base + 'bg-[rgba(79,127,85,0.12)] text-[#4F7F55]';
+  if (status === 'active') return base + 'bg-[rgba(176,90,51,0.10)] text-accent';
+  if (status === 'blocked' || status === 'failed') return base + 'bg-[rgba(180,71,58,0.12)] text-hot';
+  if (status === 'paused') return base + 'bg-[rgba(168,110,26,0.12)] text-[#A86E1A]';
+  if (status === 'cancelled') return base + 'bg-[rgba(230,222,207,0.18)] text-steel';
+  return base + 'bg-[rgba(230,222,207,0.18)] text-steel';
 };
 const actionBtn =
-  'no-drag rounded-sm border border-line px-3 py-1.5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-steel transition-colors hover:border-accent hover:text-accent disabled:opacity-40 disabled:hover:border-line disabled:hover:text-steel';
+  'no-drag rounded-sm border border-line px-3 py-1.5 font-display text-[12px] font-bold text-steel transition-colors hover:border-accent hover:text-accent disabled:opacity-40 disabled:hover:border-line disabled:hover:text-steel';
 
 const stamp = (t: number): string => {
   const d = new Date(t);
@@ -98,20 +96,20 @@ const stamp = (t: number): string => {
 };
 
 const TASK_STATE_COLORS: Record<string, string> = {
-  completed: 'text-[#35d0a0]',
+  completed: 'text-[#4F7F55]',
   running: 'text-accent',
   pending: 'text-steel',
   failed: 'text-hot',
   blocked: 'text-hot',
-  interrupted: 'text-[#e9c46a]',
+  interrupted: 'text-[#A86E1A]',
   skipped: 'text-steel/60',
 };
 
 /** ROUND 31 (§5.2): milestone state chips — honest state words, never percentages. */
 const MILESTONE_STATE: Record<string, { label: string; cls: string }> = {
-  completed: { label: 'completed', cls: 'text-[#35d0a0] border-[rgba(53,208,160,0.35)]' },
-  in_progress: { label: 'in progress', cls: 'text-accent border-[rgba(127,233,255,0.35)]' },
-  blocked: { label: 'blocked', cls: 'text-hot border-[rgba(255,95,122,0.4)]' },
+  completed: { label: 'completed', cls: 'text-[#4F7F55] border-[rgba(79,127,85,0.35)]' },
+  in_progress: { label: 'in progress', cls: 'text-accent border-[rgba(176,90,51,0.35)]' },
+  blocked: { label: 'blocked', cls: 'text-hot border-[rgba(180,71,58,0.4)]' },
   pending: { label: 'pending', cls: 'text-steel border-line' },
 };
 
@@ -120,10 +118,10 @@ function Bar({ done, total, hot }: { done: number; total: number; hot?: boolean 
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[rgba(127,233,255,0.08)]">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[rgba(176,90,51,0.08)]">
         <div className={`h-full rounded-full ${hot ? 'bg-hot' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="shrink-0 font-mono text-[10px] text-steel">
+      <span className="shrink-0 font-mono text-[12px] text-steel">
         {done}/{total}
       </span>
     </div>
@@ -255,12 +253,13 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
   const counts = list?.counts ?? {};
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col bg-[rgba(2,6,11,0.92)] backdrop-blur-md" role="dialog" aria-label="Projects workspace">
-      <div className="flex h-10 shrink-0 items-center justify-between px-6 pt-2">
-        <button type="button" className={backBtn} onClick={onClose}>
-          ← Projects
+    <div className="fixed inset-0 z-40 flex flex-col bg-[#FBF8F2]" role="dialog" aria-label="Projects workspace">
+      <div className="hud-header flex h-[52px] shrink-0 items-center gap-4 border-b border-black/[0.05] px-6">
+        <button type="button" className="no-drag inline-flex items-center gap-2 rounded-lg px-2 py-1 text-[13.5px] font-medium text-muted transition-colors hover:bg-black/[0.05] hover:text-text" onClick={onClose}>
+          ← Back
         </button>
-        <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-steel">
+        <h2 className="text-[14px] font-semibold text-text">Projects</h2>
+        <span className="font-mono text-[12px] text-steel">
           {counts.all ?? 0} project{(counts.all ?? 0) === 1 ? '' : 's'} · durable records
         </span>
       </div>
@@ -269,7 +268,7 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
         {/* LEFT: create + list (paginated, non-destructive) */}
         <aside className="flex w-[380px] shrink-0 flex-col gap-4 overflow-hidden">
           <div className="rounded-sm border border-line p-3">
-            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.25em] text-accent/80">New project</div>
+            <div className="mb-2 font-mono text-[12px] text-accent/80">New project</div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -281,7 +280,7 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
               <select
                 value={templateId}
                 onChange={(e) => setTemplateId(e.target.value)}
-                className="min-w-0 flex-1 rounded-sm border border-line bg-transparent px-2 py-1.5 font-mono text-[11px] text-steel outline-none focus:border-accent"
+                className="min-w-0 flex-1 rounded-sm border border-line bg-transparent px-2 py-1.5 font-mono text-[12px] text-steel outline-none focus:border-accent"
                 aria-label="Project template"
               >
                 <option value="">No template</option>
@@ -322,31 +321,31 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                 className={`block w-full rounded-sm border p-2.5 text-left transition-colors ${selected === p.id ? 'border-accent/60' : 'border-line hover:border-accent/40'}`}
               >
                 <div className="flex items-center gap-2">
-                  <span className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${chip(p.status)}`}>{p.status}</span>
+                  <span className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-[12px]   ${chip(p.status)}`}>{p.status}</span>
                   <span className="truncate text-[13px] text-hot/90">{p.title}</span>
                 </div>
-                <div className="mt-1 flex items-center gap-2 font-mono text-[10px] text-steel">
+                <div className="mt-1 flex items-center gap-2 font-mono text-[12px] text-steel">
                   <span>
                     {p.tasksCompleted}/{p.tasksTotal} tasks
                   </span>
                   <span>· v{p.planVersion}</span>
                   <span>· {stamp(p.updatedAt)}</span>
                 </div>
-                {p.tasksBlocked > 0 && <div className="mt-1 font-mono text-[10px] text-hot">{p.tasksBlocked} blocked task(s) — policy</div>}
+                {p.tasksBlocked > 0 && <div className="mt-1 font-mono text-[12px] text-hot">{p.tasksBlocked} blocked task(s) — policy</div>}
                 {p.nextAction && (
-                  <div className="mt-1 truncate font-mono text-[10px] text-accent/70" title={p.nextAction}>
+                  <div className="mt-1 truncate font-mono text-[12px] text-accent/70" title={p.nextAction}>
                     → {p.nextAction}
                   </div>
                 )}
               </button>
             ))}
-            {list && list.total === 0 && <p className="px-1 py-6 text-center font-mono text-[11px] text-steel">No projects match. Every project ever created stays listed here — nothing is pruned.</p>}
+            {list && list.total === 0 && <p className="px-1 py-6 text-center font-mono text-[12px] text-steel">No projects match. Every project ever created stays listed here — nothing is pruned.</p>}
             {list && list.total > PAGE_SIZE && (
               <div className="flex items-center justify-between pt-1">
                 <button type="button" className={actionBtn} disabled={offset === 0} onClick={() => { const o = Math.max(0, offset - PAGE_SIZE); setOffset(o); void refreshList(o); }}>
                   ← Prev
                 </button>
-                <span className="font-mono text-[10px] text-steel">
+                <span className="font-mono text-[12px] text-steel">
                   {offset + 1}–{Math.min(offset + PAGE_SIZE, list.total)} of {list.total}
                 </span>
                 <button type="button" className={actionBtn} disabled={offset + PAGE_SIZE >= list.total} onClick={() => { const o = offset + PAGE_SIZE; setOffset(o); void refreshList(o); }}>
@@ -360,13 +359,13 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
         {/* RIGHT: detail */}
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-sm border border-line">
           {!detail ? (
-            <div className="flex flex-1 items-center justify-center font-mono text-[11px] text-steel">Select a project — or create one. All records persist across restarts.</div>
+            <div className="flex flex-1 items-center justify-center font-mono text-[12px] text-steel">Select a project — or create one. All records persist across restarts.</div>
           ) : (
             <>
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-                <span className={`rounded-sm px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${chip(detail.summary.status)}`}>{detail.summary.status}</span>
+                <span className={`rounded-sm px-2 py-0.5 font-mono text-[12px]   ${chip(detail.summary.status)}`}>{detail.summary.status}</span>
                 <h3 className="text-[16px] text-hot">{detail.summary.title}</h3>
-                <span className="font-mono text-[10px] text-steel">
+                <span className="font-mono text-[12px] text-steel">
                   {detail.summary.id} · plan v{detail.summary.planVersion} · {detail.summary.category}/{detail.summary.complexity}
                 </span>
                 <div className="ml-auto flex flex-wrap gap-1.5">
@@ -394,7 +393,7 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
               </div>
 
               {(detail.summary.blockReason || notice) && (
-                <div className={`shrink-0 border-b px-4 py-2 font-mono text-[11px] ${detail.summary.blockReason ? 'border-hot/30 text-hot' : 'border-accent/30 text-accent/90'}`}>
+                <div className={`shrink-0 border-b px-4 py-2 font-mono text-[12px] ${detail.summary.blockReason ? 'border-hot/30 text-hot' : 'border-accent/30 text-accent/90'}`}>
                   {detail.summary.blockReason ? `BLOCKED/FAILED — ${detail.summary.blockReason} (explicit resume/replan required; the restriction is never retried automatically)` : notice}
                 </div>
               )}
@@ -405,7 +404,7 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                     key={t}
                     type="button"
                     onClick={() => setTab(t)}
-                    className={`pb-2 font-display text-[11px] font-bold uppercase tracking-[0.2em] transition-colors ${tab === t ? 'border-b border-accent text-accent' : 'text-steel hover:text-accent/80'}`}
+                    className={`pb-2 font-display text-[12px] font-bold transition-colors ${tab === t ? 'border-b border-accent text-accent' : 'text-steel hover:text-accent/80'}`}
                   >
                     {t}
                   </button>
@@ -417,18 +416,18 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                   <div className="space-y-4">
                     <p className="text-[13.5px] leading-relaxed text-hot/85">{detail.objective}</p>
                     {detail.summary.workspace && (
-                      <p className="font-mono text-[11px] text-steel" title={detail.summary.workspace}>
+                      <p className="font-mono text-[12px] text-steel" title={detail.summary.workspace}>
                         workspace: {detail.summary.workspace}
                       </p>
                     )}
                     {detail.summary.nextAction && (
-                      <div className="rounded-sm border border-[rgba(127,233,255,0.25)] bg-[rgba(127,233,255,0.05)] px-3 py-2 font-mono text-[11px] text-accent/90">
+                      <div className="rounded-sm border border-[rgba(176,90,51,0.25)] bg-[rgba(176,90,51,0.05)] px-3 py-2 font-mono text-[12px] text-accent/90">
                         NEXT RECOMMENDED ACTION — {detail.summary.nextAction}
                       </div>
                     )}
                     {detail.summaryText && <p className="text-[12.5px] leading-relaxed text-steel">{detail.summaryText}</p>}
                     <div>
-                      <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.25em] text-accent/80">Project progress</div>
+                      <div className="mb-1 font-mono text-[12px] text-accent/80">Project progress</div>
                       <Bar done={detail.summary.tasksCompleted} total={detail.summary.tasksTotal} />
                     </div>
                     <div className="grid gap-2 md:grid-cols-2">
@@ -438,7 +437,7 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                           <div key={m.id} className="rounded-sm border border-line p-2.5">
                             <div className="mb-1.5 flex items-baseline justify-between gap-2">
                               <span className="truncate text-[12.5px] text-hot/90">{m.title}</span>
-                              <span className={`shrink-0 rounded-sm border px-1.5 font-mono text-[9px] uppercase ${st.cls}`}>{st.label}</span>
+                              <span className={`shrink-0 rounded-sm border px-1.5 font-mono text-[12px]  ${st.cls}`}>{st.label}</span>
                             </div>
                             <Bar done={m.done} total={m.total} hot={m.state === 'blocked'} />
                           </div>
@@ -447,8 +446,8 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                     </div>
                     {detail.briefing && (
                       <details className="rounded-sm border border-line p-2.5">
-                        <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.2em] text-accent/70">Continuity briefing (returning to this project)</summary>
-                        <pre className="mt-2 whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-hot/80">{detail.briefing}</pre>
+                        <summary className="cursor-pointer font-mono text-[12px] text-accent/70">Continuity briefing (returning to this project)</summary>
+                        <pre className="mt-2 whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-hot/80">{detail.briefing}</pre>
                       </details>
                     )}
                     <div className="grid gap-3 md:grid-cols-2">
@@ -460,7 +459,7 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                         ['Success criteria', detail.successCriteria],
                       ] as const).map(([label, items]) => (
                         <div key={label} className="rounded-sm border border-line p-2.5">
-                          <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent/70">{label}</div>
+                          <div className="mb-1 font-mono text-[12px] text-accent/70">{label}</div>
                           {items.length ? (
                             <ul className="list-disc space-y-1 pl-4">
                               {items.map((r, i) => (
@@ -476,7 +475,7 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                       ))}
                     </div>
                     <div className="rounded-sm border border-line p-2.5">
-                      <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent/70">Update requirements (replans the remaining work)</div>
+                      <div className="mb-1 font-mono text-[12px] text-accent/70">Update requirements (replans the remaining work)</div>
                       <div className="flex flex-wrap items-center gap-2">
                         <input value={reqAdd} onChange={(e) => setReqAdd(e.target.value)} placeholder="new requirement…" className="min-w-0 flex-1 rounded-sm border border-line bg-transparent px-2 py-1 text-[12px] text-hot/90 outline-none focus:border-accent" />
                         <input value={reqRemove} onChange={(e) => setReqRemove(e.target.value)} placeholder="remove (contains…)…" className="min-w-0 flex-1 rounded-sm border border-line bg-transparent px-2 py-1 text-[12px] text-hot/90 outline-none focus:border-accent" />
@@ -498,10 +497,10 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                     </div>
                     {detail.planHistory.length > 1 && (
                       <div className="rounded-sm border border-line p-2.5">
-                        <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent/70">Plan history (versions archived, never deleted)</div>
+                        <div className="mb-1 font-mono text-[12px] text-accent/70">Plan history (versions archived, never deleted)</div>
                         <ul className="space-y-1">
                           {detail.planHistory.map((v) => (
-                            <li key={v.version} className="font-mono text-[11px] text-steel">
+                            <li key={v.version} className="font-mono text-[12px] text-steel">
                               v{v.version} · {stamp(v.at)} · {v.note}
                               {v.repairs.length ? ` · repairs: ${v.repairs.slice(0, 2).join('; ')}` : ''}
                             </li>
@@ -517,19 +516,19 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
                     {detail.tasks.map((t) => (
                       <div key={t.id} className="rounded-sm border border-line p-2.5">
                         <div className="flex flex-wrap items-baseline gap-2">
-                          <span className={`font-mono text-[10px] uppercase ${TASK_STATE_COLORS[t.state] ?? 'text-steel'}`}>{t.state}</span>
+                          <span className={`font-mono text-[12px]  ${TASK_STATE_COLORS[t.state] ?? 'text-steel'}`}>{t.state}</span>
                           <span className="text-[13px] text-hot/90">{t.title}</span>
-                          <span className="font-mono text-[10px] text-steel">
+                          <span className="font-mono text-[12px] text-steel">
                             {t.id} · {t.kind}
                             {t.durableTaskId ? ` · durable ${t.durableTaskId}` : ''}
                           </span>
                         </div>
-                        <div className="mt-1 font-mono text-[10px] text-steel/80">
+                        <div className="mt-1 font-mono text-[12px] text-steel/80">
                           {t.acceptanceCount} acceptance check(s) · {t.attempts} attempt(s)
                           {t.dependsOn.length ? ` · depends on ${t.dependsOn.join(', ')}` : ' · no dependencies'}
                           {t.deliverableIds.length ? ` · produces ${t.deliverableIds.join(', ')}` : ''}
                         </div>
-                        {t.lastFailure && <div className="mt-1 font-mono text-[10px] text-hot/90">{`last failure (${t.lastFailure.class}): ${t.lastFailure.evidence}`}</div>}
+                        {t.lastFailure && <div className="mt-1 font-mono text-[12px] text-hot/90">{`last failure (${t.lastFailure.class}): ${t.lastFailure.evidence}`}</div>}
                       </div>
                     ))}
                   </div>
@@ -537,22 +536,22 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
 
                 {tab === 'graph' && (
                   <div className="space-y-3">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-steel">Dependency graph — arrows point from a task to the work that must finish first</p>
+                    <p className="font-mono text-[12px] text-steel">Dependency graph — arrows point from a task to the work that must finish first</p>
                     <ProjectGraph tasks={detail.tasks} milestones={detail.summary.milestones} />
                   </div>
                 )}
 
                 {tab === 'deliverables' && (
                   <div className="space-y-2">
-                    {detail.deliverables.length === 0 && <p className="py-6 text-center font-mono text-[11px] text-steel">No deliverable expectations in this plan.</p>}
+                    {detail.deliverables.length === 0 && <p className="py-6 text-center font-mono text-[12px] text-steel">No deliverable expectations in this plan.</p>}
                     {detail.deliverables.map((d) => (
                       <div key={d.id} className="rounded-sm border border-line p-2.5">
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="text-[13px] text-hot/90">{d.name}</span>
-                          <span className="font-mono text-[10px] uppercase text-steel">{d.required ? 'required' : 'optional'} · {d.format}</span>
+                          <span className="font-mono text-[12px] text-steel">{d.required ? 'required' : 'optional'} · {d.format}</span>
                         </div>
-                        <div className="mt-0.5 font-mono text-[11px] text-accent/80">{d.path}</div>
-                        <div className="mt-1 font-mono text-[10px] text-steel">{d.statusLine} · produced by {d.producingTaskId}</div>
+                        <div className="mt-0.5 font-mono text-[12px] text-accent/80">{d.path}</div>
+                        <div className="mt-1 font-mono text-[12px] text-steel">{d.statusLine} · produced by {d.producingTaskId}</div>
                       </div>
                     ))}
                   </div>
@@ -560,13 +559,13 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
 
                 {tab === 'decisions' && (
                   <div className="space-y-2">
-                    {detail.decisions.length === 0 && <p className="py-6 text-center font-mono text-[11px] text-steel">No decisions recorded yet.</p>}
+                    {detail.decisions.length === 0 && <p className="py-6 text-center font-mono text-[12px] text-steel">No decisions recorded yet.</p>}
                     {detail.decisions.map((d) => (
                       <div key={d.id} className={`rounded-sm border p-2.5 ${d.supersededBy ? 'border-line/40 opacity-60' : 'border-line'}`}>
                         <div className="flex items-baseline gap-2">
-                          <span className="font-mono text-[10px] text-steel">{stamp(d.at)} · {d.source}</span>
-                          {d.supersededBy && <span className="font-mono text-[10px] text-steel/60">superseded by {d.supersededBy}</span>}
-                          {d.supersedes?.length ? <span className="font-mono text-[10px] text-[#e9c46a]">supersedes {d.supersedes.join(', ')}</span> : null}
+                          <span className="font-mono text-[12px] text-steel">{stamp(d.at)} · {d.source}</span>
+                          {d.supersededBy && <span className="font-mono text-[12px] text-steel/60">superseded by {d.supersededBy}</span>}
+                          {d.supersedes?.length ? <span className="font-mono text-[12px] text-[#A86E1A]">supersedes {d.supersedes.join(', ')}</span> : null}
                         </div>
                         <p className="mt-0.5 text-[12.5px] leading-snug text-hot/85">{d.text}</p>
                       </div>
@@ -576,11 +575,11 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
 
                 {tab === 'activity' && (
                   <div className="space-y-1.5">
-                    {detail.events.length === 0 && <p className="py-6 text-center font-mono text-[11px] text-steel">No events yet — execute the project to generate real activity.</p>}
+                    {detail.events.length === 0 && <p className="py-6 text-center font-mono text-[12px] text-steel">No events yet — execute the project to generate real activity.</p>}
                     {detail.events.map((e) => (
                       <div key={e.id} className="flex items-baseline gap-2 border-b border-line/20 py-1.5 last:border-b-0">
-                        <span className="shrink-0 font-mono text-[10px] text-steel/70">{stamp(e.at)}</span>
-                        <span className={`shrink-0 font-mono text-[9px] uppercase tracking-wider ${e.kind === 'task-blocked' || e.kind === 'task-failed' ? 'text-hot' : e.kind === 'task-completed' || e.kind === 'milestone-completed' || e.kind === 'completed' || e.kind === 'deliverable-verified' ? 'text-[#35d0a0]' : 'text-accent/70'}`}>{e.kind}</span>
+                        <span className="shrink-0 font-mono text-[12px] text-steel/70">{stamp(e.at)}</span>
+                        <span className={`shrink-0 font-mono text-[12px]   ${e.kind === 'task-blocked' || e.kind === 'task-failed' ? 'text-hot' : e.kind === 'task-completed' || e.kind === 'milestone-completed' || e.kind === 'completed' || e.kind === 'deliverable-verified' ? 'text-[#4F7F55]' : 'text-accent/70'}`}>{e.kind}</span>
                         <span className="min-w-0 flex-1 text-[12px] leading-snug text-hot/80">{e.message}</span>
                       </div>
                     ))}
@@ -592,7 +591,7 @@ export default function ProjectsPanel({ open, onClose }: { open: boolean; onClos
         </section>
       </div>
 
-      <button type="button" aria-label="Close projects" onClick={onClose} className="absolute right-4 top-3 grid h-8 w-8 place-items-center text-steel transition-colors hover:text-accent">
+      <button type="button" aria-label="Close projects" onClick={onClose} style={{ right: 'calc(100vw - env(titlebar-area-width, 100vw) + 12px)' }} className="no-drag absolute top-[10px] grid h-8 w-8 place-items-center rounded-lg text-steel transition-colors hover:bg-black/[0.06] hover:text-text">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M5 5l14 14M19 5L5 19" />
         </svg>

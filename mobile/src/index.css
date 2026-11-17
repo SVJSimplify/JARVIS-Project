@@ -1,14 +1,15 @@
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/fraunces';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root { color-scheme: light; }
 html, body, #root { height: 100%; }
 body {
   margin: 0;
-  background: #0c0b10;
-  color: #f3f1f7;
+  background: #fbf8f2;
+  color: #1f1b16;
   font-family: 'Inter Variable', system-ui, sans-serif;
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
@@ -20,16 +21,17 @@ body {
 
 @layer components {
   .btn { @apply inline-flex h-12 items-center justify-center rounded-xl px-5 text-[15px] font-medium transition-colors disabled:opacity-40; }
-  .btn-primary { @apply btn bg-accent text-on-accent active:bg-accent-strong; }
-  .btn-secondary { @apply btn bg-surface text-text active:bg-surface-2; }
+  .btn-primary { @apply btn bg-ink text-paper active:bg-black; }
+  .btn-secondary { @apply btn border border-hairline bg-surface text-text active:bg-surface-2; }
   .btn-text { @apply text-[15px] font-medium text-accent active:opacity-70 disabled:opacity-40; }
-  .field { @apply w-full rounded-xl border border-hairline bg-surface px-4 py-3 text-[15px] text-text outline-none placeholder:text-faint focus:border-accent; }
+  .field { @apply w-full rounded-xl border border-hairline bg-surface px-4 py-3 text-[15px] text-text outline-none placeholder:text-faint focus:border-sand; }
   .section-label { @apply px-1 pb-2 pt-6 text-[13px] font-medium text-muted; }
-  .group-list { @apply overflow-hidden rounded-2xl bg-surface; }
+  .group-list { @apply overflow-hidden rounded-2xl border border-hairline bg-surface; }
   .group-row { @apply border-b border-hairline px-4 py-3.5 last:border-b-0; }
 }
 
-:focus-visible { outline: 2px solid #b4a3ff; outline-offset: 2px; }
+:focus-visible { outline: 2px solid #b05a33; outline-offset: 2px; }
+.font-serif-display { font-family: 'Fraunces Variable', Georgia, serif; font-optical-sizing: auto; }
 
 /* ---- Motion: purposeful, short, consistent easing ---- */
 @keyframes jini-spin { to { transform: rotate(360deg); } }

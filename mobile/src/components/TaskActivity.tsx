@@ -160,8 +160,8 @@ function PhaseIcon({ phase }: { phase: Phase }) {
     return (
       <span className={box} aria-label="In progress" role="img">
         <svg viewBox="0 0 20 20" className="anim-spin h-[18px] w-[18px]" fill="none" aria-hidden="true">
-          <circle cx="10" cy="10" r="7.5" stroke="#26242F" strokeWidth="2" />
-          <path d="M10 2.5a7.5 7.5 0 0 1 7.5 7.5" stroke="#B4A3FF" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="10" cy="10" r="7.5" stroke="#E6DECF" strokeWidth="2" />
+          <path d="M10 2.5a7.5 7.5 0 0 1 7.5 7.5" stroke="#B05A33" strokeWidth="2" strokeLinecap="round" />
         </svg>
       </span>
     );
@@ -169,7 +169,7 @@ function PhaseIcon({ phase }: { phase: Phase }) {
   if (phase === 'done') {
     return (
       <span className={`${box} rounded-full bg-accent`} aria-label="Completed" role="img">
-        <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" stroke="#15102A" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" stroke="#FFFDF9" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path className="anim-draw" d="m5 10.5 3.2 3.2L15 6.8" />
         </svg>
       </span>
@@ -208,8 +208,8 @@ function StepIcon({ state }: { state: StepState }) {
     return (
       <span className={box}>
         <svg viewBox="0 0 20 20" className="anim-spin h-3.5 w-3.5" fill="none" aria-hidden="true">
-          <circle cx="10" cy="10" r="7" stroke="#26242F" strokeWidth="2.4" />
-          <path d="M10 3a7 7 0 0 1 7 7" stroke="#B4A3FF" strokeWidth="2.4" strokeLinecap="round" />
+          <circle cx="10" cy="10" r="7" stroke="#E6DECF" strokeWidth="2.4" />
+          <path d="M10 3a7 7 0 0 1 7 7" stroke="#B05A33" strokeWidth="2.4" strokeLinecap="round" />
         </svg>
       </span>
     );

@@ -73,15 +73,15 @@ export default function ApprovalCard() {
 
   return (
     <div className="pointer-events-auto fixed bottom-28 left-1/2 z-50 w-[min(640px,92vw)] -translate-x-1/2" role="dialog" aria-label="JINI action approval">
-      <div className="holo-panel no-drag space-y-2 rounded-md border border-[#e9c46a]/50 px-4 py-3 shadow-[0_0_24px_rgba(233,196,106,0.15)]">
+      <div className="holo-panel no-drag space-y-2 rounded-md border border-[#A86E1A]/50 px-4 py-3 shadow-[0_0_24px_rgba(168,110,26,0.15)]">
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.32em] text-[#e9c46a]">Approval required</h3>
-          <span className="font-mono text-[10px] text-steel">
+          <h3 className="font-display text-[12px] font-bold text-[#A86E1A]">Approval required</h3>
+          <span className="font-mono text-[12px] text-steel">
             {first.nativeConfirming ? 'system dialog open' : `expires in ${remainder(first.requestExpiresAt)}`}
           </span>
         </div>
-        <p className="font-mono text-[12px] leading-relaxed text-[#cfe9f5]">
-          JINI wants to <span className="text-[#e9c46a]">{i.action}</span> on <span className="text-accent">{i.origin}</span>
+        <p className="font-mono text-[12px] leading-relaxed text-[#1F1B16]">
+          JINI wants to <span className="text-[#A86E1A]">{i.action}</span> on <span className="text-accent">{i.origin}</span>
           {i.targetLabel ? (
             <>
               {' '}— target <span className="text-accent">“{i.targetLabel}”</span>
@@ -89,19 +89,19 @@ export default function ApprovalCard() {
           ) : null}
           .
         </p>
-        <p className="font-mono text-[11px] leading-relaxed text-steel">{i.effect}</p>
+        <p className="font-mono text-[12px] leading-relaxed text-steel">{i.effect}</p>
         {i.payloadSummary ? (
-          <p className="font-mono text-[10px] leading-relaxed text-steel/90">
-            <span className="text-[#e9c46a]">Submits:</span> {i.payloadSummary}
+          <p className="font-mono text-[12px] leading-relaxed text-steel/90">
+            <span className="text-[#A86E1A]">Submits:</span> {i.payloadSummary}
           </p>
         ) : null}
-        <p className="font-mono text-[10px] text-steel/70">
+        <p className="font-mono text-[12px] text-steel/70">
           Approve here opens the SYSTEM confirmation dialog; only that dialog grants the action — once, for two minutes, bound to this exact page, tab, target and payload.
         </p>
         <div className="flex items-center gap-2 pt-1">
           <button
             type="button"
-            className="rounded-sm border border-[#35d0a0]/70 px-4 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.16em] text-[#35d0a0] transition-colors hover:bg-[#35d0a0] hover:text-[#02060b] disabled:opacity-40"
+            className="rounded-sm border border-[#4F7F55]/70 px-4 py-1.5 font-display text-[12px] font-bold text-[#4F7F55] transition-colors hover:bg-[#4F7F55] hover:text-[#FBF8F2] disabled:opacity-40"
             disabled={busyId === first.id || first.nativeConfirming === true}
             onClick={() => void respond(first.id, 'approve')}
           >
@@ -109,7 +109,7 @@ export default function ApprovalCard() {
           </button>
           <button
             type="button"
-            className="rounded-sm border border-hot/60 px-4 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.16em] text-hot transition-colors hover:bg-hot hover:text-[#02060b] disabled:opacity-40"
+            className="rounded-sm border border-hot/60 px-4 py-1.5 font-display text-[12px] font-bold text-hot transition-colors hover:bg-hot hover:text-[#FBF8F2] disabled:opacity-40"
             disabled={busyId === first.id}
             onClick={() => void respond(first.id, 'deny')}
           >
@@ -117,15 +117,15 @@ export default function ApprovalCard() {
           </button>
           <button
             type="button"
-            className="ml-auto font-mono text-[10px] text-steel transition-colors hover:text-accent disabled:opacity-40"
+            className="ml-auto font-mono text-[12px] text-steel transition-colors hover:text-accent disabled:opacity-40"
             disabled={busyId === first.id}
             onClick={() => void dismiss(first.id)}
           >
             dismiss
           </button>
         </div>
-        {requests.length > 1 && <p className="font-mono text-[10px] text-steel/60">{requests.length - 1} more approval request(s) waiting.</p>}
-        {note && <p className="font-mono text-[10px] text-accent">{note}</p>}
+        {requests.length > 1 && <p className="font-mono text-[12px] text-steel/60">{requests.length - 1} more approval request(s) waiting.</p>}
+        {note && <p className="font-mono text-[12px] text-accent">{note}</p>}
       </div>
     </div>
   );

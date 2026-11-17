@@ -84,14 +84,14 @@ export default function ChatScreen() {
       </div>
       <div className="sticky bottom-0 -mx-4 bg-bg px-4 pb-3 pt-2">
         {paired && (
-          <div className="mb-2.5 inline-flex rounded-xl bg-surface p-1 text-[13px] font-medium" role="tablist" aria-label="Send as">
+          <div className="mb-2.5 inline-flex rounded-xl bg-surface-2 p-1 text-[13px] font-medium" role="tablist" aria-label="Send as">
             {(['chat', 'task'] as const).map((k) => (
               <button
                 key={k}
                 role="tab"
                 aria-selected={kind === k}
                 onClick={() => setKind(k)}
-                className={`rounded-lg px-3.5 py-1.5 transition-colors ${kind === k ? 'bg-surface-2 text-text' : 'text-faint'}`}
+                className={`rounded-lg px-3.5 py-1.5 transition-colors ${kind === k ? 'bg-surface text-text shadow-[0_1px_2px_rgba(60,42,20,0.08)]' : 'text-muted'}`}
               >
                 {k === 'chat' ? 'Chat' : 'Run on desktop'}
               </button>
@@ -111,7 +111,7 @@ export default function ChatScreen() {
             onClick={() => void send()}
             disabled={!text.trim()}
             aria-label="Send"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent transition-colors active:bg-accent-strong disabled:bg-surface disabled:text-faint"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ink text-paper transition-colors active:bg-black disabled:bg-surface-2 disabled:text-faint"
           >
             <Icon name="send" className="h-5 w-5" />
           </button>
@@ -138,7 +138,7 @@ function Message({ m }: { m: ChatMessage }) {
     return (
       <div className="flex flex-col items-end">
         {m.kind === 'task' && <p className="mb-1 text-meta font-medium text-muted">Desktop task</p>}
-        <div className="max-w-[82%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 text-body text-on-accent">
+        <div className="max-w-[82%] rounded-2xl rounded-br-md bg-[#EFE7DA] px-4 py-2.5 text-body text-text">
           <p className="whitespace-pre-wrap">{m.text}</p>
         </div>
         {meta && <p className={`mt-1 text-meta ${m.state === 'failed' ? 'text-danger' : 'text-faint'}`}>{meta}</p>}

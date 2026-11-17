@@ -47,8 +47,8 @@ export default function App() {
   return (
     <div className="flex h-full flex-col bg-bg">
       <header className="safe-top flex items-center justify-between px-5 pb-1">
-        <span className="text-[17px] font-semibold tracking-[-0.01em] text-text">
-          jini<span className="text-accent">.</span>
+        <span className="font-serif-display text-[21px] font-semibold tracking-[-0.02em] text-text">
+          jini<span className="text-clay">.</span>
         </span>
         <ConnectionStatus />
       </header>
@@ -60,7 +60,7 @@ export default function App() {
         {tab === 'approvals' && <ApprovalsScreen />}
         {tab === 'settings' && <SettingsScreen />}
       </main>
-      <nav className="safe-bottom flex border-t border-hairline bg-bg pt-1.5" aria-label="Sections">
+      <nav className="safe-bottom flex border-t border-hairline bg-oat pt-1.5" aria-label="Sections">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
@@ -73,7 +73,7 @@ export default function App() {
               <Icon name={t.icon} className="h-[22px] w-[22px]" />
               {t.label}
               {t.id === 'approvals' && approvals > 0 && (
-                <span className="absolute left-1/2 top-0.5 ml-2 min-w-[16px] rounded-full bg-warn px-1 text-center text-[10px] font-semibold leading-4 text-bg">{approvals}</span>
+                <span className="absolute left-1/2 top-0.5 ml-2 min-w-[16px] rounded-full bg-clay px-1 text-center text-[10px] font-semibold leading-4 text-paper">{approvals}</span>
               )}
             </button>
           );

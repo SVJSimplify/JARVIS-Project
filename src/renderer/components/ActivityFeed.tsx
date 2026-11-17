@@ -44,15 +44,15 @@ export function InvocationRow({ r }: { r: InvocationRecord }) {
   const tone = STATE_MARK[r.state] ?? STATE_MARK.running;
   return (
     <li className="flex items-baseline gap-2">
-      <time className="shrink-0 font-mono text-[10px] text-accent/70">{feedTime(r.startedAt)}</time>
-      <span className={`shrink-0 font-mono text-[11px] leading-none ${tone.cls}`} title={STATE_LABEL[r.state]}>
+      <time className="shrink-0 font-mono text-[12px] text-accent/70">{feedTime(r.startedAt)}</time>
+      <span className={`shrink-0 font-mono text-[12px] leading-none ${tone.cls}`} title={STATE_LABEL[r.state]}>
         {tone.glyph}
       </span>
       <span className={`truncate text-[12.5px] leading-snug ${r.state === 'running' ? 'text-accent' : r.state === 'failed' || r.state === 'blocked' ? 'text-hot/85' : 'text-hot/80'}`} title={`${r.tool} — ${STATE_LABEL[r.state]}${r.detail ? `: ${r.detail}` : ''}`}>
         {r.tool}
       </span>
-      {r.detail && <span className="hidden min-w-0 truncate font-mono text-[10.5px] text-steel md:block">{r.detail}</span>}
-      {r.ms !== undefined && <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-steel">{r.ms}ms</span>}
+      {r.detail && <span className="hidden min-w-0 truncate font-mono text-[12px] text-steel md:block">{r.detail}</span>}
+      {r.ms !== undefined && <span className="ml-auto shrink-0 font-mono text-[12px] tabular-nums text-steel">{r.ms}ms</span>}
     </li>
   );
 }
@@ -98,9 +98,9 @@ export function ActivityList({
       </ol>
       {(older > 0 || hasMore) && (
         <div className="flex items-center justify-between pt-1">
-          {older > 0 ? <span className="font-mono text-[10px] text-steel">… {older} earlier invocation{older === 1 ? '' : 's'} in this scope</span> : <span />}
+          {older > 0 ? <span className="font-mono text-[12px] text-steel">… {older} earlier invocation{older === 1 ? '' : 's'} in this scope</span> : <span />}
           {hasMore && onLoadMore ? (
-            <button type="button" onClick={onLoadMore} className="font-mono text-[10px] uppercase tracking-wider text-accent hover:text-hot">
+            <button type="button" onClick={onLoadMore} className="font-mono text-[12px] text-accent hover:text-hot">
               {loading ? 'loading…' : 'load older'}
             </button>
           ) : null}
@@ -139,7 +139,7 @@ export function SettingsActivitySection() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="rail-title">Activity</h2>
-        <span className="font-mono text-[11px] tabular-nums text-steel" data-testid="activity-summary">
+        <span className="font-mono text-[12px] tabular-nums text-steel" data-testid="activity-summary">
           {s ? (
             <>
               <span className="text-accent">{s.tools}</span> tools · <span className="text-accent">{s.calls}</span> calls
@@ -161,11 +161,11 @@ export function SettingsActivitySection() {
           onChange={(e) => setScope(e.target.value || 'all')}
           className="ml-auto max-w-[70%] border-b border-line bg-transparent py-1 font-mono text-sm text-hot outline-none focus:border-accent"
         >
-          <option value="all" className="bg-[#04101a]">
+          <option value="all" className="bg-[#FFFDF9]">
             All scopes (this session)
           </option>
           {scopes.map((sc) => (
-            <option key={sc.scope} value={sc.scope} className="bg-[#04101a]">
+            <option key={sc.scope} value={sc.scope} className="bg-[#FFFDF9]">
               {sc.label} ({sc.calls})
             </option>
           ))}

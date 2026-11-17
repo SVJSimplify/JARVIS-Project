@@ -1,192 +1,152 @@
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/fraunces';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Monochrome theme. State is shown through motion and brightness, not colour. */
+/*
+ * JINI — "warm paper". Every neutral shares one warm temperature (paper, oat, sand, ink);
+ * a single clay accent marks state and links; primary actions are warm ink. No purple,
+ * no glass, no glow. Legacy variable names are kept so every existing panel re-skins.
+ */
 :root {
-  --void: 0 0 0;
-  --accent: 255 255 255;
-  --hot: 255 255 255;
-  --steel: 150 150 150;
-  --line: 64 64 64;
-  --display: Futura, 'Futura PT', 'Futura Std', Jost, 'Century Gothic', 'Segoe UI', sans-serif;
-  --text: Futura, 'Futura PT', 'Futura Std', Jost, 'Century Gothic', 'Segoe UI', sans-serif;
-  --mono: 'Cascadia Mono', Consolas, monospace;
+  --void: 251 248 242; /* paper — app canvas (also used for scrims) */
+  --accent: 176 90 51; /* clay — active state, links, focus */
+  --hot: 31 27 22; /* warm ink — primary text */
+  --steel: 110 102 91; /* secondary text */
+  --line: 230 222 207; /* hairlines */
+  --surface: 255 253 249;
+  --surface-2: 241 235 224;
+  --text: 'Inter Variable', Inter, 'Segoe UI', system-ui, sans-serif;
+  --display: var(--text);
+  --serif: 'Fraunces Variable', Fraunces, Georgia, serif;
+  --mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  color-scheme: light;
 }
-.hud[data-mode='thinking'] { --accent: 205 205 205; }
 
 @layer base {
   html, body, #root { height: 100%; }
   body {
     margin: 0;
     overflow: hidden;
+    background: rgb(var(--void));
     color: rgb(var(--hot));
     font-family: var(--text);
-    font-weight: 400;
+    font-size: 14px;
+    font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
-    background: radial-gradient(ellipse at 50% 45%, #0c0c0c 0%, #000 72%);
   }
+  ::selection { background: rgb(var(--accent) / 0.18); }
+  :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; border-radius: 6px; }
+  * { scrollbar-width: thin; scrollbar-color: #d8cdbb transparent; }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb { background: #ddd3c3; border-radius: 9999px; border: 3px solid transparent; background-clip: padding-box; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  input[type='checkbox'], input[type='radio'] { accent-color: #1f1b16; }
 }
 
-.hud-grid {
-  position: absolute; inset: 0; pointer-events: none; opacity: 0.35;
-  background-image: radial-gradient(rgb(var(--accent) / 0.16) 1px, transparent 1.2px);
-  background-size: 28px 28px;
-  -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 0, transparent 70%);
-          mask-image: radial-gradient(ellipse at 50% 45%, #000 0, transparent 70%);
-}
-.hud-vignette {
-  position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse at 50% 45%, transparent 40%, rgb(var(--void) / 0.95) 100%);
-}
+/* ---------------------------------------------------------------- window chrome */
 
+.hud { background: #f3eee4; }
 .hud-header {
   -webkit-app-region: drag;
-  /* Reserve exactly the native titlebar-overlay width (window controls) instead of a
-     fixed pr-40 guess: 100vw − titlebar-area-width IS the overlay's width, and the
-     fallback keeps the header correct where the env is unsupported. */
   padding-right: calc(100vw - env(titlebar-area-width, 100vw));
 }
+.drag { -webkit-app-region: drag; }
 .no-drag { -webkit-app-region: no-drag; }
-.hud-header::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
-  background: linear-gradient(90deg, rgb(var(--accent) / 0.55), rgb(var(--line) / 0.25) 55%, transparent);
-}
+.font-serif-display { font-family: var(--serif); font-optical-sizing: auto; font-variation-settings: 'SOFT' 50, 'WONK' 0; }
 
-.rail { position: relative; padding-left: 18px; border-left: 1px solid rgb(var(--line) / 0.7); }
-.rail::before {
-  content: ''; position: absolute; left: -1px; top: 0; width: 1px; height: 34px;
-  background: rgb(var(--accent));
-}
-.rail-title { margin: 0 0 18px; font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: 0.42em; text-transform: uppercase; color: rgb(var(--steel)); }
+/* ---------------------------------------------------------------- shared building blocks */
 
-.readout > div {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 7px 0; border-bottom: 1px solid rgb(var(--line) / 0.35);
-}
-.readout dt { font-family: var(--display); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgb(var(--steel)); }
-.readout dd { margin: 0; font-family: var(--mono); font-size: 13px; }
+.rail { position: relative; }
+.rail-title { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: rgb(var(--hot)); }
 
-.meter {
-  width: 96px; height: 8px; background: rgb(var(--line) / 0.5);
-  -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 7px);
-          mask-image: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 7px);
-}
-.meter-fill { height: 100%; background: rgb(var(--accent)); transform-origin: left; transform: scaleX(0); }
+.readout > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgb(var(--line)); }
+.readout > div:last-child { border-bottom: 0; }
+.readout dt { font-size: 13px; color: rgb(var(--steel)); }
+.readout dd { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; color: rgb(var(--hot)); }
 
-.corner { position: absolute; width: 26px; height: 26px; pointer-events: none; border: 1px solid rgb(var(--accent) / 0.7); z-index: 30; }
-.corner-tl { top: 52px; left: 14px;  border-right: 0; border-bottom: 0; }
-.corner-tr { top: 52px; right: 14px; border-left: 0;  border-bottom: 0; }
-.corner-bl { bottom: 14px; left: 14px;  border-right: 0; border-top: 0; }
-.corner-br { bottom: 14px; right: 14px; border-left: 0;  border-top: 0; }
+.meter { width: 96px; height: 4px; border-radius: 9999px; overflow: hidden; background: rgb(var(--surface-2)); }
+.meter-fill { height: 100%; border-radius: 9999px; background: rgb(var(--accent)); transform-origin: left; transform: scaleX(0); }
 
+/* Legacy decorative chrome, retired. */
+.corner, .mic-ticks, .holo-grid, .holo-sweep, .holo-flash, .holo-br, .hud-grid, .hud-vignette { display: none !important; }
+
+/* Microphone button (composer toolbar). */
 .mic {
-  position: relative; display: grid; place-items: center; width: 84px; height: 84px;
-  border-radius: 9999px; cursor: pointer; outline: none;
-  color: rgb(var(--accent)); background: rgb(var(--accent) / 0.04);
-  border: 1px solid rgb(var(--accent) / 0.7);
-  transition: background 0.2s, box-shadow 0.3s;
+  position: relative; display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0;
+  border-radius: 9999px; cursor: pointer; border: 0;
+  color: rgb(var(--steel)); background: rgb(var(--surface-2));
+  transition: background-color 0.15s, color 0.15s;
 }
-.mic:hover { background: rgb(var(--accent) / 0.14); }
-.mic:focus-visible { box-shadow: 0 0 0 2px rgb(var(--void)), 0 0 0 4px rgb(var(--accent)); }
-.mic-ticks { position: absolute; inset: -9px; width: calc(100% + 18px); height: calc(100% + 18px); animation: mic-spin 30s linear infinite; }
-.mic-ripple { position: absolute; inset: 0; border-radius: 9999px; border: 1px solid rgb(var(--accent)); pointer-events: none; }
-@keyframes mic-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .mic-ticks { animation: none; } }
+.mic:hover { background: #e9e1d3; color: rgb(var(--hot)); }
+.mic[aria-pressed='true'] { background: rgb(var(--accent) / 0.12); color: rgb(var(--accent)); }
+.mic[aria-pressed='true']:hover { background: rgb(var(--accent) / 0.18); }
+.mic-ripple { position: absolute; inset: 0; border-radius: 9999px; border: 1.5px solid rgb(var(--accent)); pointer-events: none; }
 
+/* Dialogs: warm-white sheet, sand hairline, soft warm shadow. */
+.holo-panel {
+  position: relative;
+  background: rgb(var(--surface));
+  border: 1px solid #e6decf;
+  border-radius: 18px !important;
+  box-shadow: 0 1px 2px rgba(60, 42, 20, 0.06), 0 24px 60px rgba(60, 42, 20, 0.14);
+}
+.holo-panel::before { content: none; }
+.holo-title { margin: 0; font-family: var(--serif); font-size: 20px; font-weight: 500; letter-spacing: -0.01em; color: rgb(var(--hot)); }
+.holo-subtitle { margin: 2px 0 0; font-size: 13px; color: rgb(var(--steel)); }
+.holo-dot { width: 8px; height: 8px; border-radius: 9999px; background: rgb(var(--accent)); }
+.holo-close { color: rgb(var(--steel)); border-radius: 8px; transition: color 0.15s, background-color 0.15s; }
+.holo-close:hover { color: rgb(var(--hot)); background: rgb(var(--surface-2)); }
+.holo-rule { height: 1px; margin: 0 20px; background: rgb(var(--line)); }
 
+input, textarea, select { font-family: inherit; }
 
-/* ---- motion ---- */
-@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-@keyframes slide-l { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
-@keyframes slide-r { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
-@keyframes breathe { 0%,100% { border-color: rgb(var(--accent) / 0.45); } 50% { border-color: rgb(var(--accent) / 0.95); } }
-@keyframes scan { from { transform: translateY(-12%); } to { transform: translateY(112vh); } }
-@keyframes drift { to { background-position: 28px 28px; } }
-@keyframes shimmer { to { background-position: -200% 0; } }
-@keyframes blip { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
-@keyframes draw { from { width: 0; height: 0; opacity: 0; } to { opacity: 1; } }
+/* ---------------------------------------------------------------- motion */
 
-.hud { animation: rise 0.7s ease-out both; }
+@keyframes jini-spin { to { transform: rotate(360deg); } }
+@keyframes jini-dot { 0%, 80%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+@keyframes jini-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes jini-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
 
-.rail { animation: slide-l 0.8s cubic-bezier(.2,.8,.2,1) both; }
-main > div:last-of-type .rail, .rail.w-72 { animation-name: slide-r; animation-delay: 0.15s; }
-.rail::before { animation: blip 2.4s ease-in-out infinite; }
-.readout > div { animation: rise 0.5s ease-out both; }
-.readout > div:nth-child(1) { animation-delay: 0.35s; }
-.readout > div:nth-child(2) { animation-delay: 0.45s; }
-.readout > div:nth-child(3) { animation-delay: 0.55s; }
-.readout > div:nth-child(4) { animation-delay: 0.65s; }
-ol > li { animation: rise 0.45s ease-out both; }
+.anim-spin { animation: jini-spin 0.9s linear infinite; transform-origin: center; }
+.anim-enter { animation: jini-enter 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.typing-dots span { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 9999px; background: currentColor; animation: jini-dot 1.2s ease-in-out infinite; }
+.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.3s; margin-right: 0; }
 
-.corner { animation: draw 0.9s ease-out both, blip 3.2s ease-in-out 1s infinite; }
-.mic { animation: breathe 3.2s ease-in-out infinite; }
-.hud[data-mode='listening'] .mic { animation-duration: 1.1s; }
-.hud[data-mode='thinking'] .mic-ticks { animation-duration: 3s; }
-input:focus { transition: filter 0.3s; filter: drop-shadow(0 0 6px rgb(var(--accent) / 0.45)); }
+/* JINI orb — a small warm sun: cream highlight, apricot body, clay edge, slow inner drift. */
+.orb { position: relative; display: grid; place-items: center; border-radius: 9999px; isolation: isolate; }
+.orb::before {
+  content: ''; position: absolute; inset: -22%; z-index: -1; border-radius: 9999px;
+  background: radial-gradient(circle, rgba(232, 150, 90, 0.22), transparent 66%);
+}
+.orb[data-small='true']::before { display: none; }
+.orb-core {
+  position: relative; overflow: hidden; width: 100%; height: 100%; border-radius: 9999px;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 248, 232, 0.95), rgba(255, 248, 232, 0) 34%),
+    radial-gradient(circle at 72% 82%, rgba(205, 104, 62, 0.75) 0%, rgba(205, 104, 62, 0) 58%),
+    radial-gradient(circle at 50% 50%, #fad3a3 0%, #f0a86c 60%, #de7f4c 100%);
+  box-shadow: inset 0 -0.16em 0.45em rgba(120, 50, 20, 0.28), inset 0 0.1em 0.25em rgba(255, 255, 255, 0.5);
+  transition: transform 0.12s ease-out;
+}
+.orb-core::after {
+  content: ''; position: absolute; inset: -30%;
+  background: conic-gradient(from 0deg, transparent 0 25%, rgba(255, 244, 220, 0.35) 36%, transparent 50% 76%, rgba(180, 80, 40, 0.18) 88%, transparent);
+  animation: jini-spin 10s linear infinite;
+  mix-blend-mode: soft-light;
+}
+.orb-ring { position: absolute; inset: -14%; border-radius: 9999px; border: 1.5px solid transparent; }
+.orb[data-small='true'] .orb-ring { inset: -3px; border-width: 1px; }
+.orb[data-state='idle'] .orb-core { animation: jini-breathe 5.5s ease-in-out infinite; }
+.orb[data-state='thinking'] .orb-ring { border-top-color: rgb(var(--accent)); border-right-color: rgb(var(--accent) / 0.3); animation: jini-spin 1.1s linear infinite; }
+.orb[data-state='thinking'] .orb-core::after { animation-duration: 2.4s; }
+.orb[data-state='listening'] .orb-ring { border-color: rgb(var(--accent) / 0.55); }
+.orb[data-state='speaking'] .orb-ring { border-color: rgb(var(--accent) / 0.35); }
+
+.hud[data-mini='true'] .mini-drag { -webkit-app-region: drag; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hud, .rail, .rail::before, .readout > div, ol > li, .corner, .mic { animation: none; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
-
-/* Mini HUD: draggable anywhere, with a cinematic dock-in when a panel takes the screen. */
-.hud[data-mini='true'] main { -webkit-app-region: drag; }
-.hud[data-mini='true'] { animation: hud-dock 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
-.hud[data-mini='true']::after {
-  content: ''; position: absolute; inset: 0; z-index: 30; pointer-events: none;
-  border: 1px solid rgb(var(--accent) / 0.55);
-    animation: hud-ring 3.2s ease-in-out infinite;
-}
-@keyframes hud-dock {
-  0%   { filter: brightness(2.4) saturate(1.5); clip-path: inset(48% 0 48% 0); }
-  45%  { filter: brightness(1.6); clip-path: inset(0 0 0 0); }
-  100% { filter: none; clip-path: inset(0 0 0 0); }
-}
-@keyframes hud-ring {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-
-/* Holographic visual panel: the one place the HUD uses colour, so projected content reads as light, not UI. */
-.holo-panel {
-  --h: 95 243 255;
-  background: linear-gradient(180deg, rgb(var(--h) / 0.08), rgb(var(--h) / 0.015) 45%, rgb(var(--h) / 0.06)), rgba(2, 14, 20, 0.8);
-  border: 1px solid rgb(var(--h) / 0.55);
-  box-shadow: inset 0 0 60px rgb(var(--h) / 0.07), 0 0 26px rgb(var(--h) / 0.3), 0 0 100px rgb(var(--h) / 0.12), 0 30px 80px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(10px) saturate(1.3);
-}
-.holo-panel::before {
-  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
-  background: repeating-linear-gradient(0deg, rgb(var(--h) / 0.05) 0 1px, transparent 1px 3px);
-}
-.holo-grid {
-  position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
-  background-image: linear-gradient(rgb(var(--h) / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--h) / 0.07) 1px, transparent 1px);
-  background-size: 44px 44px;
-  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 20%, transparent 78%);
-          mask-image: radial-gradient(ellipse at 50% 50%, #000 20%, transparent 78%);
-}
-.holo-br { position: absolute; z-index: 4; width: 22px; height: 22px; pointer-events: none; border: 2px solid rgb(var(--h)); filter: drop-shadow(0 0 6px rgb(var(--h) / 0.9)); }
-.holo-br-tl { top: 6px; left: 6px; border-right: 0; border-bottom: 0; }
-.holo-br-tr { top: 6px; right: 6px; border-left: 0; border-bottom: 0; }
-.holo-br-bl { bottom: 6px; left: 6px; border-right: 0; border-top: 0; }
-.holo-br-br { bottom: 6px; right: 6px; border-left: 0; border-top: 0; }
-.holo-title {
-  margin: 0; font-family: var(--display); font-size: 13px; font-weight: 600; letter-spacing: 0.42em; text-transform: uppercase;
-  color: rgb(216 253 255); text-shadow: 0 0 12px rgb(var(--h) / 0.8);
-}
-.holo-subtitle { margin: 2px 0 0; font-size: 11px; font-weight: 400; letter-spacing: 0.08em; color: rgb(143 195 204); text-shadow: none; }
-.holo-dot { width: 8px; height: 8px; border-radius: 9999px; background: rgb(var(--h)); box-shadow: 0 0 10px rgb(var(--h)); animation: holoPulse 2s ease-in-out infinite; }
-.holo-close { color: rgb(var(--h) / 0.7); transition: color 0.2s, text-shadow 0.2s; }
-.holo-close:hover { color: rgb(216 253 255); text-shadow: 0 0 10px rgb(var(--h)); }
-.holo-rule { position: relative; z-index: 3; height: 1px; margin: 0 20px; background: linear-gradient(90deg, rgb(var(--h) / 0.9), rgb(var(--h) / 0.2) 60%, transparent); box-shadow: 0 0 8px rgb(var(--h) / 0.6); }
-.holo-sweep {
-  position: absolute; left: 0; right: 0; top: 0; z-index: 3; height: 110px; pointer-events: none;
-  background: linear-gradient(180deg, transparent, rgb(var(--h) / 0.1), transparent);
-  animation: holoSweep 6s linear infinite;
-}
-.holo-flash { position: absolute; inset: 0; z-index: 5; pointer-events: none; background: rgb(var(--h) / 0.25); animation: holoFlash 0.7s ease-out both; }
-@keyframes holoSweep { from { transform: translateY(-120px); } to { transform: translateY(calc(100vh)); } }
-@keyframes holoFlash { 0% { opacity: 1; } 20% { opacity: 0.2; } 35% { opacity: 0.7; } 100% { opacity: 0; } }
-@keyframes holoPulse { 50% { opacity: 0.35; } }
-@media (prefers-reduced-motion: reduce) { .holo-sweep, .holo-flash, .holo-dot { animation: none; } }

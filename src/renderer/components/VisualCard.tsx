@@ -31,7 +31,7 @@ const emergencyDoc = (v: Visual | null | undefined): string => {
   const subtitle = typeof v?.subtitle === 'string' ? v.subtitle : '';
   return (
     `<!doctype html><html><head><meta charset="utf-8"><style>` +
-    `html,body{margin:0;padding:26px;background:#04070d;color:#bfe9ff;font:15px/1.65 sans-serif}` +
+    `html,body{margin:0;padding:26px;background:#FFFDF9;color:#bfe9ff;font:15px/1.65 sans-serif}` +
     `h1{font-size:19px;margin:0 0 10px;font-weight:600}p{margin:0 0 6px}` +
     `.m{margin-top:14px;opacity:.65;font-size:13px}</style></head><body>` +
     `<h1>${esc(title)}</h1>` +

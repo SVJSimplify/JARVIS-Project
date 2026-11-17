@@ -135,7 +135,7 @@ export function LeftRail({ mode, levelRef, data, battery, online, alerts, voiceR
     <button
       type="button"
       onClick={() => pick(t)}
-      className={`no-drag font-display text-[11px] font-bold uppercase tracking-[0.3em] transition-colors ${tab === t ? 'text-accent' : 'text-steel hover:text-hot'}`}
+      className={`no-drag font-display text-[12px] font-bold transition-colors ${tab === t ? 'text-accent' : 'text-steel hover:text-hot'}`}
     >
       {label}
       {t === 'system' && alerts.length > 0 && <span className="ml-1 animate-pulse text-hot">●</span>}

@@ -6,51 +6,35 @@ interface Props {
   mode: JarvisMode;
   hint: string;
   onToggle: () => void;
+  compact?: boolean;
 }
 
-export default function VoiceInput({ live, mode, hint, onToggle }: Props) {
+/** Microphone toggle for the composer toolbar, with the voice engine's status beside it. */
+export default function VoiceInput({ live, mode, hint, onToggle, compact }: Props) {
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="h-5 text-sm text-steel">{hint}</div>
-
+    <div className="flex min-w-0 items-center gap-2.5">
       <button
         type="button"
         onClick={onToggle}
         className="mic"
-        aria-label={live ? 'Mute microphone' : 'Unmute microphone'}
+        aria-label={live ? 'Mute microphone' : 'Turn on microphone'}
         aria-pressed={live}
+        title={live ? 'Listening — click to mute' : 'Microphone off — click to talk to JINI'}
       >
-        <svg className="mic-ticks" viewBox="0 0 102 102" aria-hidden="true">
-          <circle cx="51" cy="51" r="50" fill="none" stroke="currentColor" strokeOpacity="0.55" strokeDasharray="1 5" />
-        </svg>
         {live && mode === 'listening' && (
-          <motion.span
-            className="mic-ripple"
-            initial={{ scale: 1, opacity: 0.5 }}
-            animate={{ scale: 1.7, opacity: 0 }}
-            transition={{ duration: 1.4, repeat: Infinity, ease: 'easeOut' }}
-          />
+          <motion.span className="mic-ripple" initial={{ scale: 1, opacity: 0.6 }} animate={{ scale: 1.5, opacity: 0 }} transition={{ duration: 1.3, repeat: Infinity, ease: 'easeOut' }} />
         )}
-        <MicGlyph live={live} mode={mode} />
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="9" y="3" width="6" height="11" rx="3" />
+          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+          {!live && <path d="M4 4l16 16" />}
+        </svg>
       </button>
+      {!compact && hint && (
+        <span className="truncate text-[12.5px] text-faint" role="status">
+          {hint}
+        </span>
+      )}
     </div>
-  );
-}
-
-function MicGlyph({ live, mode }: { live: boolean; mode: JarvisMode }) {
-  const common = { width: 26, height: 26, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const };
-  if (mode === 'thinking') {
-    return (
-      <motion.svg {...common} animate={{ rotate: 360 }} transition={{ duration: 1.1, repeat: Infinity, ease: 'linear' }}>
-        <path d="M12 4a8 8 0 1 1-8 8" />
-      </motion.svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <rect x="9" y="3" width="6" height="11" rx="3" />
-      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-      {!live && <path d="M4 4l16 16" />}
-    </svg>
   );
 }

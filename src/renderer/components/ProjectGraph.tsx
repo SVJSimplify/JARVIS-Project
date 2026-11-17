@@ -30,21 +30,21 @@ const MARGIN = 16;
 
 const stateColor = (state: string): string =>
   state === 'completed'
-    ? '#35d0a0'
+    ? '#4F7F55'
     : state === 'running'
       ? '#7fe9ff'
       : state === 'blocked'
-        ? '#ff5f7a'
+        ? '#B4473A'
         : state === 'failed'
           ? '#ff8a5f'
           : state === 'interrupted'
-            ? '#e9c46a'
+            ? '#A86E1A'
             : state === 'skipped'
               ? '#5b6b7d'
               : '#46586c';
 
 const stateBg = (state: string): string =>
-  state === 'completed' ? 'rgba(53,208,160,0.10)' : state === 'running' ? 'rgba(127,233,255,0.10)' : state === 'blocked' ? 'rgba(255,95,122,0.10)' : 'rgba(127,233,255,0.03)';
+  state === 'completed' ? 'rgba(79,127,85,0.10)' : state === 'running' ? 'rgba(176,90,51,0.10)' : state === 'blocked' ? 'rgba(180,71,58,0.10)' : 'rgba(176,90,51,0.03)';
 
 export default function ProjectGraph({ tasks, milestones, onOpenTask }: Props) {
   const layout = useMemo(() => {
@@ -93,7 +93,7 @@ export default function ProjectGraph({ tasks, milestones, onOpenTask }: Props) {
     <div className="overflow-auto rounded-sm border border-line bg-[rgb(var(--accent)/0.02)]">
       <svg width={layout.width} height={layout.height} role="img" aria-label="Project dependency graph">
         {milestones.map((m, i) => (
-          <text key={m.id} x={MARGIN + i * 2} y={20} fontSize="10" fill="rgba(127,233,255,0.75)" className="font-mono" letterSpacing="1.5">
+          <text key={m.id} x={MARGIN + i * 2} y={20} fontSize="10" fill="rgba(176,90,51,0.75)" className="font-mono" letterSpacing="1.5">
             {`${m.id} · ${m.title}`.toUpperCase().slice(0, 46)}
           </text>
         ))}
@@ -108,7 +108,7 @@ export default function ProjectGraph({ tasks, milestones, onOpenTask }: Props) {
               key={e.key}
               d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
               fill="none"
-              stroke="rgba(127,233,255,0.35)"
+              stroke="rgba(176,90,51,0.35)"
               strokeWidth="1.4"
               markerEnd="url(#pg-arrow)"
             />
@@ -116,7 +116,7 @@ export default function ProjectGraph({ tasks, milestones, onOpenTask }: Props) {
         })}
         <defs>
           <marker id="pg-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-            <path d="M0,0 L7,3.5 L0,7 Z" fill="rgba(127,233,255,0.55)" />
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="rgba(176,90,51,0.55)" />
           </marker>
         </defs>
         {tasks.map((t) => {

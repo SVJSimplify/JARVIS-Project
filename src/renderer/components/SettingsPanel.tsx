@@ -22,7 +22,7 @@ interface Props {
 export type SettingsSection = 'provider' | 'devices' | 'activity' | 'transcript';
 
 const SECTIONS: Array<{ id: SettingsSection; label: string; title: string }> = [
-  { id: 'provider', label: 'Provider & Voice', title: 'Provider' },
+  { id: 'provider', label: 'Provider', title: 'Provider' },
   { id: 'devices', label: 'Devices', title: 'Devices' },
   { id: 'activity', label: 'Activity', title: 'Activity' },
   { id: 'transcript', label: 'Transcript', title: 'Transcript' },
@@ -47,7 +47,7 @@ const TOGGLES: Array<{ key: ToggleKey; label: string }> = [
 ];
 
 const field =
-  'w-full border-b border-line bg-transparent py-2 font-mono text-sm text-hot outline-none placeholder:text-steel/60 focus:border-accent';
+  'w-full rounded-[10px] border border-hairline bg-paper px-3 py-2 text-[13.5px] text-ink outline-none transition-colors placeholder:text-faint focus:border-sand focus:bg-surface';
 
 export default function SettingsPanel({ open, onClose, log = [], initialSection = 'provider' }: Props) {
   const [baseUrl, setBaseUrl] = useState('');
@@ -170,25 +170,33 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
 
   return (
     <div
-      className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-[rgb(var(--void)/0.75)] backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto overscroll-contain bg-[rgba(52,38,24,0.22)] p-6"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="rail m-auto max-h-[86vh] w-[28rem] max-w-[90vw] overflow-y-auto bg-[rgb(var(--void)/0.95)] p-6"
+        className="holo-panel max-h-[86vh] w-[34rem] max-w-[92vw] overflow-y-auto p-7"
         role="dialog"
         aria-label="Settings"
       >
         {/* Round 23 navigation: three sections, existing conventions (uppercase, tracked,
             accent when active). Switching sections never resets provider form state —
             only which section is rendered. */}
-        <nav className="mb-6 flex gap-5" aria-label="Settings sections">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="holo-title">Settings</h2>
+          <button type="button" onClick={onClose} aria-label="Close settings" className="holo-close grid h-8 w-8 place-items-center">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <nav className="mb-7 flex gap-1 rounded-[11px] bg-surface-2 p-1" aria-label="Settings sections">
           {SECTIONS.map((s) => (
             <button
               key={s.id}
               type="button"
               onClick={() => setSection(s.id)}
               aria-current={section === s.id}
-              className={`no-drag font-display text-[11px] font-bold uppercase tracking-[0.3em] transition-colors ${section === s.id ? 'text-accent' : 'text-steel hover:text-hot'}`}
+              className={`no-drag flex-1 rounded-[8px] py-1.5 text-[12.5px] font-medium transition-colors ${section === s.id ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(60,42,20,0.08)]' : 'text-muted hover:text-ink'}`}
             >
               {s.label}
             </button>
@@ -327,7 +335,7 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
         <div className="mb-8 flex items-center gap-3">
           <select id="voice" value={voice} onChange={(e) => setVoice(e.target.value)} className={field}>
             {VOICES.map((v) => (
-              <option key={v.id} value={v.id} className="bg-[#04101a]">
+              <option key={v.id} value={v.id} className="bg-[#FFFDF9]">
                 {v.label}
               </option>
             ))}
@@ -357,7 +365,7 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
                 setAwareness(e.target.checked);
                 void window.electronAPI.settings.set({ awareness: e.target.checked });
               }}
-              className="h-4 w-4 accent-[#ffffff]"
+              className="h-4 w-4 accent-[#FFFDF9]"
             />
           </label>
         </div>
@@ -371,7 +379,7 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
                 type="checkbox"
                 checked={prefs[t.key]}
                 onChange={(e) => setVoicePrefs({ [t.key]: e.target.checked })}
-                className="h-4 w-4 accent-[#ffffff]"
+                className="h-4 w-4 accent-[#FFFDF9]"
               />
             </label>
           ))}
@@ -399,7 +407,7 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
               step={0.1}
               value={prefs.lockStrictness}
               onChange={(e) => setVoicePrefs({ lockStrictness: Number(e.target.value) })}
-              className="w-32 accent-[#ffffff]"
+              className="w-32 accent-[#FFFDF9]"
             />
           </label>
         </div>
@@ -409,7 +417,7 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
           <button type="button" onClick={onClose} className="text-sm text-steel hover:text-hot">
             Cancel
           </button>
-          <button type="submit" className="text-sm font-semibold tracking-widest text-accent hover:text-hot">
+          <button type="submit" className="text-sm font-semibold text-accent hover:text-hot">
             SAVE
           </button>
         </div>

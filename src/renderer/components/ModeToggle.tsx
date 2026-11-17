@@ -42,7 +42,7 @@ export default function ModeToggle() {
           ? 'Background mode: silent work, one notification per finished task. Click for Interactive mode.'
           : 'Interactive mode: everything is shown live. Click for Background mode (silent, notify when done).'
       }
-      className={`no-drag rounded-full border px-3 py-1 font-mono text-[10px] tracking-widest transition-colors ${
+      className={`no-drag rounded-full border px-3 py-1 font-mono text-[12px] transition-colors ${
         bg ? 'border-accent/60 text-accent' : 'border-steel/30 text-steel hover:border-steel/60'
       } ${busy ? 'opacity-50' : ''}`}
     >

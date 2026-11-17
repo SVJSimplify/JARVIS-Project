@@ -1,6 +1,6 @@
 /**
- * JINI mobile design tokens. One accent (lavender), flat solid surfaces, hairline dividers.
- * No glass, no glow, no gradients.
+ * JINI mobile design tokens — "warm paper", shared with desktop. One warm temperature for
+ * every neutral, a single clay accent, ink primary buttons. No purple, no glass, no glow.
  * @type {import('tailwindcss').Config}
  */
 module.exports = {
@@ -8,23 +8,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        bg: '#0C0B10', // app background (violet-tinted near-black)
-        surface: '#16151C', // raised rows, inputs, sheets
-        'surface-2': '#1E1C26', // pressed / selected surface
-        hairline: '#26242F', // dividers and input borders
-        text: '#F3F1F7', // primary text
-        muted: '#A6A2B2', // secondary text
-        faint: '#6F6B7C', // tertiary / metadata
-        accent: '#B4A3FF', // JINI lavender — primary actions, active state
-        'accent-strong': '#9A85FF', // pressed accent
-        'on-accent': '#15102A', // text on accent
-        ok: '#7DD3A8',
-        warn: '#E9C27B',
-        danger: '#F28B8B',
+        bg: '#FBF8F2', // paper — app canvas
+        oat: '#F3EEE4', // bars, grouped backgrounds
+        surface: '#FFFDF9', // rows, inputs, sheets
+        'surface-2': '#F1EBE0', // pressed / selected
+        hairline: '#E6DECF', // dividers and borders
+        sand: '#D8CDBB', // strong borders
+        text: '#1F1B16', // warm ink
+        body: '#3A342D',
+        muted: '#6E665B',
+        faint: '#9A9183',
+        accent: '#B05A33', // clay — active state, links, progress
+        'accent-strong': '#97492A',
+        'on-accent': '#FFFDF9',
+        ink: '#1F1B16', // primary buttons
+        paper: '#FBF8F2',
+        clay: '#B05A33',
+        sage: '#4F7F55',
+        ochre: '#A86E1A',
+        slate: '#4E6A85',
+        ok: '#4F7F55',
+        warn: '#A86E1A',
+        danger: '#B4473A',
       },
-      fontFamily: { sans: ['"Inter Variable"', 'system-ui', 'sans-serif'] },
+      fontFamily: {
+        sans: ['"Inter Variable"', 'system-ui', 'sans-serif'],
+        serif: ['"Fraunces Variable"', 'Georgia', 'serif'],
+      },
       fontSize: {
-        title: ['28px', { lineHeight: '34px', letterSpacing: '-0.02em', fontWeight: '600' }],
+        title: ['30px', { lineHeight: '36px', letterSpacing: '-0.015em', fontWeight: '450' }],
         body: ['15px', { lineHeight: '22px' }],
         meta: ['12.5px', { lineHeight: '17px' }],
       },

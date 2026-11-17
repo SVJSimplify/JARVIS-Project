@@ -81,7 +81,7 @@ function Bar({ done, total, failed = 0 }: { done: number; total: number; failed?
       <div className="h-[3px] flex-1 overflow-hidden bg-line/40">
         <div className={`h-full transition-all duration-500 ${failed > 0 ? 'bg-hot' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="shrink-0 font-mono text-[10px] tabular-nums text-steel">
+      <span className="shrink-0 font-mono text-[12px] tabular-nums text-steel">
         {done}/{total}
         {failed > 0 && <span className="text-hot"> ✗{failed}</span>}
       </span>
@@ -92,7 +92,7 @@ function Bar({ done, total, failed = 0 }: { done: number; total: number; failed?
 function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.32em] text-steel">{children}</h3>
+      <h3 className="font-display text-[12px] font-bold text-steel">{children}</h3>
       {right}
     </div>
   );
@@ -103,11 +103,11 @@ function NowLine({ snap, nowMs }: { snap: ProgressSnapshot; nowMs: number }) {
   const busy = snap.now.status === 'running';
   return (
     <div className="flex items-baseline gap-2">
-      <span className={`font-mono text-[11px] leading-none ${busy ? 'animate-pulse text-accent' : 'text-steel'}`}>{busy ? '▶' : '·'}</span>
+      <span className={`font-mono text-[12px] leading-none ${busy ? 'animate-pulse text-accent' : 'text-steel'}`}>{busy ? '▶' : '·'}</span>
       <span className="truncate text-[13px] leading-snug text-hot" title={snap.now.detail || snap.now.label}>
         {snap.now.label}
       </span>
-      {busy && <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-steel">{elapsed(snap.now.since, nowMs)}</span>}
+      {busy && <span className="ml-auto shrink-0 font-mono text-[12px] tabular-nums text-steel">{elapsed(snap.now.since, nowMs)}</span>}
     </div>
   );
 }
@@ -120,7 +120,7 @@ function TurnSection({ turn, nowMs, stepLimit }: { turn: TurnProgress; nowMs: nu
     <div className="space-y-1.5">
       <SectionTitle
         right={
-          <span className={`font-mono text-[10px] uppercase tracking-wider ${outcome === 'running' ? 'animate-pulse text-accent' : outcome === 'fail' || outcome === 'interrupted' ? 'text-hot' : 'text-steel'}`}>
+          <span className={`font-mono text-[12px]   ${outcome === 'running' ? 'animate-pulse text-accent' : outcome === 'fail' || outcome === 'interrupted' ? 'text-hot' : 'text-steel'}`}>
             {outcome === 'running' ? elapsed(turn.startedAt, nowMs) : outcome}
           </span>
         }
@@ -134,16 +134,16 @@ function TurnSection({ turn, nowMs, stepLimit }: { turn: TurnProgress; nowMs: nu
         <>
           <Bar done={turn.done} total={turn.steps.length} failed={turn.failed} />
           <ol className="space-y-1">
-            {hidden > 0 && <li className="font-mono text-[10px] text-steel">… {hidden} earlier step(s)</li>}
+            {hidden > 0 && <li className="font-mono text-[12px] text-steel">… {hidden} earlier step(s)</li>}
             {steps.map((s) => {
               const tone = TURN_GLYPH[s.status] ?? TURN_GLYPH.held;
               return (
                 <li key={s.key} className="flex items-baseline gap-2">
-                  <span className={`w-3 shrink-0 text-center font-mono text-[11px] leading-none ${tone.cls}`}>{tone.g}</span>
+                  <span className={`w-3 shrink-0 text-center font-mono text-[12px] leading-none ${tone.cls}`}>{tone.g}</span>
                   <span className={`truncate text-[12px] leading-snug ${s.status === 'running' ? 'text-accent' : s.status === 'fail' ? 'text-hot/80' : 'text-steel'}`} title={s.detail || s.label}>
                     {s.label}
                   </span>
-                  {s.ms !== undefined && <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-steel/70">{s.ms}ms</span>}
+                  {s.ms !== undefined && <span className="ml-auto shrink-0 font-mono text-[12px] tabular-nums text-steel/70">{s.ms}ms</span>}
                 </li>
               );
             })}
@@ -160,7 +160,7 @@ function TaskSection({ t, compact }: { t: TaskProgressView; compact?: boolean })
     <div className="space-y-1.5">
       <SectionTitle
         right={
-          <span className={`font-mono text-[10px] uppercase ${active ? 'animate-pulse text-accent' : t.status === 'FAILED' || t.status === 'CANCELLED' ? 'text-hot' : 'text-steel'}`}>
+          <span className={`font-mono text-[12px]  ${active ? 'animate-pulse text-accent' : t.status === 'FAILED' || t.status === 'CANCELLED' ? 'text-hot' : 'text-steel'}`}>
             {t.status}
           </span>
         }
@@ -178,8 +178,8 @@ function TaskSection({ t, compact }: { t: TaskProgressView; compact?: boolean })
             const running = s.status === 'running';
             return (
               <li key={`${i}-${s.title}`} className="flex items-baseline gap-2">
-                <span className={`w-3 shrink-0 text-center font-mono text-[11px] leading-none ${tone.cls}`}>{tone.g}</span>
-                <span className="shrink-0 font-mono text-[10px] tabular-nums text-steel/70">{i + 1}.</span>
+                <span className={`w-3 shrink-0 text-center font-mono text-[12px] leading-none ${tone.cls}`}>{tone.g}</span>
+                <span className="shrink-0 font-mono text-[12px] tabular-nums text-steel/70">{i + 1}.</span>
                 <span className={`truncate text-[12px] leading-snug ${running ? 'text-accent' : s.status === 'failed' ? 'text-hot/80' : 'text-steel'}`} title={s.title}>
                   {s.title}
                 </span>
@@ -188,7 +188,7 @@ function TaskSection({ t, compact }: { t: TaskProgressView; compact?: boolean })
           })}
         </ol>
       )}
-      {!compact && t.note && <p className="truncate font-mono text-[10px] text-steel/80" title={t.note}>{t.note}</p>}
+      {!compact && t.note && <p className="truncate font-mono text-[12px] text-steel/80" title={t.note}>{t.note}</p>}
     </div>
   );
 }
@@ -206,7 +206,7 @@ export function AgentsSection({ agents, nowMs, detailed }: { agents: AgentProgre
   const shown = detailed ? list : [...active, ...settled].slice(0, 5);
   return (
     <div className="space-y-1.5">
-      <SectionTitle right={<span className="font-mono text-[10px] uppercase tracking-wider text-steel">{active.length ? `${active.length} active` : 'idle'}</span>}>
+      <SectionTitle right={<span className="font-mono text-[12px] text-steel">{active.length ? `${active.length} active` : 'idle'}</span>}>
         Agents
       </SectionTitle>
       <ol className="space-y-1">
@@ -214,12 +214,12 @@ export function AgentsSection({ agents, nowMs, detailed }: { agents: AgentProgre
           const tone = agentGlyph(a.status);
           return (
             <li key={a.id} className="flex items-baseline gap-2">
-              <span className={`w-3 shrink-0 text-center font-mono text-[11px] leading-none ${tone.cls}`}>{tone.g}</span>
-              <span className={`shrink-0 font-mono text-[10px] uppercase tracking-wider ${a.status === 'running' ? 'text-accent' : 'text-steel/80'}`}>{a.agent}</span>
+              <span className={`w-3 shrink-0 text-center font-mono text-[12px] leading-none ${tone.cls}`}>{tone.g}</span>
+              <span className={`shrink-0 font-mono text-[12px]   ${a.status === 'running' ? 'text-accent' : 'text-steel/80'}`}>{a.agent}</span>
               <span className={`truncate text-[12px] leading-snug ${a.status === 'running' ? 'text-accent' : a.status === 'failed' || a.status === 'cancelled' ? 'text-hot/80' : 'text-steel'}`} title={a.note || a.why}>
                 {a.note || a.why}
               </span>
-              {a.status === 'running' && <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-steel/70">{elapsed(a.startedAt, nowMs)}</span>}
+              {a.status === 'running' && <span className="ml-auto shrink-0 font-mono text-[12px] tabular-nums text-steel/70">{elapsed(a.startedAt, nowMs)}</span>}
             </li>
           );
         })}
@@ -271,7 +271,7 @@ export default function TaskProgress({ mini = false }: { mini?: boolean }) {
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}
-        className="no-drag pointer-events-none max-w-[94vw] truncate rounded-full border border-accent/40 bg-[#02060bd9] px-4 py-1 font-mono text-[11px] tracking-wide text-accent"
+        className="no-drag pointer-events-none max-w-[94vw] truncate rounded-full border border-accent/40 bg-[#FBF8F2d9] px-4 py-1 font-mono text-[12px] text-accent"
       >
         <span className="mr-2 animate-pulse">▶</span>
         {snap?.now?.label ? `${snap.now.label}` : 'Working'}
@@ -292,8 +292,8 @@ export default function TaskProgress({ mini = false }: { mini?: boolean }) {
           >
             <div className="relative z-[3] max-h-[46vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-accent/20 px-4 pb-1.5 pt-2.5">
-                <h2 className="font-display text-[10px] font-bold uppercase tracking-[0.42em] text-accent/90">Task Progress</h2>
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-steel">
+                <h2 className="font-display text-[12px] font-bold text-accent/90">Task Progress</h2>
+                <span className="font-mono text-[12px] text-steel">
                   {snap.busy ? <span className="animate-pulse text-accent">● live</span> : 'idle'} · {snap.mode === 'background' ? 'background' : 'interactive'}
                 </span>
               </div>
@@ -311,15 +311,18 @@ export function TaskRailPanel() {
   const snap = useTaskProgress();
   const now = useClock();
   return (
-    <aside className="rail w-72">
-      <h2 className="rail-title">Tasks</h2>
+    <section aria-label="Tasks">
+      <h2 className="mb-3 text-[13px] font-semibold text-ink">Tasks</h2>
       {!snap || (!snap.now && !snap.turn && (snap.tasks?.length ?? 0) === 0) ? (
-        <p className="text-sm text-steel">Nothing has run yet.</p>
+        <div className="rounded-xl border border-dashed border-hairline px-4 py-5 text-center">
+          <p className="text-[13px] text-muted">No tasks yet</p>
+          <p className="mt-1 text-[12px] leading-5 text-faint">Ask JINI to do something on this computer and its progress shows up here.</p>
+        </div>
       ) : (
         <div className="max-h-[430px] overflow-y-auto pr-1">
           <TaskProgressBody snap={snap} nowMs={now.getTime()} />
         </div>
       )}
-    </aside>
+    </section>
   );
 }

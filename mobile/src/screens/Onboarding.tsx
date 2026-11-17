@@ -14,8 +14,8 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       {mode === 'intro' ? (
         <>
           <div className="mt-[22vh]">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-[26px] font-semibold text-on-accent">j</div>
-            <h1 className="mt-8 text-[34px] font-semibold leading-[40px] tracking-[-0.025em] text-text">
+            <div className="font-serif-display flex h-14 w-14 items-center justify-center rounded-2xl bg-ink text-[28px] font-medium text-paper">j</div>
+            <h1 className="font-serif-display mt-8 text-[38px] font-normal leading-[44px] tracking-[-0.02em] text-text">
               Your desktop,
               <br />
               in your pocket.
@@ -36,7 +36,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           <button className="btn-text -ml-1 py-2 text-[15px]" onClick={() => setMode('intro')}>
             ‹ Back
           </button>
-          <h1 className="mt-4 text-title text-text">{mode === 'pair' ? 'Pair your desktop' : 'Connect a provider'}</h1>
+          <h1 className="font-serif-display mt-4 text-title text-text">{mode === 'pair' ? 'Pair your desktop' : 'Connect a provider'}</h1>
           <div className="mt-6">{mode === 'pair' ? <PairPanel onPaired={onDone} /> : <ProviderForm onSaved={onDone} />}</div>
         </div>
       )}

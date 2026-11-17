@@ -17,8 +17,8 @@ export default function Subtitles({ caption }: { caption: Caption | null }) {
         {caption && (
           <motion.p
             key={caption.text}
-            className={`relative max-w-[44rem] text-center text-[26px] font-medium leading-tight tracking-wide [text-shadow:0_2px_12px_rgb(0_0_0/0.9)] ${
-              caption.tone === 'error' ? 'text-amber-300' : 'text-hot'
+            className={`relative max-w-[44rem] text-center text-[26px] font-medium leading-tight [text-shadow:0_2px_12px_rgb(0_0_0/0.9)] ${
+              caption.tone === 'error' ? 'text-warn' : 'text-hot'
             }`}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
