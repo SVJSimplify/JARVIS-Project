@@ -9,6 +9,8 @@ import { actionVerifyLine, flagInjectionAttempts, guardUntrusted, type ActionSta
 import { labelVerdict, urlVerdict } from './policy';
 import { requestApproval, validateApproval, invalidateSessionApprovals, payloadFingerprintOf, keyedValueDigest, type ApprovalIntent } from './approval';
 import type { Tool } from './toolTypes';
+import { nativeImage } from 'electron';
+import { queueImage } from './vision';
 
 /**
  * NATIVE BROWSER CONTROL (Round 28, Phase 2) — JARVIS operates the user's REAL installed
@@ -2128,6 +2130,14 @@ export async function screenshotNativeTab(tabId?: string): Promise<{ file: strin
   await fs.mkdir(dir, { recursive: true });
   const file = path.join(dir, `native-${Date.now().toString(36)}.jpg`);
   await fs.writeFile(file, buf);
+  try {
+    // The model SEES what it captured (and the user sees it in chat): resized like see_screen.
+    const img = nativeImage.createFromBuffer(buf);
+    const w = img.getSize().width;
+    queueImage((w > 1400 ? img.resize({ width: 1400 }) : img).toJPEG(70));
+  } catch {
+    /* evidence file is still saved; vision is best-effort */
+  }
   noteActivity('screenshot', target.url.slice(0, 120));
   return { file, url: target.url, title: target.title, activatedForCapture };
 }

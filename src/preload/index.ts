@@ -77,6 +77,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   history: {
     list: (): Promise<unknown> => ipcRenderer.invoke('history-list')
   },
+  // Chats: separate conversation threads (same list the paired phone sees).
+  /** Screenshots JINI takes during a turn (shown inline in the thread). */
+  onScreenshot: (cb: (dataUrl: string) => void): (() => void) => {
+    const h = (_: unknown, url: string) => cb(url);
+    ipcRenderer.on('jini-screenshot', h);
+    return () => ipcRenderer.removeListener('jini-screenshot', h);
+  },
+  chats: {
+    list: (): Promise<{ active: string; chats: Array<{ id: string; title: string; createdAt: number; updatedAt: number; turns: number }> }> => ipcRenderer.invoke('chats-list'),
+    turns: (id: string): Promise<Array<{ t: number; user: string; reply: string; actions: string[]; error?: string }>> => ipcRenderer.invoke('chats-turns', id),
+    create: (): Promise<{ id: string; title: string }> => ipcRenderer.invoke('chats-create'),
+    select: (id: string): Promise<void> => ipcRenderer.invoke('chats-select', id),
+    rename: (id: string, title: string): Promise<void> => ipcRenderer.invoke('chats-rename', id, title),
+    remove: (id: string): Promise<void> => ipcRenderer.invoke('chats-delete', id),
+    onChanged: (cb: () => void): (() => void) => {
+      const h = () => cb();
+      ipcRenderer.on('chats-changed', h);
+      return () => ipcRenderer.removeListener('chats-changed', h);
+    }
+  },
   // Round 22 (Project Autopilot): the Projects workspace. Every call maps to one real
   // backend operation in the main process; there are no decorative channels.
   projects: {

@@ -88,6 +88,17 @@ declare global {
       history: {
         list: () => Promise<HistoryTurn[]>;
       };
+      onScreenshot: (cb: (dataUrl: string) => void) => () => void;
+      /** Chats: separate conversation threads, shared with the paired phone. */
+      chats: {
+        list: () => Promise<{ active: string; chats: import('../src/main/protocol').ChatInfo[] }>;
+        turns: (id: string) => Promise<HistoryTurn[]>;
+        create: () => Promise<import('../src/main/protocol').ChatInfo>;
+        select: (id: string) => Promise<void>;
+        rename: (id: string, title: string) => Promise<void>;
+        remove: (id: string) => Promise<void>;
+        onChanged: (cb: () => void) => () => void;
+      };
       /** Round 22 (Project Autopilot): the Projects workspace — every call maps to one
        *  real main-process operation. Shapes mirror autopilot/views.ts. */
       projects: {
@@ -134,7 +145,7 @@ declare global {
         connect: (opts?: { browser?: string; mode?: 'A' | 'B'; port?: number }) => Promise<import('../src/main/nativeBrowser').NativeSessionInfo>;
         disconnect: (opts?: { closeBrowser?: boolean }) => Promise<string>;
         reconnect: () => Promise<string>;
-        setConfig: (patch: { selectedBrowser?: string; mode?: 'A' | 'B'; attachPort?: number; visibility?: 'normal' | 'minimized'; autoReconnect?: boolean; keepOpenOnQuit?: boolean }) => Promise<import('../src/main/nativeBrowser').NativeBrowserConfig>;
+        setConfig: (patch: { selectedBrowser?: string; mode?: 'A' | 'B'; attachPort?: number; visibility?: 'normal' | 'minimized'; autoReconnect?: boolean; keepOpenOnQuit?: boolean; defaultBrowser?: 'panel' | 'native' }) => Promise<import('../src/main/nativeBrowser').NativeBrowserConfig>;
         activateTab: (tabId: string) => Promise<string>;
       };
       /** Round 29 (§1.1): user action approvals — respond to (or dismiss) approval

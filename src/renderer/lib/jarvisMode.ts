@@ -12,4 +12,6 @@ export interface LogEntry {
   at: Date;
   text: string;
   reply?: string;
+  /** The newest screenshot JINI took while answering (data URL). */
+  image?: string;
 }

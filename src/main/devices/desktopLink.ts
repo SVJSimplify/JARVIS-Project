@@ -8,6 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { DeviceHub, type Cipher } from './deviceHub';
 import { buildDeviceOps } from './deviceOps';
+import { listChats } from '../history';
 import type { ApprovalRequestView } from '../approval';
 import type { ProgressSnapshot, TaskProgressView } from '../progressTypes';
 
@@ -152,4 +153,16 @@ export function linkProgress(snap: ProgressSnapshot): void {
       agents: (p.agents ?? []).slice(0, 8).map((a) => ({ name: a.agent.slice(0, 60), status: a.status })),
     });
   }, 250);
+}
+
+let chatsTimer: NodeJS.Timeout | null = null;
+/** The chats list changed (new/rename/delete/new turn): the phone gets the same list. */
+export function linkChatsChanged(): void {
+  if (!hub || chatsTimer) return;
+  chatsTimer = setTimeout(() => {
+    chatsTimer = null;
+    void listChats()
+      .then((chats) => hub?.replaceLatest('chats', { chats: chats.slice(0, 60) }))
+      .catch(() => undefined);
+  }, 300);
 }

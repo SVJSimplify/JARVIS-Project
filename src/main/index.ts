@@ -21,7 +21,7 @@ import { runToolDetailed } from './tools';
 import { opsOverview, opsTaskDetail, opsTaskAction, opsRoutineAction, recoveryStatus, runRecoveryFor, setRecoverySettings, superviseOperations, type OpsTaskAction, type OpsRoutineAction } from './opsCenter';
 import { restoreDynamicAgents } from './agentRegistry';
 import { agentViews } from './agentTracker';
-import { listConversations } from './history';
+import { chatTurns, onChatsChanged, createChat, deleteChat, getActiveChatId, listChats, listConversations, renameChat, setActiveChat } from './history';
 import { reconcileOnStartup, startAutopilotTicker, stopAutopilotTicker } from './autopilot/engine';
 import { projectDetailView, listProjectViews } from './autopilot/views';
 import { createProjectFromDescription, createProjectFromTemplate, executeProject, pauseProject, resumeProject, cancelProject, replanProject, updateRequirements } from './autopilot/engine';
@@ -41,7 +41,8 @@ import {
 } from './nativeBrowser';
 import { pendingApprovalViews, respondApproval, dismissApproval, setApprovalUiPush, setNativeConfirmationPresenter, type ApprovalRequestView } from './approval';
 import { senderIsTrustedAppFrame, expectedRendererSpec, noteIpcTrustRefusal, setTrustedRendererSpec, type TrustedRendererSpec } from './ipcTrust';
-import { initDeviceLink, linkApprovalEvent, linkProgress, linkTasksChanged, registerDeviceIpc } from './devices/desktopLink';
+import { onScreenshot } from './vision';
+import { initDeviceLink, linkApprovalEvent, linkChatsChanged, linkProgress, linkTasksChanged, registerDeviceIpc } from './devices/desktopLink';
 import { credentialInfoIpc, credentialSetIpc, credentialTestIpc, credentialRevokeIpc, setCredentialCipher } from './credentials';
 
 // Failures must be observable, never silent: log them with the component that owns them.
@@ -245,6 +246,11 @@ app.whenReady().then(() => {
     linkTasksChanged(taskViews);
   });
   onProgress(linkProgress);
+  onScreenshot((url) => sendToHud('jini-screenshot', url));
+  onChatsChanged(() => {
+    sendToHud('chats-changed');
+    linkChatsChanged();
+  });
   void getNativeConfig().catch(() => undefined); // warms the cache the prompt reads synchronously
   void initDeviceLink();
   void refreshTasks();
@@ -395,6 +401,12 @@ ipcMain.handle('activity-query', (_, opts: unknown) => {
 // Conversations panel: the full-fidelity, durable record of every turn (history.ts).
 // Read-only: the renderer can list history, never write or mutate it.
 ipcMain.handle('history-list', () => listConversations());
+ipcMain.handle('chats-list', async () => ({ active: await getActiveChatId(), chats: await listChats() }));
+ipcMain.handle('chats-turns', (_, id: unknown) => chatTurns(strArg(id, 80)));
+ipcMain.handle('chats-create', () => createChat());
+ipcMain.handle('chats-select', (_, id: unknown) => setActiveChat(strArg(id, 80)));
+ipcMain.handle('chats-rename', (_, id: unknown, title: unknown) => renameChat(strArg(id, 80), strArg(title, 200)));
+ipcMain.handle('chats-delete', (_, id: unknown) => deleteChat(strArg(id, 80)));
 
 // -------------------------------------------------------------- Project Autopilot IPC
 // Every handler re-validates its inputs (a compromised renderer must not reach the

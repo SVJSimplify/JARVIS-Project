@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import type { Caption } from './Subtitles';
 import SettingsPanel, { type SettingsSection } from './SettingsPanel';
 import TaskProgress, { TaskRailPanel } from './TaskProgress';
@@ -14,6 +14,7 @@ import { useTelemetry } from '../hooks/useTelemetry';
 import { useClock } from '../hooks/useClock';
 import { MODE_LABEL, type JarvisMode, type LogEntry } from '../lib/jarvisMode';
 import type { InteractionMode } from '../lib/protocol';
+import type { ChatInfo, HistoryTurn } from '../../main/protocol';
 
 interface Props {
   version: string;
@@ -29,6 +30,8 @@ interface Props {
   /** Bumped by App after every finished turn; while the Conversations panel is open this
    *  triggers a refetch, so new conversations appear without closing and reopening. */
   turnsCount?: number;
+  /** A chat was opened (or created): its turns replace the visible thread. */
+  onOpenChat?: (turns: HistoryTurn[]) => void;
   /** Sends a request exactly as if typed (used by the starter suggestions). */
   onSuggest?: (text: string) => void;
   children?: ReactNode;
@@ -41,6 +44,7 @@ const ICON = {
   assistant: ['M7.9 20A9 9 0 1 0 4 16.1L2 22Z'],
   projects: ['M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z'],
   operations: ['M3 3h7v7H3z', 'M14 3h7v7h-7z', 'M3 14h7v7H3z', 'M17.5 14v7', 'M14 17.5h7'],
+  plus: ['M12 5v14', 'M5 12h14'],
   history: ['M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8', 'M3 3v5h5', 'M12 7v5l4 2'],
   browser: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M2 12h20', 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'],
   devices: ['M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z', 'M12 18h.01'],
@@ -106,7 +110,7 @@ const navItemClass = (active: boolean) =>
     active ? 'bg-surface font-medium text-ink shadow-[0_1px_2px_rgba(60,42,20,0.07)] ring-1 ring-hairline' : 'text-body hover:bg-black/[0.035] hover:text-ink'
   }`;
 
-export default function JarvisWindow({ version, mode, interactionMode, levelRef, log, caption, mini, voiceReady, turnsCount = 0, onSuggest, children }: Props) {
+export default function JarvisWindow({ version, mode, interactionMode, levelRef, log, caption, mini, voiceReady, turnsCount = 0, onSuggest, onOpenChat, children }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('provider');
   const [panel, setPanel] = useState<Panel>(null);
@@ -186,7 +190,8 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
         <nav className="no-drag flex flex-col gap-0.5 px-3 pt-1" aria-label="Workspace">
           {nav.map(navButton)}
         </nav>
-        <p className="mb-1.5 mt-7 px-5 text-[11.5px] font-medium text-faint">Connected</p>
+        <ChatsNav onOpen={(turns) => { setPanel(null); onOpenChat?.(turns); }} turnsCount={turnsCount} />
+        <p className="mb-1.5 mt-5 px-5 text-[11.5px] font-medium text-faint">Connected</p>
         <nav className="no-drag flex flex-col gap-0.5 px-3" aria-label="Connections">
           {connected.map(navButton)}
         </nav>
@@ -319,6 +324,7 @@ function EmptyState({ mode, levelRef, voiceReady, onSuggest }: { mode: JarvisMod
 
 /** The session as a conversation, oldest first; the newest reply streams in live. */
 function Thread({ log, caption, mode, levelRef }: { log: LogEntry[]; caption: Caption | null; mode: JarvisMode; levelRef: MutableRefObject<number> }) {
+  const [zoom, setZoom] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const turns = useMemo(() => [...log].reverse(), [log]);
   const last = turns[turns.length - 1];
@@ -365,6 +371,11 @@ function Thread({ log, caption, mode, levelRef }: { log: LogEntry[]; caption: Ca
                       {t.reply === '(interrupted)' ? 'Stopped.' : t.reply}
                     </p>
                   )}
+                  {t.image && (
+                    <button type="button" onClick={() => setZoom(t.image ?? null)} className="mt-3 block overflow-hidden rounded-xl border border-hairline" aria-label="Enlarge screenshot">
+                      <img src={t.image} alt="Screenshot JINI took" className="max-h-[320px] w-auto max-w-full" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -372,6 +383,113 @@ function Thread({ log, caption, mode, levelRef }: { log: LogEntry[]; caption: Ca
         })}
         <div ref={end} />
       </div>
+      {zoom && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-8" onClick={() => setZoom(null)} role="dialog" aria-label="Screenshot">
+          <img src={zoom} alt="Screenshot JINI took" className="max-h-full max-w-full rounded-xl shadow-2xl" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Sidebar chat list: new / switch / rename / delete. The same list the paired phone shows. */
+function ChatsNav({ onOpen, turnsCount }: { onOpen: (turns: HistoryTurn[]) => void; turnsCount: number }) {
+  const api = window.electronAPI.chats;
+  const [data, setData] = useState<{ active: string; chats: ChatInfo[] }>({ active: '', chats: [] });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const refresh = useCallback(() => void api.list().then(setData).catch(() => undefined), [api]);
+  useEffect(() => {
+    refresh();
+    return api.onChanged(refresh);
+  }, [api, refresh]);
+  useEffect(refresh, [turnsCount, refresh]);
+  // Opening the app shows the chat you were last in.
+  useEffect(() => {
+    void api.list().then((d) => d.active && api.turns(d.active).then(onOpen)).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const open = async (id: string) => {
+    await api.select(id);
+    onOpen(await api.turns(id));
+    refresh();
+  };
+  const create = async () => {
+    await api.create();
+    onOpen([]);
+    refresh();
+  };
+  const commitRename = async (id: string) => {
+    const t = draft.trim();
+    setEditing(null);
+    if (t) await api.rename(id, t).catch(() => undefined);
+    refresh();
+  };
+  const remove = async (c: ChatInfo) => {
+    if (!window.confirm(`Delete "${c.title}" and its messages? This can't be undone.`)) return;
+    await api.remove(c.id);
+    const d = await api.list();
+    onOpen(d.active ? await api.turns(d.active) : []);
+    refresh();
+  };
+
+  return (
+    <div className="no-drag mt-6 flex min-h-0 flex-1 flex-col">
+      <div className="mb-1.5 flex items-center justify-between pl-5 pr-3">
+        <p className="text-[11.5px] font-medium text-faint">Chats</p>
+        <button type="button" onClick={() => void create()} title="New chat" aria-label="New chat" className="grid h-6 w-6 place-items-center rounded-md text-faint transition-colors hover:bg-black/[0.04] hover:text-ink">
+          <Icon name="plus" size={14} />
+        </button>
+      </div>
+      <ul className="min-h-0 flex-1 overflow-y-auto px-3" aria-label="Chats">
+        {data.chats.length === 0 && <li className="px-2.5 py-1.5 text-[12.5px] text-faint">No chats yet</li>}
+        {data.chats.map((c) => {
+          const active = c.id === data.active;
+          return (
+            <li key={c.id} className="group relative">
+              {editing === c.id ? (
+                <input
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => void commitRename(c.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void commitRename(c.id);
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  className="w-full rounded-[8px] border border-hairline bg-surface px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-sand"
+                  aria-label="Chat title"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void open(c.id)}
+                  onDoubleClick={() => {
+                    setEditing(c.id);
+                    setDraft(c.title);
+                  }}
+                  aria-current={active ? 'true' : undefined}
+                  className={`block w-full truncate rounded-[8px] py-1.5 pl-2.5 pr-14 text-left text-[13px] transition-colors ${active ? 'bg-black/[0.05] text-ink' : 'text-muted hover:bg-black/[0.03] hover:text-ink'}`}
+                  title={c.title}
+                >
+                  {c.title}
+                </button>
+              )}
+              {editing !== c.id && (
+                <span className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 gap-0.5 group-hover:flex">
+                  <button type="button" className="rounded px-1 text-[11px] text-faint hover:text-ink" onClick={() => { setEditing(c.id); setDraft(c.title); }} aria-label={`Rename ${c.title}`}>
+                    Rename
+                  </button>
+                  <button type="button" className="rounded px-1 text-[11px] text-faint hover:text-brick" onClick={() => void remove(c)} aria-label={`Delete ${c.title}`}>
+                    ✕
+                  </button>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

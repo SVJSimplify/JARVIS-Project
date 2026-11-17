@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { getState, setState, uid, useAppState, type ChatMessage } from '../lib/store';
-import { enqueue } from '../lib/linkClient';
+import { getState, setState, uid, useAppState, type ChatMessage, type ChatThread } from '../lib/store';
+import { enqueue, loadDesktopChat, rpc } from '../lib/linkClient';
 import { askProvider, providerReady } from '../lib/provider';
 import { Empty, Icon } from '../components/ui';
 import TaskActivity from '../components/TaskActivity';
@@ -26,7 +26,67 @@ export function route(kind: ChatMessage['kind'], text = ''): 'desktop' | 'phone'
 }
 
 export default function ChatScreen() {
-  const { messages, paired } = useAppState((s) => ({ messages: s.messages, paired: Boolean(s.link && !s.link.revoked) }));
+  const { allMessages, paired, chats, activeChat, online } = useAppState((s) => ({
+    allMessages: s.messages,
+    paired: Boolean(s.link && !s.link.revoked),
+    chats: s.chats,
+    activeChat: s.activeChat,
+    online: s.connection === 'online',
+  }));
+  const messages = allMessages.filter((m) => (m.chatId ?? '') === activeChat);
+  const [sheet, setSheet] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [sendingFile, setSendingFile] = useState(false);
+  const camRef = useRef<HTMLInputElement>(null);
+  const picRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  /** Photo or file → desktop (saved + shown to the model); offline, images go to the phone's provider. */
+  const attach = async (f: File | undefined) => {
+    for (const r of [camRef, picRef, fileRef]) if (r.current) r.current.value = '';
+    if (!f) return;
+    const st = getState();
+    const online = Boolean(st.link && !st.link.revoked && st.connection === 'online');
+    const isImage = f.type.startsWith('image/');
+    if (!online && !(isImage && providerReady())) {
+      setState({ toast: isImage ? 'Pair your desktop or add a provider to send photos.' : 'Files go to your desktop — connect it first.' });
+      return;
+    }
+    if (f.size > 12 * 1024 * 1024 && !isImage) {
+      setState({ toast: 'Files up to 12 MB can be sent.' });
+      return;
+    }
+    setSendingFile(true);
+    try {
+      const note = text.trim();
+      setText('');
+      const id = uid('m');
+      const chatId = st.activeChat;
+      const { data, mime, thumb } = isImage ? await shrinkImage(f) : { data: await toBase64(f), mime: f.type || 'application/octet-stream', thumb: undefined };
+      const attachment = { name: f.name || (isImage ? 'photo.jpg' : 'file'), mime, size: Math.round((data.length * 3) / 4), thumb };
+      const msg: ChatMessage = { id, role: 'user', text: note, at: Date.now(), kind, state: online ? 'sending' : 'done', via: online ? 'desktop' : 'phone', chatId, attachment };
+      setState((s) => ({ messages: [...s.messages, msg] }));
+      if (online) {
+        const desktopChat = st.chats.find((c) => c.id === chatId && c.origin === 'desktop');
+        await rpc('file.send', { name: attachment.name, mime, data, text: note, kind, threadId: id, ...(desktopChat ? { chatId } : {}) });
+        setState((s) => ({ messages: s.messages.map((m) => (m.id === id && m.state === 'sending' ? { ...m, state: 'queued' } : m)) }));
+      } else {
+        const replyId = `r_${id}`;
+        setState((s) => ({ messages: [...s.messages, { id: replyId, role: 'jini', text: '', at: Date.now(), kind: 'chat', state: 'running', via: 'phone', replyTo: id, chatId }] }));
+        try {
+          const reply = await askProvider(note || 'What is in this photo?', getState().messages.filter((m) => (m.chatId ?? '') === chatId && m.id !== id && m.id !== replyId), [`data:${mime};base64,${data}`]);
+          setState((s) => ({ messages: s.messages.map((m) => (m.id === replyId ? { ...m, text: reply, state: 'done', at: Date.now() } : m)) }));
+        } catch (e) {
+          setState((s) => ({ messages: s.messages.map((m) => (m.id === replyId ? { ...m, text: e instanceof Error ? e.message : String(e), state: 'failed' } : m)) }));
+        }
+      }
+    } catch (e) {
+      setState({ toast: `Couldn't send: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setSendingFile(false);
+    }
+  };
+  const current = chats.find((c) => c.id === activeChat);
   const [text, setText] = useState('');
   const [kind, setKind] = useState<ChatMessage['kind']>('chat');
   const end = useRef<HTMLDivElement>(null);
@@ -47,13 +107,16 @@ export default function ChatScreen() {
     }
     setText('');
     const id = uid('m');
-    const msg: ChatMessage = { id, role: 'user', text: t, at: Date.now(), kind, state: r === 'phone' ? 'done' : 'queued', via: r === 'phone' ? 'phone' : 'desktop' };
+    const chatId = getState().activeChat;
+    const msg: ChatMessage = { id, role: 'user', text: t, at: Date.now(), kind, state: r === 'phone' ? 'done' : 'queued', via: r === 'phone' ? 'phone' : 'desktop', chatId };
+    // A phone-only chat gets its title from its first message.
+    setState((s) => ({ chats: s.chats.map((c) => (c.id === chatId && c.origin === 'phone' && c.title === 'New chat' ? { ...c, title: t.slice(0, 48), updatedAt: Date.now() } : c)) }));
     setState((s) => ({ messages: [...s.messages, msg] }));
     if (r === 'phone') {
       const replyId = `r_${id}`;
-      setState((s) => ({ messages: [...s.messages, { id: replyId, role: 'jini', text: '', at: Date.now(), kind, state: 'running', via: 'phone', replyTo: id }] }));
+      setState((s) => ({ messages: [...s.messages, { id: replyId, role: 'jini', text: '', at: Date.now(), kind, state: 'running', via: 'phone', replyTo: id, chatId }] }));
       try {
-        const reply = await askProvider(t, getState().messages.filter((m) => m.id !== id && m.id !== replyId));
+        const reply = await askProvider(t, getState().messages.filter((m) => m.id !== id && m.id !== replyId && (m.chatId ?? '') === chatId));
         setState((s) => ({ messages: s.messages.map((m) => (m.id === replyId ? { ...m, text: reply, state: 'done', at: Date.now() } : m)) }));
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
@@ -61,11 +124,22 @@ export default function ChatScreen() {
       }
       return;
     }
-    enqueue(kind === 'task' && !STOP_RE.test(t) ? 'task.send' : 'chat', { text: t, threadId: id });
+    const desktopChat = chats.find((c) => c.id === chatId && c.origin === 'desktop');
+    enqueue(kind === 'task' && !STOP_RE.test(t) ? 'task.send' : 'chat', { text: t, threadId: id, ...(desktopChat ? { chatId } : {}) });
   };
 
   return (
     <div className="flex min-h-full flex-col">
+      <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between bg-bg/95 px-4 py-2 backdrop-blur-sm">
+        <button onClick={() => setSheet(true)} className="flex min-w-0 items-center gap-1.5 text-[15px] font-medium text-text active:opacity-70" aria-label="Switch chat">
+          <span className="truncate">{current?.title ?? 'Chat'}</span>
+          <span className="text-faint" aria-hidden>▾</span>
+        </button>
+        <button onClick={() => void newChat(paired && online)} className="shrink-0 rounded-lg px-2.5 py-1 text-[14px] font-medium text-muted active:bg-surface-2" aria-label="New chat">
+          New
+        </button>
+      </div>
+      {sheet && <ChatSheet chats={chats} active={activeChat} online={paired && online} onClose={() => setSheet(false)} />}
       <div className="flex-1 space-y-5 pb-4 pt-3">
         {messages.length === 0 && (
           <Empty
@@ -104,7 +178,33 @@ export default function ChatScreen() {
             ))}
           </div>
         )}
+        <input ref={camRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void attach(e.target.files?.[0])} />
+        <input ref={picRef} type="file" accept="image/*" hidden onChange={(e) => void attach(e.target.files?.[0])} />
+        <input ref={fileRef} type="file" hidden onChange={(e) => void attach(e.target.files?.[0])} />
+        {menu && (
+          <div className="mb-2 flex gap-2" role="menu" aria-label="Attach">
+            {([
+              ['camera', 'Camera', camRef],
+              ['image', 'Photos', picRef],
+              ['file', 'File', fileRef],
+            ] as const).map(([icon, label, ref]) => (
+              <button key={label} role="menuitem" className="flex items-center gap-2 rounded-xl bg-surface px-3.5 py-2 text-[14px] text-text shadow-[0_1px_2px_rgba(60,42,20,0.08)] active:bg-surface-2" onClick={() => (setMenu(false), ref.current?.click())}>
+                <Icon name={icon} className="h-4 w-4 text-muted" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          <button
+            onClick={() => setMenu((v) => !v)}
+            aria-label="Attach a photo or file"
+            aria-expanded={menu}
+            disabled={sendingFile}
+            className="flex h-12 w-10 shrink-0 items-center justify-center rounded-full text-muted active:bg-surface-2 disabled:opacity-40"
+          >
+            <Icon name="plus" className="h-5 w-5" />
+          </button>
           <textarea
             rows={1}
             value={text}
@@ -137,16 +237,19 @@ function Message({ m }: { m: ChatMessage }) {
         : m.state === 'failed'
           ? 'Failed'
           : !mine && m.via === 'phone' && m.state === 'done'
-            ? 'Answered on phone · desktop offline'
+            ? 'Answered on phone'
             : '';
 
   if (mine) {
     return (
       <div className="flex flex-col items-end">
         {m.kind === 'task' && <p className="mb-1 text-meta font-medium text-muted">Desktop task</p>}
-        <div className="max-w-[82%] rounded-2xl rounded-br-md bg-[#EFE7DA] px-4 py-2.5 text-body text-text">
-          <p className="whitespace-pre-wrap">{m.text}</p>
-        </div>
+        {m.attachment && <Attachment a={m.attachment} />}
+        {m.text && (
+          <div className="max-w-[82%] rounded-2xl rounded-br-md bg-[#EFE7DA] px-4 py-2.5 text-body text-text">
+            <p className="whitespace-pre-wrap">{m.text}</p>
+          </div>
+        )}
         {meta && <p className={`mt-1 text-meta ${m.state === 'failed' ? 'text-danger' : 'text-faint'}`}>{meta}</p>}
       </div>
     );
@@ -163,7 +266,115 @@ function Message({ m }: { m: ChatMessage }) {
       ) : (
         <p className={`whitespace-pre-wrap text-body ${m.state === 'failed' ? 'text-danger' : 'text-text'}`}>{m.text}</p>
       )}
+      {m.image && <img src={m.image} alt="Screenshot from your desktop" className="mt-2 w-full rounded-xl border border-hairline" />}
       {meta && <p className="mt-1 text-meta text-faint">{meta}</p>}
     </div>
   );
+}
+
+async function newChat(online: boolean): Promise<void> {
+  if (online) {
+    try {
+      const c = await rpc<{ id: string; title: string; updatedAt: number }>('chats.create');
+      setState((s) => ({ chats: [{ id: c.id, title: c.title, updatedAt: c.updatedAt, origin: 'desktop' }, ...s.chats.filter((x) => x.id !== c.id)], activeChat: c.id }));
+      return;
+    } catch {
+      /* desktop unreachable: fall back to a phone chat */
+    }
+  }
+  const id = uid('p');
+  setState((s) => ({ chats: [{ id, title: 'New chat', updatedAt: Date.now(), origin: 'phone' }, ...s.chats], activeChat: id }));
+}
+
+async function openChat(c: ChatThread, online: boolean): Promise<void> {
+  setState({ activeChat: c.id });
+  if (c.origin === 'desktop' && online) await loadDesktopChat(c.id).catch(() => undefined);
+}
+
+async function renameChat(c: ChatThread): Promise<void> {
+  const title = window.prompt('Rename chat', c.title)?.trim();
+  if (!title) return;
+  if (c.origin === 'desktop') await rpc('chats.rename', { id: c.id, title });
+  setState((s) => ({ chats: s.chats.map((x) => (x.id === c.id ? { ...x, title } : x)) }));
+}
+
+async function deleteChat(c: ChatThread): Promise<void> {
+  if (!window.confirm(`Delete "${c.title}"? This can't be undone.`)) return;
+  if (c.origin === 'desktop') await rpc('chats.delete', { id: c.id });
+  setState((s) => ({
+    chats: s.chats.filter((x) => x.id !== c.id),
+    messages: s.messages.filter((m) => m.chatId !== c.id),
+    activeChat: s.activeChat === c.id ? '' : s.activeChat,
+  }));
+}
+
+function ChatSheet({ chats, active, online, onClose }: { chats: ChatThread[]; active: string; online: boolean; onClose: () => void }) {
+  const sorted = [...chats].sort((a, b) => b.updatedAt - a.updatedAt);
+  const act = (fn: () => Promise<void>) => () => void fn().catch((e) => setState({ toast: e instanceof Error ? e.message : String(e) }));
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/25" onClick={onClose} role="dialog" aria-label="Chats">
+      <div className="max-h-[75vh] overflow-y-auto rounded-t-3xl bg-bg px-4 pb-8 pt-3" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-hairline" />
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[17px] font-semibold text-text">Chats</p>
+          <button className="btn-text text-[14px]" onClick={act(async () => (await newChat(online), onClose()))}>New chat</button>
+        </div>
+        <ul className="group-list">
+          <li className="group-row">
+            <button className={`w-full text-left text-body ${active === '' ? 'font-medium text-text' : 'text-muted'}`} onClick={() => (setState({ activeChat: '' }), onClose())}>
+              Quick chat
+            </button>
+          </li>
+          {sorted.map((c) => (
+            <li key={c.id} className="group-row flex items-center gap-3">
+              <button className={`min-w-0 flex-1 truncate text-left text-body ${c.id === active ? 'font-medium text-text' : 'text-muted'}`} onClick={act(async () => (await openChat(c, online), onClose()))}>
+                {c.title}
+                <span className="ml-2 text-meta text-faint">{c.origin === 'desktop' ? 'Synced' : 'Phone'}</span>
+              </button>
+              <button className="text-meta text-muted" onClick={act(() => renameChat(c))} disabled={c.origin === 'desktop' && !online}>Rename</button>
+              <button className="text-meta text-danger" onClick={act(() => deleteChat(c))} disabled={c.origin === 'desktop' && !online}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function Attachment({ a }: { a: NonNullable<ChatMessage['attachment']> }) {
+  if (a.thumb) return <img src={a.thumb} alt={a.name} className="mb-1.5 max-h-56 max-w-[70%] rounded-2xl border border-hairline object-cover" />;
+  return (
+    <div className="mb-1.5 flex max-w-[82%] items-center gap-2.5 rounded-2xl border border-hairline bg-surface px-3.5 py-2.5">
+      <Icon name="file" className="h-5 w-5 shrink-0 text-muted" />
+      <span className="min-w-0">
+        <span className="block truncate text-body text-text">{a.name}</span>
+        <span className="text-meta text-faint">{a.size < 1024 * 1024 ? `${Math.max(1, Math.round(a.size / 1024))} KB` : `${(a.size / 1048576).toFixed(1)} MB`}</span>
+      </span>
+    </div>
+  );
+}
+
+const toBase64 = (f: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+    r.onerror = () => reject(r.error ?? new Error('Could not read the file.'));
+    r.readAsDataURL(f);
+  });
+
+/** Downscale a photo (max 1600 px, JPEG 85%) for sending, plus a small thumbnail for the thread. */
+async function shrinkImage(f: File): Promise<{ data: string; mime: string; thumb: string }> {
+  const bmp = await createImageBitmap(f);
+  const draw = (max: number, q: number): string => {
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k);
+    c.height = Math.round(bmp.height * k);
+    c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', q);
+  };
+  const full = draw(1600, 0.85);
+  const thumb = draw(360, 0.7);
+  bmp.close();
+  return { data: full.split(',')[1] ?? '', mime: 'image/jpeg', thumb };
 }

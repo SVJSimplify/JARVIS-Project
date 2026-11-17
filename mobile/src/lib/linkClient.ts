@@ -171,10 +171,12 @@ function applyEvent(e: LinkEvent): void {
           state: 'running',
           via: 'desktop',
           replyTo: threadId,
+          chatId: user?.chatId ?? (typeof d.chatId === 'string' ? d.chatId : undefined),
         };
         if (d.state === 'done') {
           reply.state = 'done';
           reply.text = String(d.reply ?? '');
+          if (typeof d.image === 'string' && d.image.startsWith('data:image/')) reply.image = d.image;
         } else if (d.state === 'failed') {
           reply.state = 'failed';
           reply.text = String(d.error ?? 'The desktop could not complete this.');
@@ -188,6 +190,11 @@ function applyEvent(e: LinkEvent): void {
     case 'tasks':
       setState({ tasks: (d.tasks as TaskView[]) ?? [] });
       return;
+    case 'chats': {
+      const desk = ((d.chats as Array<{ id: string; title: string; updatedAt: number }>) ?? []).map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, origin: 'desktop' as const }));
+      setState((s) => ({ chats: [...desk, ...s.chats.filter((c) => c.origin === 'phone')] }));
+      return;
+    }
     case 'progress':
       setState({ progress: { ...(d as unknown as Omit<LiveProgress, 'at'>), at: e.at } });
       return;
@@ -242,6 +249,30 @@ export async function fullRefresh(): Promise<void> {
     })),
   });
   await refreshMemories();
+  await refreshChats().catch(() => undefined);
+}
+
+/** Pull the desktop's chat list (phone-only chats are kept as they are). */
+export async function refreshChats(): Promise<void> {
+  const r = await rpc<{ chats: Array<{ id: string; title: string; updatedAt: number }> }>('chats.list');
+  const desk = r.chats.map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, origin: 'desktop' as const }));
+  setState((s) => ({ chats: [...desk, ...s.chats.filter((c) => c.origin === 'phone')] }));
+}
+
+/** Load a desktop chat's history into the phone thread (once; later turns arrive live). */
+export async function loadDesktopChat(chatId: string): Promise<void> {
+  const turns = await rpc<Array<{ t: number; user: string; reply: string; error?: string }>>('chats.turns', { id: chatId });
+  setState((s) => {
+    const have = new Set(s.messages.map((m) => m.id));
+    const add: ChatMessage[] = [];
+    for (const t of turns) {
+      const uidU = `h_${chatId}_${t.t}`;
+      if (have.has(uidU)) continue;
+      add.push({ id: uidU, role: 'user', text: t.user, at: t.t - 1, kind: 'chat', state: 'done', via: 'desktop', chatId });
+      add.push({ id: `${uidU}_r`, role: 'jini', text: t.error ? `Couldn't finish: ${t.error}` : t.reply, at: t.t, kind: 'chat', state: t.error ? 'failed' : 'done', via: 'desktop', chatId });
+    }
+    return add.length ? { messages: [...s.messages, ...add].sort((a, b) => a.at - b.at) } : {};
+  });
 }
 
 export async function refreshMemories(): Promise<void> {

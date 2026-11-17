@@ -30,7 +30,7 @@ export const providerReady = (): boolean => {
   return Boolean(p.baseUrl && p.model);
 };
 
-export async function askProvider(text: string, history: ChatMessage[]): Promise<string> {
+export async function askProvider(text: string, history: ChatMessage[], images: string[] = []): Promise<string> {
   const p = getState().provider;
   if (!providerReady()) throw new Error('Set an AI provider in Settings to chat while the desktop is offline.');
   const mems = relevantMemories(text, getState().memories);
@@ -46,7 +46,7 @@ export async function askProvider(text: string, history: ChatMessage[]): Promise
     fetch(`${p.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(p.apiKey ? { Authorization: `Bearer ${p.apiKey}` } : {}) },
-      body: JSON.stringify({ model: p.model, messages: [{ role: 'system', content: system }, ...turns, { role: 'user', content: text }], stream: false }),
+      body: JSON.stringify({ model: p.model, messages: [{ role: 'system', content: system }, ...turns, { role: 'user', content: images.length ? [{ type: 'text', text }, ...images.map((url) => ({ type: 'image_url', image_url: { url } }))] : text }], stream: false }),
     });
   let res: Response | null = null;
   let body = '';

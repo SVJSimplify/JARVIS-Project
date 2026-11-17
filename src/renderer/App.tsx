@@ -45,6 +45,14 @@ export default function App() {
   }, [subtitles]);
 
   useEffect(() => window.electronAPI.hud.onMini(setMini), []);
+  // A screenshot taken during the current turn appears on that turn's entry.
+  useEffect(
+    () =>
+      window.electronAPI.onScreenshot((image) =>
+        setLog((prev) => (prev.length ? [{ ...prev[0], image }, ...prev.slice(1)] : prev))
+      ),
+    []
+  );
 
   useEffect(() => {
     window.electronAPI?.getAppVersion().then(setVersion).catch(() => {});
@@ -147,6 +155,14 @@ export default function App() {
       voiceReady={voice.ready}
       turnsCount={turnsCount}
       onSuggest={handleCommand}
+      onOpenChat={(turns) =>
+        setLog(
+          turns
+            .slice(-LOG_LIMIT)
+            .reverse()
+            .map((t, i) => ({ id: t.t * 100 + i, at: new Date(t.t), text: t.user, reply: t.error ? `Couldn't finish: ${t.error}` : t.reply }))
+        )
+      }
     >
       <TextCommand
         onSubmit={handleCommand}

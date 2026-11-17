@@ -150,6 +150,7 @@ export default function TaskActivity({ msg, reply }: { msg: ChatMessage; reply?:
       {reply?.text && (phase === 'done' || phase === 'failed' || !task) && reply.state !== 'running' && (
         <p className={`anim-enter mt-2 whitespace-pre-wrap text-body ${reply.state === 'failed' ? 'text-danger' : 'text-text'}`}>{reply.text}</p>
       )}
+      {reply?.image && reply.state === 'done' && <img src={reply.image} alt="Screenshot from your desktop" className="anim-enter mt-2 w-full rounded-xl border border-hairline" />}
     </div>
   );
 }

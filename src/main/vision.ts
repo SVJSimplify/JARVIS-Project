@@ -7,8 +7,26 @@ let pending: string[] = [];
 
 /** Queue an image; the agent loop attaches it to the conversation after the tool round. */
 export const queueImage = (jpeg: Buffer): void => {
-  pending.push(`data:image/jpeg;base64,${jpeg.toString('base64')}`);
+  const url = `data:image/jpeg;base64,${jpeg.toString('base64')}`;
+  pending.push(url);
+  turnShot = url;
+  try {
+    shotListener?.(url);
+  } catch {
+    /* a broken display must never break the capture */
+  }
 };
+
+/** The newest screenshot of the current turn — shown in the chat on desktop and phone. */
+let turnShot: string | null = null;
+let shotListener: ((dataUrl: string) => void) | null = null;
+export const onScreenshot = (fn: ((dataUrl: string) => void) | null): void => {
+  shotListener = fn;
+};
+export const resetTurnShot = (): void => {
+  turnShot = null;
+};
+export const peekTurnShot = (): string | null => turnShot;
 
 export const drainImages = (): string[] => {
   const out = pending;

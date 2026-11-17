@@ -67,4 +67,15 @@ export interface HistoryTurn {
   reply: string;
   error?: string;
   legacy?: boolean;
+  /** Which chat this turn belongs to; absent on turns recorded before chats existed ("default"). */
+  chatId?: string;
+}
+
+/** One conversation thread (desktop + phone see the same list). */
+export interface ChatInfo {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  turns: number;
 }

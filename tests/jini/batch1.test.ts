@@ -52,3 +52,34 @@ describe('provider transient errors', () => {
     expect(m).not.toMatch(/\{"error"/);
   });
 });
+
+import { mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { appendConversationTurn, chatTurns, createChat, deleteChat, getActiveChatId, getChatContextPrompt, listChats, renameChat, setActiveChat, setHistoryFileForTests } from '../../src/main/history';
+
+describe('chats', () => {
+  beforeEach(() => {
+    const d = mkdtempSync(join(tmpdir(), 'jini-chats-'));
+    setHistoryFileForTests(join(d, 'conversations.json'), join(d, 'chats.json'));
+  });
+
+  it('keeps turns and context separate per chat', async () => {
+    const a = await createChat();
+    await appendConversationTurn({ user: 'plan my trip to goa', actions: [], reply: 'ok' });
+    const b = await createChat();
+    await appendConversationTurn({ user: 'fix the login bug', actions: [], reply: 'done' });
+    expect((await chatTurns(a.id)).map((t) => t.user)).toEqual(['plan my trip to goa']);
+    expect(await getChatContextPrompt(b.id)).toMatch(/login bug/);
+    expect(await getChatContextPrompt(b.id)).not.toMatch(/goa/);
+    const list = await listChats();
+    expect(list.find((c) => c.id === a.id)?.title).toBe('plan my trip to goa');
+    await setActiveChat(a.id);
+    expect(await getActiveChatId()).toBe(a.id);
+    await renameChat(a.id, 'Goa');
+    expect((await listChats()).find((c) => c.id === a.id)?.title).toBe('Goa');
+    await deleteChat(a.id);
+    expect(await chatTurns(a.id)).toEqual([]);
+    expect(await getActiveChatId()).not.toBe(a.id);
+  });
+});

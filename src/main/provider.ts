@@ -2,8 +2,8 @@ import { getMemoryPrompt, getStandingInstructionsPrompt, listAllMemories, projec
 import { relevantMemoryBlock } from './semanticMemory';
 import { listAllProjectRecords } from './projectMemory';
 import { getEmbeddingProvider, embedWithCache, type EmbeddingProvider } from './embeddings';
-import { getSessionPrompt, recordTurn } from './session';
-import { appendConversationTurn } from './history';
+import { recordTurn } from './session';
+import { appendConversationTurn, getActiveChatId, getChatContextPrompt } from './history';
 import { send, cleanThink, withModelFallback, noteUsage, lastTokenUsage, type Message, type ToolCall } from './llm';
 import { getModel, getFallbackModels } from './settings';
 import { checkClockDrift, clockWarning } from './clock';
@@ -28,7 +28,7 @@ import { OPERATING_PRINCIPLES, TOOL_GUIDE, WORKFLOW } from './toolGuide';
 import { DECISION_RULES } from './decision';
 import { getLearningPrompt } from './agi';
 import { learnFromTurn, lessonFor } from './learn';
-import { drainImages } from './vision';
+import { drainImages, resetTurnShot } from './vision';
 import { buildUserContext, observeTurn, observeUser } from './userModel';
 import { assembleTurnContext, type ContextBlock } from './contextBudget';
 import { getAwarenessPrompt } from './awareness';
@@ -86,6 +86,9 @@ async function systemMessage(): Promise<Message> {
 }
 
 let history: Message[] = [];
+/** Each chat keeps its own model-message history; switching chats swaps it (bounded). */
+const chatHistories = new Map<string, Message[]>();
+let historyChat = '';
 let lastTurnAt = 0;
 const IDLE_RESET_MS = 10 * 60 * 1000;
 
@@ -322,8 +325,10 @@ export function chat(
   text: string,
   onDelta: (d: string) => void,
   onProgress?: (p: string) => void,
-  opts: string | { source?: 'interactive' | 'scheduled' } = {}
+  opts: string | { source?: 'interactive' | 'scheduled'; chatId?: string; images?: string[] } = {}
 ): Promise<string> {
+  const chatIdOpt = typeof opts === 'object' ? opts.chatId : undefined;
+  const imagesOpt = typeof opts === 'object' && Array.isArray(opts.images) ? opts.images.filter((u) => typeof u === 'string' && u.startsWith('data:image/')).slice(0, 4) : [];
   const source: 'interactive' | 'scheduled' =
     typeof opts === 'object' ? (opts.source ?? 'interactive') : opts === 'scheduled' ? 'scheduled' : 'interactive';
   if (source === 'interactive' && isStopCommand(text)) {
@@ -348,7 +353,7 @@ export function chat(
     turnAbort = ctl;
     turnSource = source;
     setTurnSignal(ctl.signal); // sub-agents check this so Stop also stops them
-    return runTurn(text, onDelta, ctl.signal, onProgress);
+    return runTurn(text, onDelta, ctl.signal, onProgress, chatIdOpt, imagesOpt);
   });
   turnChain = p
     .catch(() => undefined)
@@ -393,7 +398,17 @@ function compactTurn(turnStart: number): void {
   history.splice(groups[0].start, cutTo - groups[0].start, summary);
 }
 
-async function runTurn(text: string, onDelta: (d: string) => void, signal: AbortSignal, onProgress?: (p: string) => void): Promise<string> {
+async function runTurn(text: string, onDelta: (d: string) => void, signal: AbortSignal, onProgress?: (p: string) => void, chatIdOpt?: string, images: string[] = []): Promise<string> {
+  // The chat is fixed when the turn starts: switching chats mid-turn never moves this turn.
+  const chatId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
+  resetTurnShot();
+  if (chatId !== historyChat) {
+    chatHistories.set(historyChat, history);
+    history = chatHistories.get(chatId) ?? [];
+    chatHistories.delete(chatId);
+    historyChat = chatId;
+    while (chatHistories.size > 12) chatHistories.delete(chatHistories.keys().next().value as string);
+  }
   const model = await getModel();
   if (!model) throw new Error('No model set. Open Settings and choose one.');
   // EVIDENCE-BACKED COMPLETION (Pillar 7): this turn is tracked from here on. Every tool
@@ -456,7 +471,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
           .then((p: EmbeddingProvider | null): EmbeddingProvider | null => (p ? { ...p, embed: (texts: string[]) => embedWithCache(p, texts) } : null)),
         { allowedProjectScopes }
       ) },
-    { id: 'session', priority: 2, text: await getSessionPrompt().catch(() => '') },
+    { id: 'session', priority: 2, text: await getChatContextPrompt(chatId).catch(() => '') },
     { id: 'learning', priority: 2, text: await getLearningPrompt(text).catch(() => '') },
     { id: 'user-model', priority: 3, text: await buildUserContext().catch(() => '') },
     { id: 'memory-all', priority: 4, text: await getMemoryPrompt().catch(() => '') },
@@ -469,7 +484,9 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   const clock = clockWarning(await checkClockDrift());
   turnContext = [dateContext(todayParts()), clock ? `[CLOCK WARNING] ${clock}` : '', turnContext].filter(Boolean).join('\n\n');
   const turnStart = history.length;
-  const userMsg: Message = { role: 'user', content: text };
+  const userMsg: Message = images.length
+    ? { role: 'user', content: [{ type: 'text', text }, ...images.map((url) => ({ type: 'image_url' as const, image_url: { url } }))] }
+    : { role: 'user', content: text };
   turnStarts.add(userMsg);
   history.push(userMsg);
   beginTurn(text); // the interaction-mode digest opens here: background turns summarise at endTurn
@@ -562,7 +579,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         endTurn();
         lastTurnAt = Date.now();
         void recordTurn({ user: text, actions, reply: final });
-        void appendConversationTurn({ user: text, actions, reply: final });
+        void appendConversationTurn({ user: text, actions, reply: final, chatId });
         learnFromTurn({ user: text, actions, reply: final, failed: failLog });
         void observeTurn(text, used).catch(() => undefined);
         endModeTurn({ reply: final, failed: failures >= actions.length && actions.length > 0 });
@@ -668,7 +685,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       history.push(u, { role: 'assistant', content: note });
       trimHistory();
       void recordTurn({ user: text, actions, reply: '', error: why });
-      void appendConversationTurn({ user: text, actions, reply: '', error: why });
+      void appendConversationTurn({ user: text, actions, reply: '', error: why, chatId });
       endModeTurn({ interrupted: true });
       return '';
     }
@@ -681,7 +698,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
     trimHistory();
     void recordFailedTurn(message);
     void recordTurn({ user: text, actions, reply: '', error: message });
-    void appendConversationTurn({ user: text, actions, reply: '', error: message });
+    void appendConversationTurn({ user: text, actions, reply: '', error: message, chatId });
     learnFromTurn({ user: text, actions, reply: '', failed: failLog, error: message });
     endModeTurn({ failed: true, error: message });
     throw err;

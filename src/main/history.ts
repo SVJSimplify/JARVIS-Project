@@ -3,7 +3,7 @@ import * as path from 'path';
 import { FILES_ROOT } from './workspace';
 import { atomicWrite, loadJson } from './store';
 import { getSessionTurnsForHistory } from './session';
-import type { HistoryTurn } from './protocol';
+import type { ChatInfo, HistoryTurn } from './protocol';
 
 /**
  * CONVERSATION HISTORY — the full-fidelity, durable record of what the user asked and
@@ -27,7 +27,7 @@ const HISTORY_FILE = path.join(FILES_ROOT, 'conversations.json');
 const MAX_TURNS = 400;
 const MAX_BYTES = 4 * 1024 * 1024;
 
-export type { HistoryTurn };
+export type { ChatInfo, HistoryTurn };
 
 let cache: HistoryTurn[] | null = null;
 let fileOverride: string | null = null;
@@ -50,7 +50,7 @@ async function loadTurns(): Promise<HistoryTurn[]> {
 }
 
 /** Append one finished turn with its FULL original content. Best-effort: never breaks a turn. */
-export async function appendConversationTurn(e: { user: string; actions: string[]; reply: string; error?: string }): Promise<void> {
+export async function appendConversationTurn(e: { user: string; actions: string[]; reply: string; error?: string; chatId?: string }): Promise<void> {
   try {
     const turns = await loadTurns();
     const turn: HistoryTurn = {
@@ -59,6 +59,7 @@ export async function appendConversationTurn(e: { user: string; actions: string[
       actions: Array.isArray(e.actions) ? e.actions.slice(0, 30) : [],
       reply: String(e.reply ?? ''),
       ...(e.error ? { error: String(e.error) } : {}),
+      chatId: e.chatId ?? (await getActiveChatId()),
     };
     // Skip duplicates: a retried turn lands milliseconds (not the same millisecond) after
     // the first write. Identical content within 2s of the LAST entry is one turn — a genuine
@@ -74,6 +75,7 @@ export async function appendConversationTurn(e: { user: string; actions: string[
     if (dup) return;
     turns.push(turn);
     await persist(trimmed(turns));
+    await touchChat(turn.chatId!, turn.user);
   } catch (err) {
     console.warn('[history] failed to persist the conversation turn:', err instanceof Error ? err.message : err);
   }
@@ -115,8 +117,127 @@ export async function listConversations(): Promise<HistoryTurn[]> {
   }
 }
 
+// ------------------------------------------------------------------ chats
+
+/**
+ * CHATS — separate conversation threads. The index (titles, timestamps) lives in
+ * chats.json; turns stay in conversations.json tagged with chatId. Turns recorded
+ * before chats existed belong to DEFAULT_CHAT. The active chat decides which thread a
+ * new desktop turn joins and which thread's recent turns are given to the model.
+ */
+export const DEFAULT_CHAT = 'default';
+const CHATS_FILE = path.join(FILES_ROOT, 'chats.json');
+interface ChatIndex { active: string; chats: Array<Omit<ChatInfo, 'turns'>> }
+let chatIndex: ChatIndex | null = null;
+let chatsOverride: string | null = null;
+const chatsFile = (): string => chatsOverride ?? CHATS_FILE;
+const chatListeners = new Set<() => void>();
+export const onChatsChanged = (fn: () => void): (() => void) => (chatListeners.add(fn), () => chatListeners.delete(fn));
+const notifyChats = (): void => chatListeners.forEach((fn) => { try { fn(); } catch { /* listener errors never break storage */ } });
+
+async function loadIndex(): Promise<ChatIndex> {
+  if (chatIndex) return chatIndex;
+  const raw = await loadJson<Partial<ChatIndex>>(chatsFile(), {});
+  const chats = (Array.isArray(raw.chats) ? raw.chats : []).filter((c) => c && typeof c.id === 'string' && typeof c.title === 'string');
+  chatIndex = { active: typeof raw.active === 'string' ? raw.active : DEFAULT_CHAT, chats };
+  if (!chats.some((c) => c.id === DEFAULT_CHAT) && (await loadTurns()).some((t) => !t.chatId || t.chatId === DEFAULT_CHAT)) {
+    const first = (await loadTurns())[0];
+    chats.push({ id: DEFAULT_CHAT, title: 'Earlier conversations', createdAt: first?.t ?? Date.now(), updatedAt: Date.now() });
+  }
+  return chatIndex;
+}
+
+async function saveIndex(): Promise<void> {
+  if (!chatIndex) return;
+  await fs.mkdir(path.dirname(chatsFile()), { recursive: true });
+  await atomicWrite(chatsFile(), JSON.stringify(chatIndex));
+  notifyChats();
+}
+
+const titleFrom = (text: string): string => {
+  const t = text.replace(/\s+/g, ' ').trim();
+  return t.length > 48 ? `${t.slice(0, 47).trimEnd()}…` : t || 'New chat';
+};
+
+async function touchChat(id: string, firstUser: string): Promise<void> {
+  const idx = await loadIndex();
+  let c = idx.chats.find((x) => x.id === id);
+  if (!c) {
+    c = { id, title: titleFrom(firstUser), createdAt: Date.now(), updatedAt: Date.now() };
+    idx.chats.push(c);
+  } else {
+    if (c.title === 'New chat') c.title = titleFrom(firstUser);
+    c.updatedAt = Date.now();
+  }
+  await saveIndex();
+}
+
+export async function getActiveChatId(): Promise<string> {
+  return (await loadIndex()).active;
+}
+
+export async function listChats(): Promise<ChatInfo[]> {
+  const idx = await loadIndex();
+  const turns = await loadTurns();
+  const count = new Map<string, number>();
+  for (const t of turns) count.set(t.chatId ?? DEFAULT_CHAT, (count.get(t.chatId ?? DEFAULT_CHAT) ?? 0) + 1);
+  return idx.chats.map((c) => ({ ...c, turns: count.get(c.id) ?? 0 })).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export async function createChat(title = 'New chat'): Promise<ChatInfo> {
+  const idx = await loadIndex();
+  const c = { id: `c_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, title: titleFrom(title), createdAt: Date.now(), updatedAt: Date.now() };
+  idx.chats.push(c);
+  idx.active = c.id;
+  await saveIndex();
+  return { ...c, turns: 0 };
+}
+
+export async function setActiveChat(id: string): Promise<void> {
+  const idx = await loadIndex();
+  if (!idx.chats.some((c) => c.id === id)) throw new Error('No such chat.');
+  idx.active = id;
+  await saveIndex();
+}
+
+export async function renameChat(id: string, title: string): Promise<void> {
+  const idx = await loadIndex();
+  const c = idx.chats.find((x) => x.id === id);
+  if (!c) throw new Error('No such chat.');
+  c.title = titleFrom(title);
+  await saveIndex();
+}
+
+/** Deletes the chat AND its turns (the user asked for it; nothing else references them). */
+export async function deleteChat(id: string): Promise<void> {
+  const idx = await loadIndex();
+  idx.chats = idx.chats.filter((c) => c.id !== id);
+  const turns = await loadTurns();
+  await persist(turns.filter((t) => (t.chatId ?? DEFAULT_CHAT) !== id));
+  if (idx.active === id) idx.active = idx.chats.sort((a, b) => b.updatedAt - a.updatedAt)[0]?.id ?? (await createChat()).id;
+  await saveIndex();
+}
+
+export async function chatTurns(id: string): Promise<HistoryTurn[]> {
+  const all = id === DEFAULT_CHAT ? await listConversations() : await loadTurns();
+  return all.filter((t) => (t.chatId ?? DEFAULT_CHAT) === id);
+}
+
+/** The model's view of THIS chat: its last few exchanges, so follow-ups stay in-thread. */
+export async function getChatContextPrompt(id: string): Promise<string> {
+  const turns = (await loadTurns()).filter((t) => (t.chatId ?? DEFAULT_CHAT) === id).slice(-6);
+  if (!turns.length) return '';
+  const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+  return (
+    'This chat so far (oldest first). Use it to resolve follow-ups ("it", "that", "again"); verify current state with tools before claiming anything:\n' +
+    turns.map((t) => `- user: ${clip(t.user.replace(/\s+/g, ' '), 400)}\n  you: ${t.error ? `[failed: ${clip(t.error, 160)}]` : clip(t.reply.replace(/\s+/g, ' '), 500)}`).join('\n')
+  );
+}
+
 /** Test hook: point the store at a scratch file (or null to restore the default). */
-export const setHistoryFileForTests = (f: string | null): void => {
+export const setHistoryFileForTests = (f: string | null, chats: string | null = null): void => {
   fileOverride = f;
+  chatsOverride = chats;
   cache = null;
+  chatIndex = null;
 };

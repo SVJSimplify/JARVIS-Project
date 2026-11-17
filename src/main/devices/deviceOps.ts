@@ -8,7 +8,13 @@
  * Long-running work (chat, remote tasks) is accepted immediately and its result is delivered
  * as a sync event, so a phone request never has to stay open for an agent turn.
  */
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { FILES_ROOT } from '../workspace';
+import { nativeImage } from 'electron';
 import { chat } from '../provider';
+import { peekTurnShot } from '../vision';
+import { chatTurns, createChat, deleteChat, getActiveChatId, listChats, renameChat } from '../history';
 import { taskViews } from '../taskStore';
 import { cancelTask, pauseTask } from '../coordinator';
 import { forgetMemoryById, listAllMemories, memoryCategoryById, memoryTools } from '../memory';
@@ -28,11 +34,24 @@ const text = (v: unknown, what: string): string => {
 
 export function buildDeviceOps(hub: () => DeviceHub): Record<string, OpHandler> {
   /** Run one desktop turn for the phone; the reply arrives as a 'chat' event. */
-  const runTurn = (prompt: string, meta: Record<string, unknown>): { accepted: true; turnId: string } => {
+  const runTurn = (prompt: string, meta: Record<string, unknown>, chatId?: string, images: string[] = []): { accepted: true; turnId: string } => {
     const turnId = `turn_${randomB64u(9)}`;
     hub().append('chat', { ...meta, turnId, state: 'running' });
-    void chat(prompt, () => undefined, undefined, 'interactive')
-      .then((reply) => hub().append('chat', { ...meta, turnId, state: 'done', reply }))
+    void chat(prompt, () => undefined, undefined, { source: 'interactive', ...(chatId ? { chatId } : {}), ...(images.length ? { images } : {}) })
+      .then((reply) => {
+        // The turn's last screenshot travels with the reply, downscaled for the phone.
+        let image: string | undefined;
+        const shot = peekTurnShot();
+        if (shot) {
+          try {
+            const img = nativeImage.createFromDataURL(shot);
+            image = `data:image/jpeg;base64,${(img.getSize().width > 900 ? img.resize({ width: 900 }) : img).toJPEG(68).toString('base64')}`;
+          } catch {
+            image = undefined;
+          }
+        }
+        hub().append('chat', { ...meta, turnId, state: 'done', reply, ...(image ? { image } : {}) });
+      })
       .catch((e: unknown) => hub().append('chat', { ...meta, turnId, state: 'failed', error: e instanceof Error ? e.message : String(e) }));
     return { accepted: true, turnId };
   };
@@ -42,7 +61,8 @@ export function buildDeviceOps(hub: () => DeviceHub): Record<string, OpHandler> 
 
     chat: (args, ctx) => {
       const t = text(args.text, 'Message');
-      return runTurn(t, { kind: 'chat', threadId: String(args.threadId ?? ''), from: ctx.deviceName, text: t });
+      const chatId = typeof args.chatId === 'string' && args.chatId ? args.chatId.slice(0, 80) : undefined;
+      return runTurn(t, { kind: 'chat', threadId: String(args.threadId ?? ''), chatId: chatId ?? '', from: ctx.deviceName, text: t }, chatId);
     },
 
     'task.send': (args, ctx) => {
@@ -51,7 +71,35 @@ export function buildDeviceOps(hub: () => DeviceHub): Record<string, OpHandler> 
         `The user sent this request from their phone ("${ctx.deviceName}") for you to carry out on this desktop. ` +
         'If it needs more than one step, run it as a durable background task with start_task; then reply in one sentence saying what you started.\n\n' +
         t;
-      return runTurn(prompt, { kind: 'task', threadId: String(args.threadId ?? ''), from: ctx.deviceName, text: t });
+      const chatId = typeof args.chatId === 'string' && args.chatId ? args.chatId.slice(0, 80) : undefined;
+      return runTurn(prompt, { kind: 'task', threadId: String(args.threadId ?? ''), chatId: chatId ?? '', from: ctx.deviceName, text: t }, chatId);
+    },
+
+    'chats.list': async () => ({ active: await getActiveChatId(), chats: await listChats() }),
+    'chats.turns': (args) => chatTurns(text(args.id, 'Chat id')).then((t) => t.slice(-60)),
+    'chats.create': () => createChat(),
+    'chats.rename': async (args) => (await renameChat(text(args.id, 'Chat id'), text(args.title, 'Title')), { ok: true }),
+    'chats.delete': async (args) => (await deleteChat(text(args.id, 'Chat id')), { ok: true }),
+
+    /** A photo or file from the phone: saved to the workspace inbox, images also go to the model. */
+    'file.send': async (args, ctx) => {
+      const name = [...String(args.name ?? 'file')].map((ch) => (ch.charCodeAt(0) < 32 || '\\/:*?"<>|'.includes(ch) ? '_' : ch)).join('').slice(0, 120) || 'file';
+      const mime = String(args.mime ?? 'application/octet-stream').slice(0, 100);
+      const data = Buffer.from(String(args.data ?? ''), 'base64');
+      if (!data.length) throw new Error('The file was empty.');
+      if (data.length > 12 * 1024 * 1024) throw new Error('Files up to 12 MB can be sent.');
+      const dir = path.join(FILES_ROOT, 'inbox', 'phone');
+      await fs.mkdir(dir, { recursive: true });
+      const file = path.join(dir, `${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}-${name}`);
+      await fs.writeFile(file, data);
+      const isImage = /^image\/(jpeg|png|webp|gif)$/.test(mime);
+      const note = typeof args.text === 'string' ? args.text.trim().slice(0, MAX_TEXT) : '';
+      const prompt =
+        `${note || (isImage ? 'Here is a photo from my phone.' : 'Here is a file from my phone.')}\n\n` +
+        `[Attachment from "${ctx.deviceName}": ${name} (${mime}, ${Math.round(data.length / 1024)} KB) saved at ${file}${isImage ? ' — the image is attached to this message' : ' — read it with your file tools if needed'}.]`;
+      const chatId = typeof args.chatId === 'string' && args.chatId ? args.chatId.slice(0, 80) : undefined;
+      const kind = args.kind === 'task' ? 'task' : 'chat';
+      return { saved: file, ...runTurn(prompt, { kind, threadId: String(args.threadId ?? ''), chatId: chatId ?? '', from: ctx.deviceName, text: note || name }, chatId, isImage ? [`data:${mime};base64,${data.toString('base64')}`] : []) };
     },
 
     'tasks.list': () => taskViews(),

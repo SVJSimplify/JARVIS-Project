@@ -24,6 +24,20 @@ export interface ChatMessage {
   state: 'queued' | 'sending' | 'running' | 'done' | 'failed';
   via?: 'desktop' | 'phone';
   replyTo?: string;
+  /** Chat thread this message belongs to ('' = the unsorted default thread). */
+  chatId?: string;
+  /** A photo or file sent with this message (thumb: small JPEG data URL for images). */
+  attachment?: { name: string; mime: string; size: number; thumb?: string };
+  /** A desktop screenshot that came back with this reply. */
+  image?: string;
+}
+
+/** A conversation thread: desktop chats are shared with the computer; phone chats stay here. */
+export interface ChatThread {
+  id: string;
+  title: string;
+  updatedAt: number;
+  origin: 'desktop' | 'phone';
 }
 
 export interface TaskView {
@@ -84,6 +98,8 @@ export interface AppState {
   connection: 'unpaired' | 'offline' | 'connecting' | 'online';
   lastSync: number;
   messages: ChatMessage[];
+  chats: ChatThread[];
+  activeChat: string;
   tasks: TaskView[];
   progress: LiveProgress | null;
   memories: MemoryView[];
@@ -93,7 +109,7 @@ export interface AppState {
   toast: string;
 }
 
-const PERSISTED: Array<keyof AppState> = ['link', 'cursor', 'messages', 'tasks', 'memories', 'approvals', 'outbox', 'provider', 'lastSync'];
+const PERSISTED: Array<keyof AppState> = ['link', 'cursor', 'messages', 'chats', 'activeChat', 'tasks', 'memories', 'approvals', 'outbox', 'provider', 'lastSync'];
 
 let state: AppState = {
   link: null,
@@ -101,6 +117,8 @@ let state: AppState = {
   connection: 'unpaired',
   lastSync: 0,
   messages: [],
+  chats: [],
+  activeChat: '',
   tasks: [],
   progress: null,
   memories: [],
@@ -129,6 +147,18 @@ export function setState(patch: Partial<AppState> | ((s: AppState) => Partial<Ap
 async function persist(): Promise<void> {
   const out: Record<string, unknown> = {};
   for (const k of PERSISTED) out[k] = state[k];
+  // Keep storage small: only the 8 newest screenshots/thumbnails survive a restart.
+  let pics = 0;
+  out.messages = [...state.messages]
+    .reverse()
+    .map((m) => {
+      if (!m.image && !m.attachment?.thumb) return m;
+      if (++pics <= 8) return m;
+      const rest = { ...m, image: undefined };
+      return rest.attachment ? { ...rest, attachment: { ...rest.attachment, thumb: undefined } } : rest;
+    })
+    .reverse()
+    .slice(-400);
   // Keep the chat log bounded on the device.
   out.messages = state.messages.slice(-300);
   await Preferences.set({ key: 'jini.state.v1', value: JSON.stringify(out) });

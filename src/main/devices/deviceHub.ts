@@ -43,7 +43,8 @@ import {
 export const DEFAULT_PORT = 47621;
 const PAIRING_TTL_MS = 120_000;
 const DEVICE_IDLE_EXPIRY_MS = 30 * 24 * 3600_000;
-const MAX_BODY = 256 * 1024;
+/** Photos and files from the phone travel in RPC bodies (base64 inside the sealed envelope). */
+const MAX_BODY = 16 * 1024 * 1024;
 const MAX_EVENTS = 1000;
 const SYNC_PAGE = 200;
 
