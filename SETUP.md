@@ -11,13 +11,9 @@ They talk directly over your own Wi‑Fi, end‑to‑end encrypted. No cloud ser
 
 ## 1. Desktop
 
-Requirements: Node.js 22+, Windows / macOS / Linux.
+**Install:** run `JINI-Desktop-Setup.exe` (Windows x64). It is not code-signed yet, so Windows SmartScreen may say "Windows protected your PC". Click **More info → Run anyway**.
 
-```bash
-npm install
-npm run dev          # development
-npm run build        # installer in release/ (electron-builder)
-```
+**From source** (Node.js 22+): `npm install`, then `npm run dev` (development) or `npm run build` (installer in `release/`).
 
 ### Connect an AI provider
 
@@ -39,10 +35,12 @@ Your existing JARVIS data (memories, settings, tasks) is reused automatically: t
 
 ### Install the APK (Android)
 
-1. Download **JINI-mobile-apk** from the latest successful run in the repo's **Actions** tab (workflow "JINI build"), or use the APK delivered with this release.
-2. On the phone, allow installing apps from your browser / file manager, then open `JINI-mobile-debug.apk`.
+Requires **Android 8.0 or newer**.
 
-It is a debug-signed build, intended for your own testing — not for the Play Store.
+1. Copy `JINI-mobile-debug.apk` to the phone (or download it from the `builds-latest` branch of the repo).
+2. Open it and allow "Install unknown apps" for your file manager or browser when asked.
+
+It is a debug-signed build for your own testing, not for the Play Store. Every push to `jini-mvp` rebuilds the APK and the Windows installer (GitHub Actions → "JINI build") and publishes both to the `builds-latest` branch. The installer is stored in 90 MB parts there; join them in order (`copy /b part00+part01+part02 JINI-Desktop-Setup.exe` on Windows) and check the `.sha256`.
 
 ### Pair it with the desktop
 
@@ -76,7 +74,7 @@ iOS: on a Mac with Xcode, `cd mobile && npm run sync && npx cap open ios`, then 
 
 ## What you need to set up — checklist
 
-- [ ] Desktop: `npm install`, then base URL + API key + model in Settings.
+- [ ] Desktop: run `JINI-Desktop-Setup.exe`, then set base URL + API key + model in Settings → Provider & Voice.
 - [ ] Desktop: Settings → Devices → turn on **Allow phone connections**; allow it through the firewall on private networks.
 - [ ] Phone: install the APK, pair by QR.
 - [ ] Optional: phone Settings → AI provider, for chat while the desktop is off.
