@@ -528,7 +528,7 @@ export function normalizeVisual(input: unknown): NormalizeResult {
     if (salvaged) return { ir: { blocks: [salvaged] }, warnings };
     // Truly nothing: render an honest, calm panel instead of a dead-end error.
     warnings.push('payload had no renderable content');
-    return { ir: { blocks: [{ type: 'note', tone: 'info', title: 'Nothing to show', text: 'This visual arrived without content. Ask JARVIS to build it again.' }] }, warnings };
+    return { ir: { blocks: [{ type: 'note', tone: 'info', title: 'Nothing to show', text: 'This visual arrived without content. Ask JINI to build it again.' }] }, warnings };
   }
   return { ir: { ...(subtitle ? { subtitle } : {}), blocks }, warnings };
 }

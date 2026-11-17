@@ -263,7 +263,7 @@ async function renderPptx(ir: ArtifactIR, file: string): Promise<void> {
 async function renderXlsx(ir: ArtifactIR, file: string): Promise<void> {
   const { Workbook } = await import('exceljs');
   const wb = new Workbook();
-  wb.creator = 'J.A.R.V.I.S.';
+  wb.creator = 'JINI';
   let first = true;
   for (const s of ir.sections) {
     const ws = wb.addWorksheet((s.title ?? 'Sheet').slice(0, 31).replace(/[*?:\\/[\]]/g, ' ') || `Sheet${wb.worksheets.length + 1}`);

@@ -741,7 +741,7 @@ async function runDueRecurring(now: number): Promise<void> {
     // failures are recorded (lastError) AND notified, exactly like one-shot failures
     if (t.lastError || getMode() !== 'background') {
       notifyDirect({
-        title: t.lastError ? 'J.A.R.V.I.S — recurring routine failed' : 'J.A.R.V.I.S — recurring routine ran',
+        title: t.lastError ? 'JINI — recurring routine failed' : 'JINI — recurring routine ran',
         body: clip(t.lastError || reply || t.task, 240),
         speakLine: clip(t.lastError || reply || '', 240),
         ok: !t.lastError,
@@ -924,7 +924,7 @@ export async function tick(now: number = Date.now()): Promise<void> {
         // end-of-task notification already fired (a second one would be noise, not honesty).
         if (status === 'failed' || getMode() !== 'background') {
           notifyDirect({
-            title: status === 'done' ? 'J.A.R.V.I.S — scheduled follow-up' : 'J.A.R.V.I.S — scheduled follow-up failed',
+            title: status === 'done' ? 'JINI — scheduled follow-up' : 'JINI — scheduled follow-up failed',
             body: clip(reply || error || t.task, 240),
             speakLine: clip(reply || error || '', 240),
             ok: status === 'done',

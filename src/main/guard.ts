@@ -239,7 +239,7 @@ export async function assessRisk(name: string, args: Record<string, unknown>): P
         // SAME name-shaped policy; JARVIS itself is protected however it is addressed;
         // an unverifiable pid fails closed instead of being killed on trust.
         if (isJarvisPid(pid))
-          return { block: true, title: 'JARVIS itself is protected; stopping it is disabled.', detail: `pid ${pid}` };
+          return { block: true, title: 'JINI itself is protected; stopping it is disabled.', detail: `pid ${pid}` };
         const resolved = await resolveProcessName(pid);
         if (!resolved)
           return {

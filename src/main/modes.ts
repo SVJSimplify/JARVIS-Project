@@ -222,15 +222,15 @@ export function endTurn(res: { reply?: string; failed?: boolean; interrupted?: b
     let body: string;
     let speakLine: string;
     if (res.interrupted) {
-      title = 'J.A.R.V.I.S — interrupted';
+      title = 'JINI — interrupted';
       body = d.steps ? `Interrupted after ${d.steps} ${s}. ${d.task}` : `Interrupted before I did anything. ${d.task}`;
       speakLine = d.steps ? `Interrupted after ${d.steps} ${s}, sir.` : 'Stopped before I did anything, sir.';
     } else if (res.failed) {
-      title = 'J.A.R.V.I.S — could not finish';
+      title = 'JINI — could not finish';
       body = clip(oneLine(res.error || res.reply || 'The task failed.'), REPLY_CAP);
       speakLine = clip(`I could not finish that, sir. ${reply}`.trim(), 240);
     } else {
-      title = 'J.A.R.V.I.S — task complete';
+      title = 'JINI — task complete';
       body = d.failures ? `${d.failures} of ${d.steps} ${s} failed. ${reply}` : reply || `Done, sir. ${d.steps} ${s}.`;
       speakLine = clip(reply || (d.failures ? `${d.failures} ${s} failed, sir.` : 'Done, sir.'), 240);
     }

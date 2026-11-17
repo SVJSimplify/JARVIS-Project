@@ -81,7 +81,7 @@ export const extraTools: Record<string, Tool> = {
       const label = String(args.label || 'Timer').slice(0, 120);
       const handle = setTimeout(() => {
         timers.delete(id);
-        new Notification({ title: 'J.A.R.V.I.S', body: `${label}: time is up.` }).show();
+        new Notification({ title: 'JINI', body: `${label}: time is up.` }).show();
         shell.beep();
         sayAloud(`Sir, your ${label.toLowerCase()} timer has elapsed.`);
       }, ms);

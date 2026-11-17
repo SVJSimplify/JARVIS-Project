@@ -49,7 +49,7 @@ function TurnRow({ turn, detailed }: { turn: HistoryTurn; detailed: boolean }) {
       </div>
       <p className={`break-words text-[13.5px] leading-relaxed text-hot ${detailed ? 'whitespace-pre-wrap' : ''}`}>{turn.user}</p>
       <div className="flex items-baseline gap-3 pt-1">
-        <span className="shrink-0 font-display text-[12px] font-bold text-accent/80">J.A.R.V.I.S</span>
+        <span className="shrink-0 font-display text-[12px] font-bold text-accent/80">JINI</span>
         {turn.actions.length > 0 && <span className="truncate font-mono text-[12px] text-steel/60" title={turn.actions.join(' · ')}>{turn.actions.join(' · ')}</span>}
       </div>
       {detailed ? (
