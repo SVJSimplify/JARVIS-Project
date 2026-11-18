@@ -11,9 +11,6 @@ export const processResourceForCommand = (command: string): ProcessResource =>
   /\b(?:npm|pnpm|yarn|bun)\s+(?:(?:run|exec)\s+)?(?:build|test|typecheck|lint|check|compile|package|ci|install)\b|\b(?:tsc|vite|vitest|jest|playwright|pytest|cargo|rustc|electron-builder|gradle|mvn|dotnet|cmake|make)\b/i.test(command)
     ? 'build'
     : 'command';
-  /\\b(?:npm|pnpm|yarn|bun)\\s+(?:(?:run|exec)\\s+)?(?:build|test|typecheck|lint|check|compile|package|ci|install)\\b|\\b(?:tsc|vite|vitest|jest|playwright|pytest|cargo|rustc|electron-builder|gradle|mvn|dotnet|cmake|make)\\b/i.test(command)
-    ? 'build'
-    : 'command';
 export type ProcessStatus = 'success' | 'failed' | 'timed_out' | 'queue_timed_out' | 'cancelled' | 'launch_failed';
 
 export interface ProcessResult {
@@ -166,7 +163,7 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
         if (hardKillHandle && !treeCleanupPending) clearTimeout(hardKillHandle);
         request.signal?.removeEventListener('abort', onAbort);
         ticket.release();
-        resolve(result);
+        resolve({ ...result, durationMs: Date.now() - startedAt });
       };
 
       const onAbort = (): void => {
