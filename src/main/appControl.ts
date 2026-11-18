@@ -1,4 +1,5 @@
 import { runPs } from './psHost';
+import { executionSignal } from './toolResult';
 import type { Tool } from './toolTypes';
 import { captureScreen, imageToScreen } from './vision';
 import { assessTargetAmbiguity, desktopVerifyBlock, type ScreenState } from './desktopVerify';
@@ -134,7 +135,7 @@ const PRELUDE = [
 
 const ps = async (body: string, a = '', b = '', c = '', d = '', timeoutMs = 20000) => {
   requireWindows();
-  return runPs(PRELUDE, body, { JA: a, JB: b, JC: c, JD: d }, timeoutMs);
+  return runPs(PRELUDE, body, { JA: a, JB: b, JC: c, JD: d }, timeoutMs, executionSignal());
 };
 
 const str = (v: unknown) => String(v ?? '').trim();
