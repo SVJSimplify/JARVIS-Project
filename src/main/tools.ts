@@ -19,6 +19,7 @@ import { vercelTools } from './vercelTools';
 import { recoveryTools } from './opsCenter';
 import { playbookTools } from './workflowPlaybooks';
 import { systemTools } from './systemTools';
+import { storageTools } from './storageTools';
 import { recentTools, recordTool } from './toolLog';
 import { assessRisk, type Risk } from './guard';
 import { authorize, classifyToolAction } from './permission';
@@ -254,7 +255,7 @@ for (const [name, tool] of Object.entries(browserTools)) {
   tool.run = async (args) => `${await inner(args)}\n[session: inbuilt panel]`;
 }
 
-Object.assign(TOOLS, memoryTools, projectMemoryTools, profileTools, impactTools, integrationTools, webTools, headlessTools, tinyfishTools, systemTools, extraTools, appControlTools, visionTools, browserTools, nativeBrowserTools, githubTools, vercelTools, recoveryTools, devTools, stageTools, fsTools, patchTools, planningTools, knowledgeTools, visualTools, qualityTools, decisionTools, agiTools, learnTools, userModelTools, telemetryTools, awarenessTools, scheduleTools, artifactTools);
+Object.assign(TOOLS, memoryTools, projectMemoryTools, profileTools, impactTools, integrationTools, webTools, headlessTools, tinyfishTools, systemTools, storageTools, extraTools, appControlTools, visionTools, browserTools, nativeBrowserTools, githubTools, vercelTools, recoveryTools, devTools, stageTools, fsTools, patchTools, planningTools, knowledgeTools, visualTools, qualityTools, decisionTools, agiTools, learnTools, userModelTools, telemetryTools, awarenessTools, scheduleTools, artifactTools);
 
 const launch = TOOLS.launch_app.run;
 // A place request must survive the whole chain: "open notepad on the right" used to always
