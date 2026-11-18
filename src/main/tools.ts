@@ -341,7 +341,7 @@ TOOLS.execution_status = {
       `Commands: ${s.byResource.command}/2 active · ${s.queuedByResource.command} queued`,
       `System: ${s.byResource.system}/2 active · ${s.queuedByResource.system} queued`,
       `Builds: ${s.byResource.build}/1 active · ${s.queuedByResource.build} queued`,
-    ].join('\\n');
+    ].join('\n');
   },
 };
 
