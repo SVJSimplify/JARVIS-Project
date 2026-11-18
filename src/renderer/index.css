@@ -554,6 +554,31 @@ select {
 .jini-main > footer > div {
   max-width: 760px;
 }
+.jini-main > footer form {
+  border-color: #e4d8c6;
+  border-radius: 23px;
+  background: linear-gradient(155deg, #fffefa 0%, #fbf8f2 100%);
+  box-shadow: 0 4px 16px rgba(60,42,20,.04), 0 18px 46px rgba(60,42,20,.065);
+}
+.jini-main > footer form:focus-within {
+  border-color: #cdb89d;
+  box-shadow: 0 5px 18px rgba(60,42,20,.055), 0 22px 52px rgba(60,42,20,.085);
+}
+.jini-main > footer textarea::placeholder {
+  color: #a99d8d;
+}
+.jini-main > footer form > div {
+  padding-bottom: 11px;
+}
+.jini-main > footer form button[type='submit'] {
+  width: 36px;
+  height: 36px;
+  box-shadow: 0 2px 7px rgba(31,27,22,.12);
+}
+.jini-main > footer form button[type='submit']:not(:disabled):hover {
+  background: #3a332c;
+  transform: translateY(-1px);
+}
 .jini-windowbar, .jini-canvas, .jini-sidebar, .jini-inspector,
 .jini-assistant-reply, .jini-empty button {
   transition-timing-function: cubic-bezier(.2,.75,.2,1);
