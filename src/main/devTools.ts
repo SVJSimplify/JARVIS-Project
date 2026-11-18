@@ -4,7 +4,7 @@ import type { Tool } from './toolTypes';
 import { FILES_ROOT, boundWorkspaceForTask } from './workspace';
 import { shellVerdict } from './policy';
 import { executionSignal, setToolStatus } from './toolResult';
-import { runProcess } from './execution/ProcessRunner';
+import { processResourceForCommand, runProcess } from './execution/ProcessRunner';
 import { callContext } from './toolRecord';
 import {
   noteBoundedRefusal,
@@ -138,7 +138,7 @@ const runShell = (
     cwd,
     timeoutMs: timeout,
     maxOutputBytes: 2 * 1024 * 1024,
-    resource: 'command',
+    resource: processResourceForCommand(command),
     signal: executionSignal(),
     env: envOverlay,
   }).then((result) => {
