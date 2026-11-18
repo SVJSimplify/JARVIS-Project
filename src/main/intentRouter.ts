@@ -40,7 +40,7 @@ const RULES: IntentRule[] = [
   {
     id: 'desktop_control',
     label: 'desktop and application control',
-    pattern: /\b(?:desktop|window|screen|notepad|calculator|task manager|file explorer|volume|brightness|bluetooth|pairing|clipboard|cpu|memory usage|ram|battery|processes?|mouse|keyboard|vs ?code|discord|whatsapp|spotify)\b/i,
+    pattern: /\b(?:desktop|window|screen|notepad|calculator|task manager|file explorer|volume|brightness|bluetooth|pairing|clipboard|cpu|memory usage|ram|battery|processes?|mouse|keyboard|vs ?code|chrome|edge|firefox|word|excel|outlook|powerpoint|discord|whatsapp|spotify)\b/i,
     weight: 3,
     groups: ['desktop'],
     preferredTools: ['inspect_app', 'list_windows', 'launch_app', 'click_control', 'set_control_text', 'type_text', 'press_keys', 'see_screen'],
