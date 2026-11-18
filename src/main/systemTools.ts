@@ -27,7 +27,9 @@ const run = async (
   if (result.status !== 'success') {
     const message = result.status === 'timed_out'
       ? `Process timed out after ${Math.round((options.timeout ?? 15_000) / 1000)}s`
-      : result.status === 'cancelled'
+      : result.status === 'queue_timed_out'
+        ? `Process queue wait expired after ${result.queueWaitMs}ms`
+        : result.status === 'cancelled'
         ? 'Process was cancelled'
         : result.status === 'launch_failed'
           ? `Process could not start (${result.errorCode ?? 'unknown'})`
