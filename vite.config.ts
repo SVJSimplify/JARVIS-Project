@@ -15,7 +15,7 @@ export default defineConfig({
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: process.env.JINI_SOURCEMAPS === '1',
   },
   worker: { format: 'es' },
   optimizeDeps: { exclude: ['@huggingface/transformers'] },
