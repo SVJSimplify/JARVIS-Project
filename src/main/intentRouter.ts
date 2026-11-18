@@ -47,6 +47,15 @@ const RULES: IntentRule[] = [
     guidance: 'For a real desktop task, inspect the current app/window state first, prefer accessibility/UIA controls over coordinates, perform the smallest action, then re-observe.',
   },
   {
+    id: 'media_control',
+    label: 'music, video and media playback',
+    pattern: /\\b(?:play|pause|resume|stop|skip|next|previous|mute|unmute|seek|volume)\\b.{0,45}\\b(?:music|song|track|playlist|video|media|spotify|youtube|audio|podcast)\\b|\\b(?:music|song|track|playlist|video|media|spotify|youtube|audio|podcast)\\b.{0,35}\\b(?:play|pause|resume|stop|skip|next|previous|mute|unmute|seek)\\b/i,
+    weight: 4,
+    groups: ['browser', 'desktop'],
+    preferredTools: ['browser_play', 'browser_media', 'media_control'],
+    guidance: 'Determine whether playback is in JINI’s in-app browser or a desktop app. Check playback state first, use the matching browser_media or system media_control capability, then verify the new state.',
+  },
+  {
     id: 'browser_interaction',
     label: 'browser interaction',
     pattern: /\b(?:browser|website|web ?page|url|youtube|tab|navigate|click|login|log ?in|form|upload|download|checkout|book|order|play video)\b/i,
@@ -89,7 +98,7 @@ const RULES: IntentRule[] = [
     weight: 4,
     groups: ['system', 'desktop'],
     preferredTools: ['get_system_info', 'list_drives', 'list_processes', 'analyze_storage', 'bluetooth_scan', 'execution_status'],
-    guidance: 'Prefer purpose-built system and diagnostic tools over ad-hoc shell. Use analyze_storage for folder/drive footprints, list_processes for process inventories, and get_execution_status to inspect JINI execution queues.',
+    guidance: 'Prefer purpose-built system and diagnostic tools over ad-hoc shell. Use analyze_storage for folder/drive footprints, list_processes for process inventories, and execution_status to inspect JINI execution queues.',
   },
   {
     id: 'integrations',
