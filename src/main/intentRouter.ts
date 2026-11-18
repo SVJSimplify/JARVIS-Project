@@ -94,7 +94,7 @@ const RULES: IntentRule[] = [
   {
     id: 'execution_diagnostics',
     label: 'JINI execution performance diagnostics',
-    pattern: /\\b(?:tools?|commands?|processes?)\\b.{0,50}\\b(?:slow|slower|taking (?:forever|ages|too long)|stalled|hung|timeout|latency|queue|inconsistent|unreliable)\\b|\\b(?:queue|latency|timeouts?|scheduler|execution performance)\\b.{0,45}\\b(?:jini|tools?|commands?|agents?)\\b/i,
+    pattern: /\b(?:tools?|commands?|processes?)\b.{0,50}\b(?:slow|slower|taking (?:forever|ages|too long)|stalled|hung|timeout|latency|queue|inconsistent|unreliable)\b|\b(?:queue|latency|timeouts?|scheduler|execution performance)\b.{0,45}\b(?:jini|tools?|commands?|agents?)\b/i,
     weight: 5,
     groups: ['system'],
     preferredTools: ['execution_status', 'tool_log'],
