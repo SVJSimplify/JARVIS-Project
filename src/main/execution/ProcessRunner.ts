@@ -42,18 +42,17 @@ const emptyResult = (status: ProcessStatus, queueWaitMs: number, errorCode?: str
   outputTruncated: false,
 });
 
-const killProcessTree = (child: ChildProcess): void => {
+const killProcessTree = (child: ChildProcess): ReturnType<typeof setTimeout> | undefined => {
   const pid = child.pid;
   if (!pid) {
     child.kill();
-    return;
+    return undefined;
   }
   if (process.platform === 'win32') {
-    // taskkill /T closes descendants as well as the PowerShell wrapper. The callback is
-    // intentionally detached from the tool's result path; the process close event settles it.
+    // taskkill /T closes descendants as well as the PowerShell wrapper.
     execFile('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 3000 }, () => undefined);
     child.kill();
-    return;
+    return undefined;
   }
   try {
     process.kill(-pid, 'SIGTERM');
@@ -68,6 +67,7 @@ const killProcessTree = (child: ChildProcess): void => {
     }
   }, 800);
   hardKill.unref();
+  return hardKill;
 };
 
 /**
@@ -102,6 +102,7 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
       let killReason: 'timed_out' | 'cancelled' | null = null;
       let settled = false;
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      let hardKillHandle: ReturnType<typeof setTimeout> | undefined;
       let child: ChildProcess;
 
       const append = (stream: 'stdout' | 'stderr', chunk: Buffer | string): void => {
@@ -128,6 +129,7 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
         if (settled) return;
         settled = true;
         if (timeoutHandle) clearTimeout(timeoutHandle);
+        if (hardKillHandle) clearTimeout(hardKillHandle);
         request.signal?.removeEventListener('abort', onAbort);
         ticket.release();
         resolve(result);
@@ -136,7 +138,7 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
       const onAbort = (): void => {
         if (killReason || settled) return;
         killReason = 'cancelled';
-        if (child) killProcessTree(child);
+        if (child) hardKillHandle = killProcessTree(child);
       };
 
       try {
@@ -191,7 +193,7 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
       timeoutHandle = setTimeout(() => {
         if (settled || killReason) return;
         killReason = 'timed_out';
-        killProcessTree(child);
+        hardKillHandle = killProcessTree(child);
       }, timeoutMs);
       timeoutHandle.unref();
 
