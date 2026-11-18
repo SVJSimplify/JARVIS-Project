@@ -1,10 +1,10 @@
-import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Tool } from './toolTypes';
 import { FILES_ROOT, boundWorkspaceForTask } from './workspace';
 import { shellVerdict } from './policy';
-import { executionSignal } from './toolResult';
+import { executionSignal, setToolStatus } from './toolResult';
+import { runProcess } from './execution/ProcessRunner';
 import { callContext } from './toolRecord';
 import {
   noteBoundedRefusal,
@@ -122,41 +122,44 @@ const runShell = (
   argvPrefix: string[] = [],
   envOverlay: Record<string, string | undefined> = {},
   directExec?: { exe: string; args: string[] }
-): Promise<string> =>
-  new Promise((resolve, reject) =>
-    execFile(
-      directExec ? directExec.exe : argvPrefix.length ? argvPrefix[0] : IS_WIN ? 'powershell.exe' : '/bin/sh',
-      directExec
-        ? directExec.args
-        : argvPrefix.length
-          ? [...argvPrefix.slice(1), IS_WIN ? 'powershell.exe' : '/bin/sh', ...(IS_WIN ? ['-NoProfile', '-NonInteractive', '-Command', command] : ['-c', command])]
-          : IS_WIN
-            ? ['-NoProfile', '-NonInteractive', '-Command', command]
-            : ['-c', command],
-      { cwd, timeout, maxBuffer: 8 * 1024 * 1024, windowsHide: true, signal: executionSignal(), env: { ...process.env, ...envOverlay } },
-      (err, stdout, stderr) => {
-        // ROUND 34 §2.3: a failed sandbox launch is an explicit refusal — the command is
-        // NEVER retried outside the sandbox and never switched to unrestricted shell
-        // execution. The started receipt already exists; the outcome is surfaced as an
-        // unknown-outcome refusal in the receipt trail and the Operations Center.
-        if (argvPrefix.length && isSandboxLaunchFailure(err, stderr)) {
-          noteSandboxFailure();
-          const detail = err ? `${err.code ?? err.message}`.slice(0, 160) : 'unknown sandbox error';
-          reject(
-            new Error(
-              `SANDBOX EXECUTION FAILURE: the OS sandbox could not launch this project-bound command (${detail}). ` +
-                `The command was NOT executed — its outcome is UNKNOWN. Per the execution contract there is NO fallback to unrestricted shell execution: ` +
-                `inspect the sandbox health in the Operations Center (bubblewrap installation, user namespaces), repair it, or run this work as non-project work through the existing authorization architecture.`
-            )
-          );
-          return;
-        }
-        const out = `${stdout}${stderr}`.trim();
-        const code = err ? ((err as NodeJS.ErrnoException & { code?: number }).code ?? 1) : 0;
-        resolve(`exit ${code}\n${out.length > TAIL ? '…' + out.slice(-TAIL) : out}`);
-      }
-    )
-  );
+): Promise<string> => {
+  const executable = directExec ? directExec.exe : argvPrefix.length ? argvPrefix[0] : IS_WIN ? 'powershell.exe' : '/bin/sh';
+  const args = directExec
+    ? directExec.args
+    : argvPrefix.length
+      ? [...argvPrefix.slice(1), IS_WIN ? 'powershell.exe' : '/bin/sh', ...(IS_WIN ? ['-NoProfile', '-NonInteractive', '-Command', command] : ['-c', command])]
+      : IS_WIN
+        ? ['-NoProfile', '-NonInteractive', '-Command', command]
+        : ['-c', command];
+
+  return runProcess({
+    executable,
+    args,
+    cwd,
+    timeoutMs: timeout,
+    maxOutputBytes: 2 * 1024 * 1024,
+    resource: 'command',
+    signal: executionSignal(),
+    env: envOverlay,
+  }).then((result) => {
+    const failed = result.status !== 'success';
+    if (failed) {
+      setToolStatus({
+        status: 'error',
+        errorKind: result.status === 'timed_out' ? 'timeout' : result.status === 'cancelled' ? 'cancelled' : result.status === 'launch_failed' ? 'process-launch' : 'process-exit',
+      });
+    }
+    const label = result.status === 'success' ? 'COMPLETED' : 'FAILED';
+    const reason = result.status === 'timed_out' ? `timed out after ${Math.round(timeout / 1000)}s`
+      : result.status === 'cancelled' ? 'cancelled'
+      : result.status === 'launch_failed' ? `could not start (${result.errorCode ?? 'unknown launch error'})`
+      : result.status === 'failed' ? `exited with code ${result.exitCode ?? 'unknown'}`
+      : 'not completed';
+    const output = [result.stdout && `STDOUT:\\n${result.stdout.trim()}`, result.stderr && `STDERR:\\n${result.stderr.trim()}`].filter(Boolean).join('\\n');
+    const meta = `exit ${result.exitCode ?? 'n/a'} · process ${result.durationMs}ms · queue ${result.queueWaitMs}ms${result.outputTruncated ? ' · output truncated at 2 MiB' : ''}`;
+    return `${label}: ${reason}. ${meta}${output ? `\\n${output}` : '\\n(no output)'}`;
+  });
+};
 
 export const devTools: Record<string, Tool> = {
   diagnostics: {
@@ -193,7 +196,7 @@ export const devTools: Record<string, Tool> = {
       properties: {
         command: { type: 'string' },
         cwd: { type: 'string', description: 'Working folder. Defaults to the Jarvis-Files workspace.' },
-        timeout_s: { type: 'number', description: 'Default 120, max 600.' },
+        timeout_s: { type: 'number', minimum: 1, maximum: 300, description: 'Execution budget in seconds (default 60, range 1–300). Queue wait does not consume this budget.' },
       },
       required: ['command'],
     },
@@ -203,7 +206,11 @@ export const devTools: Record<string, Tool> = {
       // authorization boundary (guard.assessRisk → permission.authorize). No private rules.
       const v = shellVerdict(command);
       if (v.blocked) throw new Error(v.reason ?? 'Command blocked by policy.');
-      const timeout = Math.min(Number(args.timeout_s) || 120, 600) * 1000;
+      const requestedTimeout = args.timeout_s === undefined ? 60 : Number(args.timeout_s);
+      if (!Number.isFinite(requestedTimeout) || requestedTimeout < 1 || requestedTimeout > 300) {
+        throw new Error('timeout_s must be a number from 1 to 300 seconds.');
+      }
+      const timeout = Math.trunc(requestedTimeout) * 1000;
       const cwd = shellCwd(args.cwd);
       // ROUND 34: the project-bound isolation gate. With an active binding the command is
       // verified (strictly-safe executable + in-project targets, or executed inside the
