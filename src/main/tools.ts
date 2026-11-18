@@ -325,7 +325,7 @@ export function schemasFor(text: string): typeof TOOL_SCHEMAS {
 }
 
 TOOLS.load_tools = {
-  description: 'Load more tools when the ones you have cannot do the job. Groups: browser, desktop, files, productivity (or "all"). Their tools become callable immediately.',
+  description: 'Load more tools when the ones you have cannot do the job. Groups: browser, desktop, files, research, system, memory, productivity, integrations, orchestration, documents, advanced (or "all"). Their tools become callable immediately.',
   parameters: { type: 'object', properties: { groups: { type: 'array', items: { type: 'string' } } }, required: ['groups'] },
   run: (args) => loadGroups(args.groups),
 };
