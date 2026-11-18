@@ -53,8 +53,15 @@ export interface ToolExecutionRecord {
   id: string;
   /** Epoch ms when the call started. */
   t: number;
-  /** Duration ms (0 for calls that never ran). */
+  /** Wall time from dispatch through durable outcome (0 for calls that never ran). */
   ms: number;
+  /** Time waiting for an execution slot, distinct from actual process runtime. */
+  queueWaitMs?: number;
+  /** Child-process runtime, excluding scheduler wait and authorization/receipt overhead. */
+  processMs?: number;
+  processStatus?: string;
+  processExitCode?: number | null;
+  processPid?: number;
   tool: string;
   /** The name as the model requested it, when tool-name rescue changed it. */
   requested?: string;
