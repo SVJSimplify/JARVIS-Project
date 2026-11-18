@@ -3,6 +3,8 @@ import * as path from 'node:path';
 import type { Tool } from './toolTypes';
 import { emitActivity } from './modes';
 import { executionSignal, setToolStatus } from './toolResult';
+import { callContext } from './toolRecord';
+import { boundWorkspaceForTask } from './workspace';
 
 interface ScanResult {
   path: string;
@@ -69,6 +71,21 @@ export const storageTools: Record<string, Tool> = {
     },
     run: async (args) => {
       const root = normalizeRoot(String(args.root ?? ''));
+      // Project-bound tasks may inspect only their own workspace. A drive-wide scan
+      // remains available for normal user tasks, never as a way around project isolation.
+      const binding = boundWorkspaceForTask(callContext().taskId ?? '');
+      if (binding) {
+        let realRoot: string;
+        try {
+          realRoot = await fs.realpath(root);
+        } catch (error) {
+          throw new Error(`Cannot resolve storage root ${root}: ${(error as Error).message}`);
+        }
+        const relative = path.relative(binding.real, realRoot);
+        if (relative.startsWith('..') || path.isAbsolute(relative)) {
+          throw new Error(`OUTSIDE PROJECT WORKSPACE: storage inspection root ${root} is outside this task's project workspace (${binding.root}). Choose a folder inside the bound project.`);
+        }
+      }
       const limit = Math.max(5, Math.min(50, Math.trunc(Number(args.limit) || 20)));
       const maxItems = Math.max(1000, Math.min(200000, Math.trunc(Number(args.max_items) || 50000)));
       const maxDepth = Math.max(1, Math.min(24, Math.trunc(Number(args.max_depth) || 16)));
