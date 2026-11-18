@@ -86,7 +86,12 @@ export const currentToolStatus = (): { status: ToolStatus; errorKind?: string; s
 export const setToolExecutionMetrics = (patch: ToolExecutionMetrics): void => {
   const cur = als.getStore();
   if (!cur) return;
-  cur.metrics = { ...cur.metrics, ...patch };
+  cur.metrics = {
+    ...cur.metrics,
+    ...patch,
+    queueWaitMs: (cur.metrics?.queueWaitMs ?? 0) + (patch.queueWaitMs ?? 0),
+    processMs: (cur.metrics?.processMs ?? 0) + (patch.processMs ?? 0),
+  };
 };
 
 /** Snapshot of any subprocess timing attached to the current tool invocation. */
