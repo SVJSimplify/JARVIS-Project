@@ -191,7 +191,7 @@ export const devTools: Record<string, Tool> = {
   },
   run_command: {
     description:
-      'Run a shell command (PowerShell on Windows, /bin/sh elsewhere) to build, run, test or debug code and read its output (stdout+stderr tail, exit code). Use it in a loop: reproduce, inspect, fix, rerun.',
+      'General-purpose shell escape hatch for a command that has no dedicated JINI tool. Prefer purpose-built tools first: analyze_storage for drive/folder sizes, list_drives and get_system_info for machine state, list_processes for process inventory, file/search tools for discovery, and inspect_project/diagnostics for code. Use one bounded command when shell is genuinely needed; never split an ordinary diagnostic into many repetitive shell calls. Returns explicit exit status, stdout/stderr, timeout/cancel/launch outcome, runtime and queue wait.',
     parameters: {
       type: 'object',
       properties: {
