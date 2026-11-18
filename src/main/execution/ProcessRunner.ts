@@ -81,7 +81,7 @@ const killProcessTree = (child: ChildProcess, onCleanup: () => void): ReturnType
     }
     onCleanup();
   }, 800);
-  hardKill.unref();
+  // This cleanup timer is part of the awaiting process lifecycle; keep it referenced.
   return hardKill;
 };
 
