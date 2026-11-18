@@ -503,6 +503,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   let gateRetried = false;
   let historyCompacted = false;
   const failLog: Array<{ tool: string; args: string; error: string }> = [];
+  const failedToolCalls = new Set<string>();
+  const toolCallKey = (call: ToolCall): string => `${call.function.name}:${call.function.arguments}`;
 
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -594,8 +596,12 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       // the dispatch runs inside a signal-bearing execution scope, so a stopped turn
       // reaches the in-flight tool (cancelled-before-run, mid-run cancellation, web
       // request aborts) instead of only taking effect at the next round boundary.
+      const toolCallKeys = toolCalls.map(toolCallKey);
+      const uniqueBatch = new Set(toolCallKeys).size === toolCallKeys.length;
       const early: ToolResultEnvelope[] | null =
-        toolCalls.length > 1 && toolCalls.every((c) => isParallelSafe(c.function.name))
+        toolCalls.length > 1 &&
+        uniqueBatch &&
+        toolCalls.every((c) => isParallelSafe(c.function.name) && !failedToolCalls.has(toolCallKey(c)))
           ? await runWithExecutionScope({ signal }, () =>
               Promise.all(toolCalls.map((c) => runToolDetailed(c.function.name, c.function.arguments)))
             )
@@ -610,7 +616,15 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         if (signal.aborted) throw new Error('Interrupted');
         // F-07: structured status decides failure — the text prefixes remain only as the
         // display contract, not as the mechanism.
-        const res = early ? early[i] : await runToolDetailed(call.function.name, call.function.arguments);
+        const key = toolCallKey(call);
+        const res: ToolResultEnvelope = failedToolCalls.has(key)
+          ? {
+              text: `IDENTICAL CALL NOT REPEATED: this exact ${call.function.name} call already failed in this turn. Inspect the failure, change the arguments or choose a different capability before trying again.`,
+              status: 'error',
+              errorKind: 'duplicate-failed-call',
+            }
+          : early ? early[i] : await runToolDetailed(call.function.name, call.function.arguments);
+        if (res.status !== 'success') failedToolCalls.add(key);
         const raw = res.text;
         const safeRaw = redactText(raw);
         const failed = res.status !== 'success';
