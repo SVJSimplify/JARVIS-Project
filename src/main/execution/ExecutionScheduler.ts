@@ -7,7 +7,6 @@ export class QueueTimeoutError extends Error {
 }
 
 interface Waiter {
-  id: number;
   resource: ExecutionResource;
   signal?: AbortSignal;
   queuedAt: number;
@@ -26,7 +25,6 @@ const RESOURCE_LIMITS: Record<ExecutionResource, number> = {
   persistent_shell: 1,
 };
 
-let nextId = 0;
 let activeTotal = 0;
 const activeByResource: Record<ExecutionResource, number> = { command: 0, system: 0, build: 0, persistent_shell: 0 };
 const waiters: Waiter[] = [];
@@ -81,11 +79,10 @@ export function acquireExecutionSlot(
       return;
     }
     const waiter: Waiter = {
-      id: ++nextId,
       resource,
       signal,
       queuedAt: Date.now(),
-      maxWaitMs: Math.max(250, Math.min(300_000, Math.trunc(maxQueueWaitMs))),
+      maxWaitMs: Math.max(250, Math.min(300_000, Number.isFinite(maxQueueWaitMs) ? Math.trunc(maxQueueWaitMs) : 60_000)),
       resolve,
       reject,
       onAbort: () => {
