@@ -41,6 +41,7 @@
 !macroend
 
 !macro customUnInstall
+  RMDir /r "$INSTDIR\resources\local-ai"
   ${ifNot} ${isUpdated}
     DeleteRegValue HKCU "Software\JINI" "LocalAIInstalled"
   ${endIf}
