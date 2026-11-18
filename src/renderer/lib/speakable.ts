@@ -28,7 +28,7 @@ export function speakable(raw: string): string {
     .trim();
 }
 
-const CREDENTIAL_LABEL = /\b(?:api|access|private|secret|bearer)[\s_-]*(?:keys?|tokens?|credentials?)\b/i;
+const CREDENTIAL_LABEL = /\b(?:(?:api|access|private|secret|bearer)[\s_-]*)?(?:keys?|tokens?|credentials?)\b/i;
 const CREDENTIAL_DISCOVERY = /\b(?:found|detected|located|extracted|discovered|identified|scanned)\b/i;
 const SECRET_MATERIAL = /(?:gh[pousr]_[A-Za-z0-9_]{16,}|github_pat_[A-Za-z0-9_]{16,}|(?:sk|rk|pk)_[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i;
 const FILE_PATH_LINE = /(?:^[A-Za-z]:\\|^\\\\|^\/(?:Users|home|etc|var|tmp)\/)/i;
