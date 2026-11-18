@@ -123,7 +123,7 @@ export const runCmd = async (command: string, cwd: string, timeout: number): Pro
     result.stdout.trim(),
     result.stderr.trim() && `STDERR: ${result.stderr.trim()}`,
     result.outputTruncated ? '[output truncated at 2 MiB]' : '',
-  ].filter(Boolean).join('\\n');
+  ].filter(Boolean).join('\n');
   await recordOutcome(
     {
       id,
