@@ -121,6 +121,49 @@ describe('checkArgs', () => {
     expect(() => checkArgs('t', { names: ['a', 2] }, arraySchema)).toThrow(/must be string/);
   });
 
+  it('rejects non-numeric values instead of passing them to the handler', () => {
+    expect(() => checkArgs('t', { count: 'fast', name: 'x' }, schema)).toThrow(/must be a finite number/);
+  });
+
+  it('validates nested object fields and closed nested objects', () => {
+    const nested = {
+      type: 'object',
+      properties: {
+        options: {
+          type: 'object',
+          required: ['path'],
+          additionalProperties: false,
+          properties: { path: { type: 'string', minLength: 2 } },
+        },
+      },
+    };
+    expect(checkArgs('t', { options: { path: 'D:' } }, nested).options).toEqual({ path: 'D:' });
+    expect(() => checkArgs('t', { options: { path: 'D:', surprise: true } }, nested)).toThrow(/unsupported argument/);
+    expect(() => checkArgs('t', { options: {} }, nested)).toThrow(/missing required field/);
+    expect(() => checkArgs('t', { options: { path: 'D' } }, nested)).toThrow(/at least 2 characters/);
+  });
+
+  it('validates objects inside arrays, including their required properties', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        targets: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            properties: { path: { type: 'string' } },
+            required: ['path'],
+            additionalProperties: false,
+          },
+        },
+      },
+    };
+    expect(checkArgs('t', { targets: '[{"path":"D:\\\\Projects"}]' }, schema).targets).toEqual([{ path: 'D:\\\\Projects' }]);
+    expect(() => checkArgs('t', { targets: [{}] }, schema)).toThrow(/missing required field/);
+    expect(() => checkArgs('t', { targets: [{ path: 'D:', extra: 'x' }] }, schema)).toThrow(/unsupported argument/);
+  });
+
   it('can reject undeclared parameters for closed schemas', () => {
     const closed = { type: 'object', properties: { path: { type: 'string' } }, additionalProperties: false };
     expect(() => checkArgs('t', { path: 'a', unexpected: 'b' }, closed)).toThrow(/unsupported argument/);
