@@ -9,7 +9,10 @@ import { emitActivity } from './modes';
 
 /** A runner returns the structured envelope (F-07); legacy text runners are normalized
  *  with the documented prefix contract as the fallback. */
-export type Runner = (name: string, rawArgs: string) => Promise<string | ToolResultEnvelope>;
+export type Runner = ((name: string, rawArgs: string) => Promise<string | ToolResultEnvelope>) & {
+  /** Only tools whose live registry contract explicitly marks them read-only may fan out. */
+  isParallelSafe?: (name: string) => boolean;
+};
 const FAILURE_TEXT_RE = /^(Tool error|Unknown tool|BLOCKED|CANCELLED)/;
 const normalize = (r: string | ToolResultEnvelope): ToolResultEnvelope => asEnvelope(r, FAILURE_TEXT_RE);
 export type Role = 'researcher' | 'explorer' | 'general' | 'documenter' | 'verifier' | 'operator';
@@ -232,23 +235,37 @@ async function runSubagentBody(
         return `${report}\n[report by agent "${agentName}" run ${childId}]`;
       }
 
-      const results = await Promise.all(
-        toolCalls.map(async (call): Promise<ToolResultEnvelope> => {
-          // Registry ceiling enforced HERE, in code: a schema leak or a hallucinated call
-          // never reaches the tool. The permission service remains the second gate.
-          if (def && !agentAllows(def, call.function.name)) {
-            return { text: `BLOCKED: ${call.function.name} is not available to the ${def.name} agent. Use only your own tools.`, status: 'error', errorKind: 'blocked' };
-          }
-          const key = `${call.function.name}:${call.function.arguments}`;
-          const prior = seen.get(key);
-          if (prior !== undefined && !isFailure(prior)) return { text: `(identical call already made; same result)\n${clip(prior, 1500)}`, status: 'success' };
-          // F-09: the child's own signal (task-scoped for coordinator work, turn-scoped
-          // otherwise) governs every tool it dispatches.
-          const res = normalize(await runWithExecutionScope({ signal }, () => run(call.function.name, call.function.arguments)));
-          seen.set(key, res.text);
-          return res;
-        })
-      );
+      const results: ToolResultEnvelope[] = new Array(toolCalls.length);
+      const executeOne = async (index: number): Promise<ToolResultEnvelope> => {
+        const call = toolCalls[index];
+        if (def && !agentAllows(def, call.function.name)) {
+          return { text: `BLOCKED: ${call.function.name} is not available to the ${def.name} agent. Use only your own tools.`, status: 'error', errorKind: 'blocked' };
+        }
+        const key = `${call.function.name}:${call.function.arguments}`;
+        const prior = seen.get(key);
+        if (prior !== undefined && !isFailure(prior)) return { text: `(identical call already made; same result)\\n${clip(prior, 1500)}`, status: 'success' };
+        const res = normalize(await runWithExecutionScope({ signal }, () => run(call.function.name, call.function.arguments)));
+        seen.set(key, res.text);
+        return res;
+      };
+
+      // Only explicit read-only tools may fan out (four at a time). Every other call
+      // is executed in the order supplied by the model, so shell/actions do not overlap.
+      for (let i = 0; i < toolCalls.length;) {
+        if (signal?.aborted) throw new Error('Interrupted');
+        if (run.isParallelSafe?.(toolCalls[i].function.name) !== true) {
+          results[i] = await executeOne(i);
+          i++;
+          continue;
+        }
+        const wave: number[] = [];
+        while (i < toolCalls.length && run.isParallelSafe?.(toolCalls[i].function.name) === true) wave.push(i++);
+        for (let offset = 0; offset < wave.length; offset += 4) {
+          const chunk = wave.slice(offset, offset + 4);
+          const settled = await Promise.all(chunk.map((index) => executeOne(index)));
+          settled.forEach((result, index) => { results[chunk[index]] = result; });
+        }
+      }
       toolCalls.forEach((call, i) => {
         const failed = results[i].status !== 'success';
         if (failed) fails++;
