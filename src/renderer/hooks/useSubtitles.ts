@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { cancelSpeech, enqueue, isSpeaking } from '../lib/speech';
-import { speakable } from '../lib/speakable';
+import { speakable, speechSummary } from '../lib/speakable';
 import type { Caption } from '../components/Subtitles';
 
 // Re-exported so every consumer (and the tests) find the stripper where it has always lived.
@@ -184,8 +184,11 @@ export function useSubtitles(): [Caption | null, SubtitleControls] {
         drain(false);
       },
       finish: (fullText) => {
-        drain(true);
-        if (!spoken) speakSentence(fullText);
+        // Only speak a short natural-language conclusion after the complete answer is known.
+        // Streaming output can contain file dumps, tool data or credential-shaped material.
+        buffer = '';
+        const summary = speechSummary(fullText);
+        if (summary) speakSentence(summary);
         finished = true;
         if (pending === 0) scheduleHide(HIDE_AFTER_MS);
       },
