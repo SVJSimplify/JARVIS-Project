@@ -363,7 +363,7 @@ TOOLS.list_capabilities = {
     'List EVERY capability you actually have, generated live from the tool registry: each tool with its group, one-line purpose, required and optional parameters, plus the delegation agents and the hard policy limits. Use it when unsure which tool fits, when asked what you can do, or to check whether a capability exists — never claim a capability is missing without checking here and load_tools first.',
   parameters: {
     type: 'object',
-    properties: { group: { type: 'string', description: 'Optional filter: browser, desktop, files, productivity or core.' } },
+    properties: { group: { type: 'string', description: 'Optional filter: browser, desktop, files, research, system, memory, productivity, integrations, orchestration, documents, advanced or core.' } },
   },
   run: (args) => {
     const registry = toolRegistry();
