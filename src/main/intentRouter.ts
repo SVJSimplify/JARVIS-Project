@@ -76,7 +76,7 @@ const RULES: IntentRule[] = [
   {
     id: 'memory',
     label: 'personal memory and preferences',
-    pattern: /\\b(?:remember|forget|memory|memories|preference|i prefer|i like|my usual|my name|contact|phone number|notes?|goal|habit)\\b/i,
+    pattern: /\b(?:remember|forget|memory|memories|preference|i prefer|i like|my usual|my name|contact|phone number|notes?|goal|habit)\b/i,
     weight: 3,
     groups: ['memory'],
     preferredTools: ['remember', 'find_memory', 'list_memories', 'add_note', 'read_notes', 'find_contact'],
@@ -85,7 +85,7 @@ const RULES: IntentRule[] = [
   {
     id: 'system',
     label: 'computer and system diagnostics',
-    pattern: /\\b(?:computer health|system info|hardware|cpu|ram|memory usage|battery|bluetooth|paired devices|running processes|drive capacity|disk usage|storage|files in [a-z]:)\\b/i,
+    pattern: /\b(?:computer health|system info|hardware|cpu|ram|memory usage|battery|bluetooth|paired devices|running processes|drive capacity|disk usage|storage|files in [a-z]:)\b/i,
     weight: 4,
     groups: ['system', 'desktop'],
     preferredTools: ['get_system_info', 'list_drives', 'list_processes', 'analyze_storage', 'bluetooth_scan', 'execution_status'],
@@ -94,7 +94,7 @@ const RULES: IntentRule[] = [
   {
     id: 'integrations',
     label: 'external developer-service integration',
-    pattern: /\\b(?:github|git ?lab|vercel|netlify|deploy(?:ment)?|pull request|\\bpr\\b|issues?|workflow runs?|ci pipeline|webhook)\\b/i,
+    pattern: /\b(?:github|git ?lab|vercel|netlify|deploy(?:ment)?|pull request|\bpr\b|issues?|workflow runs?|ci pipeline|webhook)\b/i,
     weight: 4,
     groups: ['integrations'],
     preferredTools: ['github_status', 'github_list_repos', 'github_list_branches', 'github_list_workflow_runs', 'vercel_status', 'vercel_list_deployments'],
@@ -103,7 +103,7 @@ const RULES: IntentRule[] = [
   {
     id: 'orchestration',
     label: 'multi-step or long-running work',
-    pattern: /\\b(?:audit|overhaul|upgrade|deep dive|in.?depth|massive|major|end[- ]to[- ]end|from scratch|multi.?step|multiple phases|background task|delegate|sub.?agent|parallel tasks|long.?running|project workflow|implement (?:a|the) full)\\b/i,
+    pattern: /\b(?:audit|overhaul|upgrade|deep dive|in.?depth|massive|major|end[- ]to[- ]end|from scratch|multi.?step|multiple phases|background task|delegate|sub.?agent|parallel tasks|long.?running|project workflow|implement (?:a|the) full)\b/i,
     weight: 4,
     groups: ['orchestration'],
     preferredTools: ['start_task', 'parallel_tasks', 'task_status', 'task_resume', 'quality_gate', 'todo_write'],
@@ -112,7 +112,7 @@ const RULES: IntentRule[] = [
   {
     id: 'documents',
     label: 'document and visual deliverable',
-    pattern: /\\b(?:create|make|generate|export|convert|read|open)\\b.{0,50}\\b(?:document|docx|pdf|spreadsheet|xlsx|excel|slides|presentation|pptx|report|chart|diagram)\\b/i,
+    pattern: /\b(?:create|make|generate|export|convert|read|open)\b.{0,50}\b(?:document|docx|pdf|spreadsheet|xlsx|excel|slides|presentation|pptx|report|chart|diagram)\b/i,
     weight: 4,
     groups: ['documents', 'files'],
     preferredTools: ['make_document', 'read_document', 'write_file', 'show_visual'],
@@ -167,7 +167,7 @@ export function routeIntent(text: string): { primary: IntentRoute; secondary: In
   const primary = toRoute(first, confidence);
   const secondary = scored.slice(1, 3).map((item) => toRoute(item, item.score >= 3 ? 'medium' : 'low'));
   const groups = [...new Set([primary, ...secondary].flatMap((route) => route.groups))];
-  if (/\\b(?:audit|overhaul|upgrade|deep dive|in.?depth|massive|major|end[- ]to[- ]end|from scratch|multi.?step|multiple phases|long.?running)\\b/i.test(source)) {
+  if (/\b(?:audit|overhaul|upgrade|deep dive|in.?depth|massive|major|end[- ]to[- ]end|from scratch|multi.?step|multiple phases|long.?running)\b/i.test(source)) {
     groups.push('orchestration');
   }
   const prompt = [
