@@ -571,7 +571,7 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
       // (conflict/cancelled/error kinds); the ^NOT DONE text contract stays as the
       // fallback soft-failure marker for tools that have not adopted setToolStatus yet.
       const scoped = currentToolStatus();
-      const softFail = scoped.soft === true || /^NOT DONE/.test(out);
+      const softFail = scoped.soft === true || scoped.status === 'error' || /^NOT DONE/.test(out);
       recordTool(name, Date.now() - t0, softFail ? out : undefined);
       noteUsed(name);
       const note = name !== requested ? ` (ran as ${name})` : '';
