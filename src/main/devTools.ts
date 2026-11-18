@@ -155,9 +155,9 @@ const runShell = (
       : result.status === 'launch_failed' ? `could not start (${result.errorCode ?? 'unknown launch error'})`
       : result.status === 'failed' ? `exited with code ${result.exitCode ?? 'unknown'}`
       : 'not completed';
-    const output = [result.stdout && `STDOUT:\\n${result.stdout.trim()}`, result.stderr && `STDERR:\\n${result.stderr.trim()}`].filter(Boolean).join('\\n');
+    const output = [result.stdout && `STDOUT:\n${result.stdout.trim()}`, result.stderr && `STDERR:\n${result.stderr.trim()}`].filter(Boolean).join('\n');
     const meta = `exit ${result.exitCode ?? 'n/a'} · process ${result.durationMs}ms · queue ${result.queueWaitMs}ms${result.outputTruncated ? ' · output truncated at 2 MiB' : ''}`;
-    return `${label}: ${reason}. ${meta}${output ? `\\n${output}` : '\\n(no output)'}`;
+    return `${label}: ${reason}. ${meta}${output ? `\n${output}` : '\n(no output)'}`;
   });
 };
 
