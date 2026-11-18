@@ -115,7 +115,6 @@ export default function App() {
   const speak = useCallback(
     (text: string) => {
       subtitles.begin();
-      subtitles.push(text);
       subtitles.finish(text);
     },
     [subtitles]
