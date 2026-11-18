@@ -120,7 +120,11 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
   const startedAt = Date.now();
 
   try {
-    if (request.signal?.aborted) return emptyResult('cancelled', queueWaitMs, 'aborted-before-launch');
+    if (request.signal?.aborted) {
+      const result = emptyResult('cancelled', queueWaitMs, 'aborted-before-launch');
+      setToolExecutionMetrics({ queueWaitMs, processMs: 0, processStatus: result.status });
+      return result;
+    }
 
     const result = await new Promise<ProcessResult>((resolve) => {
       let stdout = '';
