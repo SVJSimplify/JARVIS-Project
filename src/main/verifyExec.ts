@@ -117,9 +117,7 @@ export const runCmd = async (command: string, cwd: string, timeout: number): Pro
         ? `TIMEOUT after ${Math.round(timeout / 1000)}s · ${result.durationMs}ms`
         : result.status === 'queue_timed_out'
           ? `QUEUE TIMEOUT after ${result.queueWaitMs}ms`
-          : result.status === 'queue_timed_out'
-          ? `QUEUE TIMEOUT after ${result.queueWaitMs}ms`
-        : result.status === 'cancelled'
+          : result.status === 'cancelled'
           ? `CANCELLED · ${result.durationMs}ms`
           : result.status === 'launch_failed'
             ? `LAUNCH FAILED (${result.errorCode ?? 'unknown'}) · ${result.durationMs}ms`
@@ -134,6 +132,11 @@ export const runCmd = async (command: string, cwd: string, timeout: number): Pro
       id,
       t: t0,
       ms: Date.now() - t0,
+      queueWaitMs: result.queueWaitMs,
+      processMs: result.durationMs,
+      processStatus: result.status,
+      processExitCode: result.exitCode,
+      processPid: result.pid,
       tool: 'verify_command',
       agent: 'verifier',
       args: `command=${command}`,
