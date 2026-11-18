@@ -3,6 +3,14 @@ import { acquireExecutionSlot, executionSchedulerSnapshot, resetExecutionSchedul
 import { setToolExecutionMetrics } from '../toolResult';
 
 export type ProcessResource = ExecutionResource;
+
+/** Resource classification is scheduling metadata only; it never changes command policy.
+ * Build/test/package toolchains share one exclusive slot, while ordinary shell inspection
+ * uses the lighter command pool. */
+export const processResourceForCommand = (command: string): ProcessResource =>
+  /\\b(?:npm|pnpm|yarn|bun)\\s+(?:(?:run|exec)\\s+)?(?:build|test|typecheck|lint|check|compile|package|ci|install)\\b|\\b(?:tsc|vite|vitest|jest|playwright|pytest|cargo|rustc|electron-builder|gradle|mvn|dotnet|cmake|make)\\b/i.test(command)
+    ? 'build'
+    : 'command';
 export type ProcessStatus = 'success' | 'failed' | 'timed_out' | 'queue_timed_out' | 'cancelled' | 'launch_failed';
 
 export interface ProcessResult {
