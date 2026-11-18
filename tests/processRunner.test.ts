@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { currentToolExecutionMetrics, runWithExecutionScope } from '../src/main/toolResult';
 import {
+  processResourceForCommand,
   processSchedulerSnapshot,
   resetProcessSchedulerForTests,
   runProcess,
@@ -12,6 +13,14 @@ const script = (source: string) => ['-e', source];
 afterEach(() => resetProcessSchedulerForTests());
 
 describe('shared process runner', () => {
+  it('routes common build and test commands into the exclusive build resource', () => {
+    expect(processResourceForCommand('npm run build')).toBe('build');
+    expect(processResourceForCommand('npx --no-install tsc --noEmit')).toBe('build');
+    expect(processResourceForCommand('pytest -q')).toBe('build');
+    expect(processResourceForCommand('Get-ChildItem D:\\')).toBe('command');
+    expect(processResourceForCommand('git status --short')).toBe('command');
+  });
+
   it('returns stdout, exit code and separate queue/execution timings', async () => {
     const result = await runProcess({
       executable: node,
