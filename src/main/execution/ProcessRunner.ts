@@ -42,15 +42,17 @@ const emptyResult = (status: ProcessStatus, queueWaitMs: number, errorCode?: str
   outputTruncated: false,
 });
 
-const killProcessTree = (child: ChildProcess): ReturnType<typeof setTimeout> | undefined => {
+const killProcessTree = (child: ChildProcess, onCleanup: () => void): ReturnType<typeof setTimeout> | undefined => {
   const pid = child.pid;
   if (!pid) {
     child.kill();
+    onCleanup();
     return undefined;
   }
   if (process.platform === 'win32') {
-    // taskkill /T closes descendants as well as the PowerShell wrapper.
-    execFile('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 3000 }, () => undefined);
+    // taskkill /T closes descendants as well as the PowerShell wrapper. Keep the scheduler
+    // slot until taskkill has finished so descendants are not competing with the next job.
+    execFile('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 3000 }, () => onCleanup());
     child.kill();
     return undefined;
   }
@@ -60,11 +62,15 @@ const killProcessTree = (child: ChildProcess): ReturnType<typeof setTimeout> | u
     child.kill('SIGTERM');
   }
   const hardKill = setTimeout(() => {
+    // The group may outlive its parent. Check it after the grace period and kill any
+    // descendants that ignored SIGTERM before releasing the process resource slot.
     try {
+      process.kill(-pid, 0);
       process.kill(-pid, 'SIGKILL');
     } catch {
-      child.kill('SIGKILL');
+      /* the whole process group exited during the grace period */
     }
+    onCleanup();
   }, 800);
   hardKill.unref();
   return hardKill;
@@ -103,6 +109,8 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
       let settled = false;
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       let hardKillHandle: ReturnType<typeof setTimeout> | undefined;
+      let treeCleanupPending = false;
+      let closeResultPending: ProcessResult | undefined;
       let child: ChildProcess;
 
       const append = (stream: 'stdout' | 'stderr', chunk: Buffer | string): void => {
@@ -129,7 +137,7 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
         if (settled) return;
         settled = true;
         if (timeoutHandle) clearTimeout(timeoutHandle);
-        if (hardKillHandle) clearTimeout(hardKillHandle);
+        if (hardKillHandle && !treeCleanupPending) clearTimeout(hardKillHandle);
         request.signal?.removeEventListener('abort', onAbort);
         ticket.release();
         resolve(result);
@@ -138,7 +146,13 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
       const onAbort = (): void => {
         if (killReason || settled) return;
         killReason = 'cancelled';
-        if (child) hardKillHandle = killProcessTree(child);
+        if (child) {
+          treeCleanupPending = true;
+          hardKillHandle = killProcessTree(child, () => {
+            treeCleanupPending = false;
+            if (closeResultPending) finalize(closeResultPending);
+          });
+        }
       };
 
       try {
@@ -177,7 +191,7 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
       });
       child.once('close', (code, closeSignal) => {
         const status: ProcessStatus = killReason ?? (code === 0 ? 'success' : 'failed');
-        finalize({
+        const result: ProcessResult = {
           status,
           exitCode: code,
           signal: closeSignal,
@@ -187,13 +201,19 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
           queueWaitMs,
           pid: child.pid,
           outputTruncated,
-        });
+        };
+        if (treeCleanupPending) closeResultPending = result;
+        else finalize(result);
       });
 
       timeoutHandle = setTimeout(() => {
         if (settled || killReason) return;
         killReason = 'timed_out';
-        hardKillHandle = killProcessTree(child);
+        treeCleanupPending = true;
+        hardKillHandle = killProcessTree(child, () => {
+          treeCleanupPending = false;
+          if (closeResultPending) finalize(closeResultPending);
+        });
       }, timeoutMs);
       timeoutHandle.unref();
 
