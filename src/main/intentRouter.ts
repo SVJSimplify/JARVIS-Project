@@ -88,7 +88,7 @@ const RULES: IntentRule[] = [
     pattern: /\\b(?:computer health|system info|hardware|cpu|ram|memory usage|battery|bluetooth|paired devices|running processes|drive capacity|disk usage|storage|files in [a-z]:)\\b/i,
     weight: 4,
     groups: ['system', 'desktop'],
-    preferredTools: ['get_system_info', 'list_drives', 'list_processes', 'analyze_storage', 'bluetooth_scan', 'get_execution_status'],
+    preferredTools: ['get_system_info', 'list_drives', 'list_processes', 'analyze_storage', 'bluetooth_scan', 'execution_status'],
     guidance: 'Prefer purpose-built system and diagnostic tools over ad-hoc shell. Use analyze_storage for folder/drive footprints, list_processes for process inventories, and get_execution_status to inspect JINI execution queues.',
   },
   {
