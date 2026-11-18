@@ -1,7 +1,8 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { acquireExecutionSlot, executionSchedulerSnapshot, resetExecutionSchedulerForTests, QueueTimeoutError, type ExecutionResource } from './ExecutionScheduler';
 
-export type ProcessResource = 'command' | 'system' | 'build';
-export type ProcessStatus = 'success' | 'failed' | 'timed_out' | 'cancelled' | 'launch_failed';
+export type ProcessResource = ExecutionResource;
+export type ProcessStatus = 'success' | 'failed' | 'timed_out' | 'queue_timed_out' | 'cancelled' | 'launch_failed';
 
 export interface ProcessResult {
   status: ProcessStatus;
@@ -25,79 +26,9 @@ export interface ProcessRequest {
   maxOutputBytes?: number;
   resource?: ProcessResource;
   signal?: AbortSignal;
+  queueTimeoutMs?: number;
   onOutput?: (stream: 'stdout' | 'stderr', chunk: string) => void;
 }
-
-const GLOBAL_LIMIT = 4;
-const RESOURCE_LIMITS: Record<ProcessResource, number> = {
-  command: 2,
-  system: 2,
-  build: 1,
-};
-
-interface Waiter {
-  resource: ProcessResource;
-  signal?: AbortSignal;
-  queuedAt: number;
-  resolve: (ticket: { queueWaitMs: number; release: () => void }) => void;
-  reject: (error: Error) => void;
-  onAbort: () => void;
-}
-
-let activeTotal = 0;
-const activeByResource: Record<ProcessResource, number> = { command: 0, system: 0, build: 0 };
-const waiters: Waiter[] = [];
-
-const pump = (): void => {
-  while (activeTotal < GLOBAL_LIMIT) {
-    const index = waiters.findIndex((w, i) => {
-      if (w.signal?.aborted || activeByResource[w.resource] >= RESOURCE_LIMITS[w.resource]) return false;
-      // Preserve FIFO ordering inside each resource class while allowing another class
-      // to use an otherwise-idle global slot.
-      return !waiters.slice(0, i).some((prior) => prior.resource === w.resource);
-    });
-    if (index < 0) return;
-    const [waiter] = waiters.splice(index, 1);
-    waiter.signal?.removeEventListener('abort', waiter.onAbort);
-    activeTotal++;
-    activeByResource[waiter.resource]++;
-    let released = false;
-    waiter.resolve({
-      queueWaitMs: Math.max(0, Date.now() - waiter.queuedAt),
-      release: () => {
-        if (released) return;
-        released = true;
-        activeTotal = Math.max(0, activeTotal - 1);
-        activeByResource[waiter.resource] = Math.max(0, activeByResource[waiter.resource] - 1);
-        pump();
-      },
-    });
-  }
-};
-
-const acquire = (resource: ProcessResource, signal?: AbortSignal) =>
-  new Promise<{ queueWaitMs: number; release: () => void }>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new Error('Interrupted while waiting for a process slot.'));
-      return;
-    }
-    const waiter: Waiter = {
-      resource,
-      signal,
-      queuedAt: Date.now(),
-      resolve,
-      reject,
-      onAbort: () => {
-        const index = waiters.indexOf(waiter);
-        if (index >= 0) waiters.splice(index, 1);
-        reject(new Error('Interrupted while waiting for a process slot.'));
-        pump();
-      },
-    };
-    signal?.addEventListener('abort', waiter.onAbort, { once: true });
-    waiters.push(waiter);
-    pump();
-  });
 
 const emptyResult = (status: ProcessStatus, queueWaitMs: number, errorCode?: string): ProcessResult => ({
   status,
@@ -148,9 +79,11 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
   const resource = request.resource ?? 'command';
   let ticket: { queueWaitMs: number; release: () => void };
   try {
-    ticket = await acquire(resource, request.signal);
+    ticket = await acquireExecutionSlot(resource, request.signal, request.queueTimeoutMs ?? 60_000);
   } catch (error) {
-    return emptyResult('cancelled', 0, error instanceof Error ? error.message : String(error));
+    return error instanceof QueueTimeoutError
+      ? { ...emptyResult('queue_timed_out', error.queueWaitMs, error.message), durationMs: 0 }
+      : emptyResult('cancelled', 0, error instanceof Error ? error.message : String(error));
   }
 
   const queueWaitMs = ticket.queueWaitMs;
@@ -271,18 +204,5 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
   }
 }
 
-export const processSchedulerSnapshot = () => ({
-  active: activeTotal,
-  queued: waiters.length,
-  byResource: { ...activeByResource },
-  queuedByResource: {
-    command: waiters.filter((w) => w.resource === 'command').length,
-    system: waiters.filter((w) => w.resource === 'system').length,
-    build: waiters.filter((w) => w.resource === 'build').length,
-  },
-});
-
-export const resetProcessSchedulerForTests = (): void => {
-  // Tests may reset only while no process is active; active releases remain authoritative.
-  waiters.splice(0, waiters.length);
-};
+export const processSchedulerSnapshot = executionSchedulerSnapshot;
+export const resetProcessSchedulerForTests = resetExecutionSchedulerForTests;
