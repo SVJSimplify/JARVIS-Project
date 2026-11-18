@@ -20,6 +20,7 @@ import { recoveryTools } from './opsCenter';
 import { playbookTools } from './workflowPlaybooks';
 import { systemTools } from './systemTools';
 import { storageTools } from './storageTools';
+import { processSchedulerSnapshot } from './execution/ProcessRunner';
 import { recentTools, recordTool } from './toolLog';
 import { assessRisk, type Risk } from './guard';
 import { authorize, classifyToolAction } from './permission';
@@ -341,6 +342,7 @@ TOOLS.execution_status = {
       `Commands: ${s.byResource.command}/2 active · ${s.queuedByResource.command} queued`,
       `System: ${s.byResource.system}/2 active · ${s.queuedByResource.system} queued`,
       `Builds: ${s.byResource.build}/1 active · ${s.queuedByResource.build} queued`,
+      `Warm PowerShell: ${s.byResource.persistent_shell}/1 active · ${s.queuedByResource.persistent_shell} queued`,
     ].join('\n');
   },
 };
