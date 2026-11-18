@@ -1,0 +1,53 @@
+name: JINI CI
+
+on:
+  push:
+    branches:
+      - jini-mvp-chatgpt
+  pull_request:
+    branches:
+      - jini-mvp-chatgpt
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jini-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, typecheck, test and build
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test -- --reporter=dot
+
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Build Electron main process
+        run: npm run build:main
+
+      - name: Build preload
+        run: npm run build:preload
