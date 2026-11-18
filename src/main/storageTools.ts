@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import type { Tool } from './toolTypes';
 import { emitActivity } from './modes';
+import { setToolStatus } from './toolResult';
 
 interface ScanResult {
   path: string;
@@ -180,6 +181,7 @@ export const storageTools: Record<string, Tool> = {
         truncated ? 'SCAN INCOMPLETE: the item or 120-second scan budget was reached. Narrow the folder or run another focused scan.' : 'SCAN COMPLETE.',
       ];
       if (truncated) {
+        setToolStatus({ status: 'error', errorKind: 'partial-scan', soft: true });
         lines.unshift('PARTIAL:');
       }
       emitActivity({
