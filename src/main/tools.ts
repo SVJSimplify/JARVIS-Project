@@ -44,7 +44,7 @@ import { telemetryTools } from './telemetry';
 import { awarenessTools } from './awareness';
 import { FILES_ROOT, clearWorkspaceNotice, displayPath, fsExplain, resolveRead, resolveSafe, resolveWrite, revalidateReadTarget, revalidateWriteTarget, workspaceNotice } from './workspace';
 import { laptopTools } from './laptopTools';
-import { currentSchemas, currentIntentPrompt, loadGroups, noteUsed, routeTurn, setAllSchemas } from './toolRouter';
+import { currentSchemas, inferToolGroup, loadGroups, noteUsed, routeTurn, setAllSchemas } from './toolRouter';
 import { agentToolScope } from './agentToolSelection';
 import { checkArgs, parseArgs, resolveTool } from './toolArgs';
 import { emitActivity } from './modes';
