@@ -1,16 +1,39 @@
 import { clipboard, desktopCapturer, screen, shell } from 'electron';
-import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { promisify } from 'util';
 import { findCustomApp } from './extraTools';
 import { runProcess } from './execution/ProcessRunner';
 import { setMini } from './hud';
 import type { Tool } from './toolTypes';
 import { FILES_ROOT } from './workspace';
 
-const run = promisify(execFile);
+const run = async (
+  executable: string,
+  args: string[],
+  options: { timeout?: number; env?: NodeJS.ProcessEnv } = {}
+): Promise<{ stdout: string; stderr: string }> => {
+  const result = await runProcess({
+    executable,
+    args,
+    cwd: process.cwd(),
+    timeoutMs: options.timeout ?? 15_000,
+    maxOutputBytes: 2 * 1024 * 1024,
+    resource: 'system',
+    env: options.env,
+  });
+  if (result.status !== 'success') {
+    const message = result.status === 'timed_out'
+      ? `Process timed out after ${Math.round((options.timeout ?? 15_000) / 1000)}s`
+      : result.status === 'cancelled'
+        ? 'Process was cancelled'
+        : result.status === 'launch_failed'
+          ? `Process could not start (${result.errorCode ?? 'unknown'})`
+          : `Process exited with code ${result.exitCode ?? 'unknown'}`;
+    throw new Error(`${message}. ${result.stderr.trim().slice(0, 1200)}`.trim());
+  }
+  return { stdout: result.stdout, stderr: result.stderr };
+};
 const MAX_CLIPBOARD_CHARS = 4000;
 /** Only these programs can be launched. Add entries here to allow more. */
 const APPS: Record<string, string> = {
@@ -22,28 +45,11 @@ const APPS: Record<string, string> = {
 };
 const APP_NAMES = [...Object.keys(APPS), 'settings'];
 
-const ps = async (script: string, arg = '', timeoutMs = 15000) => {
-  const result = await runProcess({
-    executable: 'powershell.exe',
-    args: ['-NoProfile', '-NonInteractive', '-Command', script],
-    cwd: process.cwd(),
-    timeoutMs,
-    maxOutputBytes: 2 * 1024 * 1024,
-    resource: 'system',
+const ps = (script: string, arg = '', timeoutMs = 15000) =>
+  run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+    timeout: timeoutMs,
     env: { JARVIS_ARG: arg },
   });
-  if (result.status !== 'success') {
-    const detail = result.status === 'timed_out'
-      ? `PowerShell timed out after ${Math.round(timeoutMs / 1000)}s`
-      : result.status === 'cancelled'
-        ? 'PowerShell operation was cancelled'
-        : result.status === 'launch_failed'
-          ? `PowerShell could not start (${result.errorCode ?? 'unknown error'})`
-          : `PowerShell exited with code ${result.exitCode ?? 'unknown'}`;
-    throw new Error(`${detail}. ${result.stderr.trim().slice(0, 1200)}`.trim());
-  }
-  return { stdout: result.stdout, stderr: result.stderr };
-};
 
 const requireWindows = () => {
   if (process.platform !== 'win32') throw new Error('This control is only supported on Windows.');
