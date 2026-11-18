@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { routeIntent } from '../src/main/intentRouter';
 import { inferToolGroup, setAllSchemas, routeTurn, currentSchemas, unloadedGroups, loadGroups } from '../src/main/toolRouter';
 import type { ToolSchema } from '../src/main/llm';
+import { agentToolScope } from '../src/main/agentToolSelection';
 
 const schema = (name: string): ToolSchema => ({
   type: 'function',
@@ -31,6 +32,22 @@ describe('intent routing', () => {
     expect(routeIntent('Check my GitHub workflow runs').groups).toContain('integrations');
     expect(routeIntent('What is using my RAM?').groups).toContain('system');
     expect(routeIntent('Create a PDF report').groups).toContain('documents');
+  });
+
+  it('scopes specialist tool families to both their role and the assigned task', () => {
+    const storage = agentToolScope('general', 'Check which files in D: are taking the most space');
+    expect(storage.families).toContain('files');
+    expect(storage.families).toContain('system');
+    expect(storage.families).not.toContain('integrations');
+    expect(storage.families).not.toContain('browser');
+
+    const research = agentToolScope('research', 'Compare the latest browser automation frameworks');
+    expect(research.families).toContain('research');
+    expect(research.families).not.toContain('desktop');
+
+    const desktop = agentToolScope('desktop', 'Open Notepad and type a note');
+    expect(desktop.families).toContain('desktop');
+    expect(desktop.families).not.toContain('integrations');
   });
 
   it('maps tools to a single family and puts unknown specialists in advanced', () => {
