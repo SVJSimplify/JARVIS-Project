@@ -51,15 +51,19 @@ function exec(line: string, id: number, timeoutMs: number, signal?: AbortSignal)
   return new Promise((resolve, reject) => {
     let settled = false;
     let timer: NodeJS.Timeout | null = null;
-    const finish = (fn: (value: any) => void, value: any): void => {
-      if (settled) return;
+    const cleanup = (): boolean => {
+      if (settled) return false;
       settled = true;
       if (timer) clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
-      fn(value);
+      return true;
     };
-    const ok = (value: string): void => finish(resolve, value);
-    const bad = (error: Error): void => finish(reject, error);
+    const ok = (value: string): void => {
+      if (cleanup()) resolve(value);
+    };
+    const bad = (error: Error): void => {
+      if (cleanup()) reject(error);
+    };
     const onAbort = (): void => {
       if (settled) return;
       bad(new Error('PowerShell operation cancelled.'));
