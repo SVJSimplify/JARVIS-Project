@@ -28,11 +28,11 @@ export function speakable(raw: string): string {
     .trim();
 }
 
-const CREDENTIAL_LABEL = /\\b(?:api|access|private|secret|bearer)[\\s_-]*(?:keys?|tokens?|credentials?)\\b/i;
-const CREDENTIAL_DISCOVERY = /\\b(?:found|detected|located|extracted|discovered|identified|scanned)\\b/i;
+const CREDENTIAL_LABEL = /\b(?:api|access|private|secret|bearer)[\s_-]*(?:keys?|tokens?|credentials?)\b/i;
+const CREDENTIAL_DISCOVERY = /\b(?:found|detected|located|extracted|discovered|identified|scanned)\b/i;
 const SECRET_MATERIAL = /(?:gh[pousr]_[A-Za-z0-9_]{16,}|github_pat_[A-Za-z0-9_]{16,}|(?:sk|rk|pk)_[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i;
-const FILE_PATH_LINE = /(?:^[A-Za-z]:\\\\|^\\\\\\\\|^\\/(?:Users|home|etc|var|tmp)\\/)/i;
-const STRUCTURED_LINE = /^(?:\\s*(?:[-*+]\\s+|\\d+[.)]\\s+)|\\s*[{[]|\\s*[-=]{3,}\\s*$)/;
+const FILE_PATH_LINE = /(?:^[A-Za-z]:\\|^\\\\|^\/(?:Users|home|etc|var|tmp)\/)/i;
+const STRUCTURED_LINE = /^(?:\s*(?:[-*+]\s+|\d+[.)]\s+)|\s*[{[]|\s*[-=]{3,}\s*$)/;
 
 /**
  * Produce the short, conversational voice response. The transcript keeps the complete
@@ -46,20 +46,20 @@ export function speechSummary(raw: string): string {
   }
 
   const plain = source
-    .replace(/<think>[\\s\\S]*?<\\/think>/gi, ' ')
-    .replace(/\\x60\\x60\\x60[\\s\\S]*?\\x60\\x60\\x60/g, ' ')
-    .replace(/\\x60[^\\x60]*\\x60/g, ' ')
-    .split(/\\r?\\n/)
+    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+    .replace(/\x60\x60\x60[\s\S]*?\x60\x60\x60/g, ' ')
+    .replace(/\x60[^\x60]*\x60/g, ' ')
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .filter((line) => !STRUCTURED_LINE.test(line))
     .filter((line) => !FILE_PATH_LINE.test(line))
-    .filter((line) => !/(?:api[_ -]?key|secret|password|bearer|access[_ -]?token|private[_ -]?key)\\s*(?:=|:|->)/i.test(line))
+    .filter((line) => !/(?:api[_ -]?key|secret|password|bearer|access[_ -]?token|private[_ -]?key)\s*(?:=|:|->)/i.test(line))
     .join(' ');
 
   const cleaned = speakable(plain)
-    .replace(/\\b(?:[A-Za-z]:\\\\[^ ]+|\\\\\\\\[^ ]+)\\b/g, '')
-    .replace(/\\s+/g, ' ')
+    .replace(/\b(?:[A-Za-z]:\\[^ ]+|\\\\[^ ]+)\b/g, '')
+    .replace(/\s+/g, ' ')
     .trim();
   if (!cleaned) return "I've finished. The detailed result is on screen.";
 
@@ -69,7 +69,7 @@ export function speechSummary(raw: string): string {
   for (const sentence of sentences) {
     const s = sentence.trim();
     if (!s) continue;
-    const count = s.split(/\\s+/).length;
+    const count = s.split(/\s+/).length;
     if (selected.length >= 2 || words + count > 42) break;
     selected.push(s);
     words += count;
