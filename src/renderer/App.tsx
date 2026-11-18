@@ -87,8 +87,8 @@ export default function App() {
       try {
         const reply = await window.electronAPI.ai.chat(
           cmd,
-          (d: string) => live && turnRef.current === my && subtitles.push(d),
-          (n: string) => live && turnRef.current === my && subtitles.progress(n)
+          () => undefined // Hold speech until the final answer can be safely summarized.
+
         );
         if (turnRef.current !== my) return setReply('(interrupted)');
         if (live) {
