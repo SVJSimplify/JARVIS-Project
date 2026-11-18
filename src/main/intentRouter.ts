@@ -24,7 +24,7 @@ const RULES: IntentRule[] = [
     label: 'disk and storage analysis',
     pattern: /\b(?:disk ?space|storage|taking (?:up )?(?:the )?(?:most|maximum) space|what(?:'s| is) using (?:the )?(?:most|maximum) space|largest files|biggest files|drive usage|folder sizes|space on [a-z]:|files? (?:that|which) (?:take|takes|taking|uses?|are taking) up space|files? in [a-z]:)\b|\b[a-z]:/i,
     weight: 6,
-    groups: ['files'],
+    groups: ['files', 'system'],
     preferredTools: ['analyze_storage'],
     guidance: 'For disk/folder footprint questions, use analyze_storage once for the requested root. Do not improvise repeated PowerShell du commands or recursively call list_files.',
   },
@@ -72,6 +72,51 @@ const RULES: IntentRule[] = [
     groups: [],
     preferredTools: ['search_and_read', 'tinyfish_search', 'tinyfish_fetch', 'fetch_url', 'code_search'],
     guidance: 'Prefer headless research and fetch source material only as deep as the answer requires. Cross-check material claims; do not open the visible browser for ordinary research.',
+  },
+  {
+    id: 'memory',
+    label: 'personal memory and preferences',
+    pattern: /\\b(?:remember|forget|memory|memories|preference|i prefer|i like|my usual|my name|contact|phone number|notes?|goal|habit)\\b/i,
+    weight: 3,
+    groups: ['memory'],
+    preferredTools: ['remember', 'find_memory', 'list_memories', 'add_note', 'read_notes', 'find_contact'],
+    guidance: 'Use persistent memory only for durable preferences and facts; use notes for temporary information. Never infer a sensitive fact from context.',
+  },
+  {
+    id: 'system',
+    label: 'computer and system diagnostics',
+    pattern: /\\b(?:computer health|system info|hardware|cpu|ram|memory usage|battery|bluetooth|paired devices|running processes|drive capacity|disk usage|storage|files in [a-z]:)\\b/i,
+    weight: 4,
+    groups: ['system', 'desktop'],
+    preferredTools: ['get_system_info', 'list_drives', 'list_processes', 'analyze_storage', 'bluetooth_scan', 'get_execution_status'],
+    guidance: 'Prefer purpose-built system and diagnostic tools over ad-hoc shell. Use analyze_storage for folder/drive footprints, list_processes for process inventories, and get_execution_status to inspect JINI execution queues.',
+  },
+  {
+    id: 'integrations',
+    label: 'external developer-service integration',
+    pattern: /\\b(?:github|git ?lab|vercel|netlify|deploy(?:ment)?|pull request|\\bpr\\b|issues?|workflow runs?|ci pipeline|webhook)\\b/i,
+    weight: 4,
+    groups: ['integrations'],
+    preferredTools: ['github_status', 'github_list_repos', 'github_list_branches', 'github_list_workflow_runs', 'vercel_status', 'vercel_list_deployments'],
+    guidance: 'Inspect remote state before mutation; after creating or changing remote state, read it back and verify the exact result.',
+  },
+  {
+    id: 'orchestration',
+    label: 'multi-step or long-running work',
+    pattern: /\\b(?:audit|overhaul|upgrade|deep dive|in.?depth|massive|major|end[- ]to[- ]end|from scratch|multi.?step|multiple phases|background task|delegate|sub.?agent|parallel tasks|long.?running|project workflow|implement (?:a|the) full)\\b/i,
+    weight: 4,
+    groups: ['orchestration'],
+    preferredTools: ['start_task', 'parallel_tasks', 'task_status', 'task_resume', 'quality_gate', 'todo_write'],
+    guidance: 'For multi-stage work, create a durable outcome plan, execute dependency-aware steps, parallelize independent read-only work only, persist state, and verify deliverables before declaring completion.',
+  },
+  {
+    id: 'documents',
+    label: 'document and visual deliverable',
+    pattern: /\\b(?:create|make|generate|export|convert|read|open)\\b.{0,50}\\b(?:document|docx|pdf|spreadsheet|xlsx|excel|slides|presentation|pptx|report|chart|diagram)\\b/i,
+    weight: 4,
+    groups: ['documents', 'files'],
+    preferredTools: ['make_document', 'read_document', 'write_file', 'show_visual'],
+    guidance: 'Use structured document tools for office formats and validate the saved artifact by reopening it. Do not produce a file via shell when a dedicated renderer exists.',
   },
   {
     id: 'productivity',
@@ -122,6 +167,9 @@ export function routeIntent(text: string): { primary: IntentRoute; secondary: In
   const primary = toRoute(first, confidence);
   const secondary = scored.slice(1, 3).map((item) => toRoute(item, item.score >= 3 ? 'medium' : 'low'));
   const groups = [...new Set([primary, ...secondary].flatMap((route) => route.groups))];
+  if (/\\b(?:audit|overhaul|upgrade|deep dive|in.?depth|massive|major|end[- ]to[- ]end|from scratch|multi.?step|multiple phases|long.?running)\\b/i.test(source)) {
+    groups.push('orchestration');
+  }
   const prompt = [
     `REQUEST INTENT: ${primary.label} (${primary.confidence} confidence).`,
     primary.preferredTools.length ? `Preferred capabilities: ${primary.preferredTools.join(', ')}.` : '',
