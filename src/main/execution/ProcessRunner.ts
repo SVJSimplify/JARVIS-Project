@@ -93,8 +93,10 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
   }
 
   const queueWaitMs = ticket.queueWaitMs;
-  const timeoutMs = Math.max(250, Math.min(600_000, Math.trunc(request.timeoutMs ?? 60_000)));
-  const maxOutputBytes = Math.max(16_384, Math.min(8 * 1024 * 1024, Math.trunc(request.maxOutputBytes ?? 2 * 1024 * 1024)));
+  const requestedTimeout = request.timeoutMs ?? 60_000;
+  const timeoutMs = Number.isFinite(requestedTimeout) ? Math.max(250, Math.min(600_000, Math.trunc(requestedTimeout))) : 60_000;
+  const requestedMaxOutput = request.maxOutputBytes ?? 2 * 1024 * 1024;
+  const maxOutputBytes = Number.isFinite(requestedMaxOutput) ? Math.max(16_384, Math.min(8 * 1024 * 1024, Math.trunc(requestedMaxOutput))) : 2 * 1024 * 1024;
   const startedAt = Date.now();
 
   try {
