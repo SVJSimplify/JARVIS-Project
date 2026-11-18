@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { createRequire } from 'node:module';
+import { localAiPackageRoot } from './localAi';
 import { FILES_ROOT } from './workspace';
 import { atomicWrite, loadJson, withStoreLock } from './store';
 import { pinnedRequest } from './safeNet';
@@ -315,22 +316,12 @@ export const isLocalEmbedderAvailable = async (): Promise<boolean> => {
   if (localPipelineTried) return false;
   localPipelineTried = true;
   try {
-    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-    const roots = [
-      ...(resourcesPath ? [path.join(resourcesPath, 'local-ai', 'package.json')] : []),
-      path.join(process.cwd(), 'package.json'),
-    ];
-    let mod: { pipeline: (task: string, model?: string) => Promise<FeatureExtractor> } | null = null;
-    for (const root of roots) {
-      try {
-        const runtimeRequire = createRequire(root);
-        mod = runtimeRequire('@huggingface/transformers') as typeof mod;
-        if (mod) break;
-      } catch {
-        // Try the next trusted package root. No arbitrary user-controlled module paths.
-      }
-    }
-    if (!mod) return false;
+    const packageRoot = localAiPackageRoot();
+    if (!packageRoot) return false;
+    const runtimeRequire = createRequire(packageRoot);
+    const mod = runtimeRequire('@huggingface/transformers') as {
+      pipeline: (task: string, model?: string) => Promise<FeatureExtractor>;
+    };
     localPipeline = await mod.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
     return true;
   } catch {
