@@ -28,7 +28,7 @@ const RESOURCE_LIMITS: Record<ExecutionResource, number> = {
 
 let nextId = 0;
 let activeTotal = 0;
-const activeByResource: Record<ExecutionResource, number> = { command: 0, system: 0, build: 0 };
+const activeByResource: Record<ExecutionResource, number> = { command: 0, system: 0, build: 0, persistent_shell: 0 };
 const waiters: Waiter[] = [];
 
 const removeWaiter = (waiter: Waiter): boolean => {
