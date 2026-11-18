@@ -176,6 +176,7 @@ export const TESTED_PARALLEL: ReadonlySet<string> = new Set([
   'list_tasks',
   'list_drives',
   'list_processes',
+  'execution_status',
   'list_my_browser_tabs',
   'browser_tabs',
   'browser_read',
