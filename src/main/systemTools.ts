@@ -34,7 +34,7 @@ const run = async (
         : result.status === 'launch_failed'
           ? `Process could not start (${result.errorCode ?? 'unknown'})`
           : `Process exited with code ${result.exitCode ?? 'unknown'}`;
-    throw new Error(`${message}. ${result.stderr.trim().slice(0, 1200)}`.trim());
+    throw new Error(`${message}. Process ${result.durationMs}ms · queue ${result.queueWaitMs}ms. ${result.stderr.trim().slice(0, 1200)}`.trim());
   }
   return { stdout: result.stdout, stderr: result.stderr };
 };
