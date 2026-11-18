@@ -296,7 +296,7 @@ export function manifestReport(manifest: CapabilityManifest): string {
     // summaries for exactly the group asked about.
     const line = `${t.name} (${t.group})${t.required.length ? ` [required: ${t.required.join(', ')}]` : ''}`;
     if (lines.join('\n').length + line.length + 1 > budget) {
-      lines.push(`… ${tools.length - lines.length} further tools omitted here — call list_capabilities with a group filter (browser, desktop, files, productivity, core) to see them.`);
+      lines.push(`… ${tools.length - lines.length} further tools omitted here — call list_capabilities with a group filter (browser, desktop, files, research, system, memory, productivity, integrations, orchestration, documents, advanced, core) to see them.`);
       break;
     }
     lines.push(line);
