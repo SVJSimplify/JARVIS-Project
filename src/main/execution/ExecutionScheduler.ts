@@ -1,4 +1,4 @@
-export type ExecutionResource = 'command' | 'system' | 'build';
+export type ExecutionResource = 'command' | 'system' | 'build' | 'persistent_shell';
 export class QueueTimeoutError extends Error {
   constructor(readonly queueWaitMs: number) {
     super(`Execution queue wait exceeded ${Math.ceil(queueWaitMs / 1000)} seconds.`);
@@ -22,10 +22,11 @@ const RESOURCE_LIMITS: Record<ExecutionResource, number> = {
   command: 2,
   system: 2,
   build: 1,
+  persistent_shell: 1,
 };
 
 let activeTotal = 0;
-const activeByResource: Record<ExecutionResource, number> = { command: 0, system: 0, build: 0 };
+const activeByResource: Record<ExecutionResource, number> = { command: 0, system: 0, build: 0, persistent_shell: 0 };
 const waiters: Waiter[] = [];
 
 const removeWaiter = (waiter: Waiter): boolean => {
@@ -110,6 +111,7 @@ export const executionSchedulerSnapshot = () => ({
     command: waiters.filter((w) => w.resource === 'command').length,
     system: waiters.filter((w) => w.resource === 'system').length,
     build: waiters.filter((w) => w.resource === 'build').length,
+    persistent_shell: waiters.filter((w) => w.resource === 'persistent_shell').length,
   },
 });
 
