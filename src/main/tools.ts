@@ -362,7 +362,6 @@ const TRANSIENT = /Page failed to load|ERR_(TIMED_OUT|NAME_NOT_RESOLVED|INTERNET
  *  tools fuzzy name-matching may ever select (F-10: a guessed name must never act).
  *  browser_open was wrongly admitted here (it acts: it opens pages) and is gone; open_url
  *  stays excluded: a fuzzy-matched guess must never pop a page into the user's browser. */
-const SAFE_RETRY = /^(tinyfish_|search_and_read|web_search|web_browse|fetch_url|get_weather|code_search|read|glob|grep|inspect_app|see_screen|screen_text|get_|list_|find_|browser_(snapshot|read|see|tabs|search)|native_browser_(status|tabs|read|snapshot|screenshot|wait))/;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Read-only tools: when the model asks for several at once they can run in parallel.
@@ -401,7 +400,7 @@ export async function runToolDetailed(requested: string, rawArgs: string): Promi
 
 async function runToolInner(requested: string, rawArgs: string): Promise<ToolResultEnvelope> {
   const t0 = Date.now();
-  const name = resolveTool(requested, TOOLS, (n) => isParallelSafe(n) || SAFE_RETRY.test(n)) ?? requested;
+  const name = resolveTool(requested, TOOLS, isParallelSafe) ?? requested;
   const who = callContext();
   // One correlation id per call: the feed's busy line is replaced in place by the result.
   const cid = `t${t0.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -594,7 +593,7 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
         emitTool({ detail: 'cancelled during run', status: 'fail', cancelled: true, ms: Date.now() - t0 });
         return await finish('cancelled', lastAuth, `CANCELLED: ${name} was stopped mid-run by its execution scope.`, 'cancelled');
       }
-      if (attempt === 0 && SAFE_RETRY.test(name) && TRANSIENT.test(msg)) {
+      if (attempt === 0 && isParallelSafe(name) && TRANSIENT.test(msg)) {
         retries++;
         emitTool({ detail: `transient, retrying: ${clipText(msg)}`, status: 'busy', ms: Date.now() - t0 });
         await sleep(250);
