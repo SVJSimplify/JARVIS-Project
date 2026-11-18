@@ -66,12 +66,8 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 700,
     backgroundColor: '#F3EEE4',
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#F3EEE4',
-      symbolColor: '#74685B',
-      height: 48
-    },
+    frame: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '../../dist/preload/index.js'),
       nodeIntegration: false,
@@ -111,6 +107,12 @@ function createWindow() {
 
   attachHud(mainWindow);
   attachPanel(mainWindow);
+  mainWindow.on('maximize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', true);
+  });
+  mainWindow.on('unmaximize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', false);
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
 
   // DevTools is no longer force-opened in dev: the bundled DevTools emits two benign but
@@ -348,6 +350,24 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+const mainWindowForControl = (event: Electron.IpcMainInvokeEvent): BrowserWindow => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (!senderWindow || senderWindow !== mainWindow || senderWindow.isDestroyed()) {
+    throw new Error('Window controls are only available to the JINI desktop window.');
+  }
+  return senderWindow;
+};
+
+ipcMain.handle('window-minimize', (event) => mainWindowForControl(event).minimize());
+ipcMain.handle('window-toggle-maximize', (event) => {
+  const win = mainWindowForControl(event);
+  if (win.isMaximized()) win.unmaximize();
+  else win.maximize();
+  return win.isMaximized();
+});
+ipcMain.handle('window-is-maximized', (event) => mainWindowForControl(event).isMaximized());
+ipcMain.handle('window-close', (event) => mainWindowForControl(event).close());
 
 ipcMain.handle('get-app-version', () => app.getVersion());
 // Only web links may be handed to the OS shell; anything else (file:, ms-msdt:, ...) can execute code.
