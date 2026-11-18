@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import type { Tool } from './toolTypes';
 import { emitActivity } from './modes';
-import { setToolStatus } from './toolResult';
+import { executionSignal, setToolStatus } from './toolResult';
 
 interface ScanResult {
   path: string;
@@ -89,6 +89,7 @@ export const storageTools: Record<string, Tool> = {
       }
 
       const started = Date.now();
+      const signal = executionSignal();
       const timeBudgetMs = 120_000;
       let entriesSeen = 0;
       let filesSeen = 0;
@@ -100,6 +101,7 @@ export const storageTools: Record<string, Tool> = {
       const largestDirectories: Candidate[] = [];
 
       const walk = async (directory: string, depth: number): Promise<ScanResult> => {
+        if (signal?.aborted) throw new Error('Interrupted');
         if (Date.now() - started >= timeBudgetMs || entriesSeen >= maxItems) {
           truncated = true;
           return { path: directory, bytes: 0, files: 0, directories: 0 };
@@ -117,6 +119,7 @@ export const storageTools: Record<string, Tool> = {
         let files = 0;
         let directories = 0;
         for (const entry of names) {
+          if (signal?.aborted) throw new Error('Interrupted');
           if (Date.now() - started >= timeBudgetMs || entriesSeen >= maxItems) {
             truncated = true;
             break;
