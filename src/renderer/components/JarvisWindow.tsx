@@ -423,7 +423,7 @@ function Thread({ log, caption, mode, levelRef }: { log: LogEntry[]; caption: Ca
 
   return (
     <div className="jini-thread min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[720px] space-y-8 px-8 pb-6 pt-8">
+      <div className="mx-auto w-full max-w-[780px] space-y-9 px-8 pb-8 pt-9">
         {turns.map((t) => {
           const isLast = t === last;
           const streaming = isLast && !t.reply;
@@ -431,7 +431,7 @@ function Thread({ log, caption, mode, levelRef }: { log: LogEntry[]; caption: Ca
           return (
             <div key={t.id} className="space-y-5">
               <div className="anim-enter flex justify-end">
-                <p className="max-w-[78%] whitespace-pre-wrap rounded-[20px] rounded-br-md bg-[#EFE7DA] px-4 py-2.5 text-[15px] leading-6 text-ink" title={time}>
+                <p className="max-w-[78%] whitespace-pre-wrap rounded-[22px] rounded-br-md border border-[#E9DDCC] bg-[#F2E9DC] px-5 py-3 text-[15px] leading-6 text-ink shadow-[0_2px_8px_rgba(60,42,20,0.035)]" title={time}>
                   {t.text}
                 </p>
               </div>
@@ -441,7 +441,7 @@ function Thread({ log, caption, mode, levelRef }: { log: LogEntry[]; caption: Ca
                   <span className="text-[13px] font-semibold text-ink">JINI</span>
                   <span className="text-[12px] text-faint">{time}</span>
                 </div>
-                <div className="pl-[26px]">
+                <div className="jini-assistant-reply ml-[26px]">
                   {streaming ? (
                     caption?.text ? (
                       <p className={`whitespace-pre-wrap text-[15px] leading-7 ${caption.tone === 'error' ? 'text-danger' : 'text-body'}`} aria-live="polite">
