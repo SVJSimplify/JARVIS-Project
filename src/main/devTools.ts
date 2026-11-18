@@ -146,11 +146,12 @@ const runShell = (
     if (failed) {
       setToolStatus({
         status: 'error',
-        errorKind: result.status === 'timed_out' ? 'timeout' : result.status === 'cancelled' ? 'cancelled' : result.status === 'launch_failed' ? 'process-launch' : 'process-exit',
+        errorKind: result.status === 'timed_out' ? 'timeout' : result.status === 'cancelled' ? 'cancelled' : result.status === 'queue_timed_out' ? 'queue-timeout' : result.status === 'launch_failed' ? 'process-launch' : 'process-exit',
       });
     }
     const label = result.status === 'success' ? 'COMPLETED' : 'FAILED';
     const reason = result.status === 'timed_out' ? `timed out after ${Math.round(timeout / 1000)}s`
+      : result.status === 'queue_timed_out' ? `queue wait expired after ${result.queueWaitMs}ms`
       : result.status === 'cancelled' ? 'cancelled'
       : result.status === 'launch_failed' ? `could not start (${result.errorCode ?? 'unknown launch error'})`
       : result.status === 'failed' ? `exited with code ${result.exitCode ?? 'unknown'}`
