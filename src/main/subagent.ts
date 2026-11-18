@@ -111,9 +111,6 @@ const ROLES: Record<Role, string> = {
 };
 
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}… [truncated]` : s);
-// Round 20 (CHANGE 6): CANCELLED is a failure — a cached "identical call" whose result
-// was a cancellation must never be re-served as a success.
-const isFailure = (s: string): boolean => /^(Tool error|Unknown tool|BLOCKED|CANCELLED)/.test(s);
 
 /** Shrink old tool outputs so a long run does not drown the model in stale pages. */
 function compact(messages: Message[]): void {
