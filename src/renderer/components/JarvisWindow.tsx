@@ -208,9 +208,9 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
   );
 
   return (
-    <div className="hud flex h-screen w-screen overflow-hidden bg-oat" data-mode={mode} data-mini="false">
+    <div className="hud jini-shell flex h-screen w-screen overflow-hidden bg-oat" data-mode={mode} data-mini="false">
       {/* ------------------------------------------------ sidebar (oat chrome) */}
-      <aside className="flex w-[236px] shrink-0 flex-col">
+      <aside className="jini-sidebar flex w-[236px] shrink-0 flex-col">
         <div className="drag flex h-[56px] items-center px-5 pt-1">
           <Wordmark />
         </div>
@@ -246,8 +246,8 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
       </aside>
 
       {/* ------------------------------------------------ canvas (paper) */}
-      <div className="my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-hairline bg-paper shadow-[0_1px_3px_rgba(60,42,20,0.06)]">
-        <header className="hud-header relative z-20 flex h-[52px] shrink-0 items-center gap-3 border-b border-hairline pl-6">
+      <div className="jini-canvas my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-hairline bg-paper shadow-[0_1px_3px_rgba(60,42,20,0.06)]">
+        <header className="hud-header jini-toolbar relative z-20 flex h-[52px] shrink-0 items-center gap-3 border-b border-hairline pl-6 pr-5">
           <h2 className="text-[14px] font-semibold text-ink">Assistant</h2>
           <StatusChip mode={mode} quiet={interactionMode === 'background'} />
           <button
@@ -269,8 +269,8 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
           )}
         </header>
 
-        <div className="flex min-h-0 flex-1">
-          <section className="relative flex min-w-0 flex-1 flex-col">
+        <div className="jini-workspace flex min-h-0 flex-1">
+          <section className="jini-main relative flex min-w-0 flex-1 flex-col">
             {log.length === 0 ? (
               <EmptyState mode={mode} levelRef={levelRef} voiceReady={voiceReady} onSuggest={onSuggest} />
             ) : (
@@ -281,7 +281,7 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
             </footer>
           </section>
 
-          <aside className="hidden w-[296px] shrink-0 flex-col gap-7 overflow-y-auto overflow-x-hidden border-l border-hairline px-5 py-6 min-[1240px]:flex">
+          <aside className="jini-inspector hidden w-[296px] shrink-0 flex-col gap-7 overflow-y-auto overflow-x-hidden border-l border-hairline px-5 py-6 min-[1240px]:flex">
             <Today />
             <TaskRailPanel />
             <SystemPanel data={tele.data} battery={tele.battery} online={tele.online} alerts={tele.alerts} />
@@ -327,7 +327,7 @@ function Today() {
 
 function EmptyState({ mode, levelRef, voiceReady, onSuggest }: { mode: JarvisMode; levelRef: MutableRefObject<number>; voiceReady: boolean; onSuggest?: (t: string) => void }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-8 py-10">
+    <div className="jini-empty flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-8 py-10">
       <JiniOrb mode={mode} levelRef={levelRef} size={76} />
       <h1 className="font-serif-display mt-9 text-[42px] font-normal leading-[1.1] tracking-[-0.02em] text-ink">{greeting()}.</h1>
       <p className="mt-3 max-w-[460px] text-center text-[15px] leading-6 text-muted">
@@ -370,7 +370,7 @@ function Thread({ log, caption, mode, levelRef }: { log: LogEntry[]; caption: Ca
   }, [turns.length, caption?.text, last?.reply]);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="jini-thread min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-[720px] space-y-8 px-8 pb-6 pt-8">
         {turns.map((t) => {
           const isLast = t === last;
