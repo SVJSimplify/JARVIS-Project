@@ -13,7 +13,7 @@ const CORE = [
   'get_current_time', 'tinyfish_search', 'tinyfish_fetch', 'web_search', 'web_browse', 'fetch_url', 'get_weather', 'calculate', 'remember', 'save_contact', 'find_contact',
   'list_memories', 'forget', 'tool_log', 'see_screen', 'ask_user', 'batch', 'task', 'research', 'parallel_tasks', 'chain', 'screen_text', 'click_text',
   'browser_play', 'browser_media', 'find_files', 'open_anything', 'read_document', 'read', 'load_tools', 'show_visual', 'quality_gate', 'decide', 'todo_write', 'write_file',
-  'list_drives', 'bluetooth_scan', 'get_system_info', 'list_processes', 'schedule_task', 'list_scheduled', 'cancel_scheduled',
+  'list_drives', 'bluetooth_scan', 'get_system_info', 'list_processes', 'execution_status', 'schedule_task', 'list_scheduled', 'cancel_scheduled',
   'start_task', 'task_status', 'task_cancel', 'task_resume', 'list_tasks',
 ];
 
