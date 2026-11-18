@@ -25,7 +25,7 @@ import { recentTools, recordTool } from './toolLog';
 import { assessRisk, type Risk } from './guard';
 import { authorize, classifyToolAction } from './permission';
 import { argsPreview, idempotencyKeyFor, recordOutcome, recordStartedStrict, callContext, type AuthDecision, type ExecutionStatus } from './toolRecord';
-import { currentToolStatus, executionSignal, runWithExecutionScope, type ToolResultEnvelope } from './toolResult';
+import { currentToolExecutionMetrics, currentToolStatus, executionSignal, runWithExecutionScope, type ToolResultEnvelope } from './toolResult';
 import { withWriteLock } from './writeCoord';
 import { devTools } from './devTools';
 import { placeApp, stageTools } from './stage';
@@ -399,6 +399,11 @@ const argPreview = (args: Record<string, unknown>): string =>
     .slice(0, 3)
     .map(([k, v]) => `${k}=${clipText(typeof v === 'string' ? v : JSON.stringify(v) ?? '')}`)
     .join(' ');
+const metricsLabel = (metrics: ReturnType<typeof currentToolExecutionMetrics>): string => {
+  if (!metrics || metrics.processMs === undefined) return '';
+  return `queue ${Math.round(metrics.queueWaitMs ?? 0)}ms · process ${Math.round(metrics.processMs)}ms`;
+};
+
 const clipText = (t: string): string => {
   const s = t.replace(/\s+/g, ' ').trim();
   return s.length > 60 ? `${s.slice(0, 57)}…` : s;
@@ -435,6 +440,7 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
   // point escalates to the durable unknown-marker instead of vanishing.
   let startedReceiptDurable = false;
   const finish = async (status: ExecutionStatus, auth: AuthDecision, out: string, errorKind?: string, soft?: boolean): Promise<ToolResultEnvelope> => {
+    const metrics = currentToolExecutionMetrics();
     // Durable record FIRST (Module G): every invocation is evidence, success or not.
     // STRICT (Round 20, CHANGE 1): the outcome persistence reports durability — the old
     // lenient append (warn-and-resolve) could report a completion whose receipt never
@@ -446,6 +452,11 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
         id: cid,
         t: t0,
         ms: Date.now() - t0,
+        queueWaitMs: metrics?.queueWaitMs,
+        processMs: metrics?.processMs,
+        processStatus: metrics?.processStatus,
+        processExitCode: metrics?.exitCode,
+        processPid: metrics?.pid,
         tool: name,
         requested: name !== requested ? requested : undefined,
         agent: who.agent,
@@ -472,7 +483,7 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
           'The result above is real and preserved in memory; the ledger will be reconciled. Do not repeat the action to fix this.]';
     // receiptPending: the EXACT outcome is not what's on disk (an unknown-marker landed,
     // or nothing did) — consumers must treat this call as requiring reconciliation.
-    return { text, status: envelopeStatusOf(status, errorKind), errorKind, soft, auth, receiptPending: outcome.durableStatus !== status };
+    return { text, status: envelopeStatusOf(status, errorKind), errorKind, soft, auth, receiptPending: outcome.durableStatus !== status, metrics };
   };
   // Round 18 (§4.1): DURABLE receipts. The outcome record is awaited before the envelope
   // returns, so a crash can never leave "reported but not recorded" — and the STARTED
@@ -594,7 +605,8 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
       const note = name !== requested ? ` (ran as ${name})` : '';
       const wsNote = workspaceNotice();
       if (wsNote) clearWorkspaceNotice(); // informational, shown exactly once
-      emitTool({ detail: clipText(out), status: softFail ? 'fail' : 'ok', ms: Date.now() - t0 });
+      const metricLabel = metricsLabel(currentToolExecutionMetrics());
+      emitTool({ detail: clipText(metricLabel ? `${metricLabel} · ${out}` : out), status: softFail ? 'fail' : 'ok', ms: Date.now() - t0 });
       const finalText = ((wsNote ? `${wsNote}\n` : '') + (out || 'OK (no output)')) + note;
       if (softFail && scoped.status === 'success')
         return await finish('soft-failed', lastAuth, finalText, 'not-done', true);
