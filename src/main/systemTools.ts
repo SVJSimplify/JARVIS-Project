@@ -12,7 +12,7 @@ import { FILES_ROOT } from './workspace';
 const run = async (
   executable: string,
   args: string[],
-  options: { timeout?: number; env?: NodeJS.ProcessEnv } = {}
+  options: { timeout?: number; env?: NodeJS.ProcessEnv; windowsHide?: boolean } = {}
 ): Promise<{ stdout: string; stderr: string }> => {
   const result = await runProcess({
     executable,
