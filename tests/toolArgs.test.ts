@@ -101,4 +101,28 @@ describe('checkArgs', () => {
     const out = checkArgs('t', { name: 'x', extra: 'kept' }, schema);
     expect(out.extra).toBe('kept');
   });
+
+  it('coerces and validates integers without accepting fractions', () => {
+    const integerSchema = { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 10 } }, required: ['limit'] };
+    expect(checkArgs('t', { limit: '4' }, integerSchema)).toEqual({ limit: 4 });
+    expect(() => checkArgs('t', { limit: '4.5' }, integerSchema)).toThrow(/must be an integer/);
+    expect(() => checkArgs('t', { limit: '11' }, integerSchema)).toThrow(/must be ≤ 10/);
+  });
+
+  it('does not silently coerce arbitrary strings to false', () => {
+    expect(checkArgs('t', { force: 'false', name: 'x' }, schema).force).toBe(false);
+    expect(() => checkArgs('t', { force: 'maybe', name: 'x' }, schema)).toThrow(/must be true or false/);
+  });
+
+  it('enforces array item counts and item types', () => {
+    const arraySchema = { type: 'object', properties: { names: { type: 'array', minItems: 1, maxItems: 2, items: { type: 'string' } } } };
+    expect(checkArgs('t', { names: ['a', 'b'] }, arraySchema).names).toEqual(['a', 'b']);
+    expect(() => checkArgs('t', { names: [] }, arraySchema)).toThrow(/at least 1 item/);
+    expect(() => checkArgs('t', { names: ['a', 2] }, arraySchema)).toThrow(/must be string/);
+  });
+
+  it('can reject undeclared parameters for closed schemas', () => {
+    const closed = { type: 'object', properties: { path: { type: 'string' } }, additionalProperties: false };
+    expect(() => checkArgs('t', { path: 'a', unexpected: 'b' }, closed)).toThrow(/unsupported argument/);
+  });
 });
