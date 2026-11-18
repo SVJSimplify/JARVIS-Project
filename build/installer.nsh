@@ -4,12 +4,12 @@
   !ifndef BUILD_UNINSTALLER
   Var JiniLocalAIWasInstalled
 
-  Section /o "Optional: Local AI embeddings (Hugging Face)" SEC_JINI_LOCAL_AI
+  Section /o "Optional: Local AI pack (embeddings + offline speech)" SEC_JINI_LOCAL_AI
     SetOutPath "$INSTDIR\resources\local-ai"
     File /r "${PROJECT_DIR}\build\local-ai\*"
   SectionEnd
   !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_JINI_LOCAL_AI} "Adds local neural memory embeddings. Not needed for API-based JINI use. The model is downloaded when local embeddings are first used."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_JINI_LOCAL_AI} "Adds local neural memory embeddings and the offline Whisper speech fallback. Not needed for API-based JINI use. Models are downloaded only when a local feature is first used."
   !insertmacro MUI_FUNCTION_DESCRIPTION_END
   !endif
 !macroend
