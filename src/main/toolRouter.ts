@@ -1,4 +1,5 @@
 import type { ToolSchema } from './llm';
+import { routeIntent, type IntentRoute } from './intentRouter';
 
 interface Group {
   id: string;
@@ -31,9 +32,9 @@ const GROUPS: Group[] = [
   },
   {
     id: 'files',
-    hint: 'files, code editing, shell commands, git, GitHub issues/PRs/CI, Vercel deployments, diagnostics',
+    hint: 'file discovery, disk/storage analysis, code editing, shell commands, git, GitHub issues/PRs/CI, Vercel deployments and diagnostics',
     re: /\b(files?|folders?|director(y|ies)|read|write|edit|code|bug|errors?|fix|debug|run|command|script|terminal|powershell|npm|git|github|pull ?request|\bpr\b|issue|ci|pipeline|deploy|deployment|vercel|tests?|build|project|repo|function|class|typescript|python|grep|patch|workspace|document|plan|todo|refactor|implement|install|\w+\.(ts|tsx|js|py|json|md|txt|css|html))\b/i,
-    tools: ['list_files', 'write_file', 'edit_file', 'open_file', 'glob', 'grep', 'multi_edit', 'apply_patch', 'run_command', 'diagnostics', 'code_search', 'skill', 'copy_file', 'make_dir', 'move_file', 'todo_write', 'todo_read', 'plan_enter', 'plan_exit', 'make_document', 'read_document', 'inspect_project', 'project_context', 'analyze_impact', 'github_status', 'github_list_repos', 'github_repo_details', 'github_list_branches', 'github_list_commits', 'github_get_commit', 'github_list_issues', 'github_get_issue', 'github_create_issue', 'github_list_pulls', 'github_get_pull', 'github_create_pull', 'github_list_workflow_runs', 'github_workflow_failures', 'vercel_status', 'vercel_list_projects', 'vercel_project_details', 'vercel_list_deployments', 'vercel_deployment_details', 'vercel_deployment_logs', 'vercel_deploy'],
+    tools: ['analyze_storage', 'list_files', 'write_file', 'edit_file', 'open_file', 'glob', 'grep', 'multi_edit', 'apply_patch', 'run_command', 'diagnostics', 'code_search', 'skill', 'copy_file', 'make_dir', 'move_file', 'todo_write', 'todo_read', 'plan_enter', 'plan_exit', 'make_document', 'read_document', 'inspect_project', 'project_context', 'analyze_impact', 'github_status', 'github_list_repos', 'github_repo_details', 'github_list_branches', 'github_list_commits', 'github_get_commit', 'github_list_issues', 'github_get_issue', 'github_create_issue', 'github_list_pulls', 'github_get_pull', 'github_create_pull', 'github_list_workflow_runs', 'github_workflow_failures', 'vercel_status', 'vercel_list_projects', 'vercel_project_details', 'vercel_list_deployments', 'vercel_deployment_details', 'vercel_deployment_logs', 'vercel_deploy'],
   },
   {
     id: 'productivity',
@@ -57,6 +58,7 @@ let turnGroups = new Set<string>();
 // Groups this turn actually triggered (text match, tool use, explicit load). Only these stay sticky;
 // saving the inherited ones instead made every group ever loaded sticky forever.
 let touched = new Set<string>();
+let currentIntent: { primary: IntentRoute; secondary: IntentRoute[]; groups: string[]; prompt: string } = routeIntent('');
 
 export const setAllSchemas = (s: ToolSchema[]): void => {
   all = s;
@@ -66,10 +68,11 @@ const grouped = (name: string): boolean => groupOf.has(name);
 
 /** Pick the tool set for a new turn: core + ungrouped + groups the text names + groups used in the last turns. */
 export function routeTurn(text: string): void {
+  currentIntent = routeIntent(text);
   turnGroups = new Set(ALWAYS_ON);
   touched = new Set();
   GROUPS.forEach((g) => {
-    if (g.re.test(text)) {
+    if (g.re.test(text) || currentIntent.groups.includes(g.id)) {
       turnGroups.add(g.id);
       touched.add(g.id);
     }
@@ -120,3 +123,8 @@ export const groupInfo = (): Array<{ id: string; hint: string; tools: string[] }
 
 /** Core tool names for manifest validation. */
 export const coreToolNames = (): string[] => [...core];
+
+
+/** Compact intent decision injected beside the live tool schemas for this turn. */
+export const currentIntentPrompt = (): string => currentIntent.prompt;
+export const currentIntentRoute = (): typeof currentIntent => currentIntent;
