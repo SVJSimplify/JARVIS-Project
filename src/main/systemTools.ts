@@ -6,6 +6,7 @@ import { findCustomApp } from './extraTools';
 import { runProcess } from './execution/ProcessRunner';
 import { setMini } from './hud';
 import type { Tool } from './toolTypes';
+import { executionSignal } from './toolResult';
 import { FILES_ROOT } from './workspace';
 
 const run = async (
@@ -20,6 +21,7 @@ const run = async (
     timeoutMs: options.timeout ?? 15_000,
     maxOutputBytes: 2 * 1024 * 1024,
     resource: 'system',
+    signal: executionSignal(),
     env: options.env,
   });
   if (result.status !== 'success') {
