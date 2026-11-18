@@ -420,3 +420,153 @@ select {
   }
   .jini-sidebar nav button:hover { transform: none; }
 }
+
+/* ---------------------------------------------------------------- JINI v2 — deliberate desktop chrome and conversation surfaces */
+.hud-header {
+  padding-right: 16px;
+}
+
+.jini-windowbar {
+  position: relative;
+  z-index: 30;
+  background: linear-gradient(180deg, #fbf8f2 0%, #f5efe5 100%);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+.windowbar-kicker {
+  color: #a79a88;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .19em;
+}
+.jini-window-controls {
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+.jini-window-control {
+  display: grid;
+  width: 34px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #756a5e;
+  background: transparent;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+.jini-window-control svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.jini-window-control:hover {
+  color: #2e2923;
+  background: rgba(90, 72, 50, .075);
+  border-color: rgba(130, 108, 80, .1);
+}
+.jini-window-control:active { transform: scale(.94); }
+.jini-window-control--close:hover {
+  color: #fffaf7;
+  background: #b95042;
+  border-color: #b95042;
+}
+.jini-window-control--compact {
+  width: 27px;
+  height: 25px;
+  border-radius: 7px;
+}
+.jini-shell-body { min-width: 0; }
+.jini-sidebar {
+  background: linear-gradient(180deg, rgba(255,253,249,.42), rgba(245,239,229,.38));
+}
+.jini-canvas {
+  border-radius: 20px;
+  border-color: rgba(221, 210, 192, .86);
+  box-shadow: 0 1px 2px rgba(60,42,20,.035), 0 16px 44px rgba(60,42,20,.065);
+}
+.jini-toolbar {
+  background: rgba(255,253,249,.94);
+}
+.jini-toolbar .command-trigger {
+  height: 34px;
+  border-radius: 10px;
+  background: #fbf8f2;
+  color: #827565;
+}
+.jini-toolbar .command-trigger:hover {
+  border-color: #cdbca5;
+  background: #fffdfa;
+  box-shadow: 0 3px 10px rgba(60,42,20,.055);
+}
+.jini-toolbar .command-trigger kbd {
+  border-radius: 6px;
+  background: #f5efe5;
+  color: #8e8170;
+}
+.jini-inspector {
+  width: 282px;
+  padding: 22px 18px;
+  gap: 18px;
+  background: linear-gradient(180deg, #faf7f0 0%, #fffdf9 100%);
+}
+.jini-inspector > section {
+  padding: 16px;
+  border: 1px solid rgba(230,222,207,.9);
+  border-radius: 16px;
+  background: rgba(255,253,249,.82);
+  box-shadow: 0 2px 10px rgba(60,42,20,.025);
+}
+.jini-assistant-reply {
+  max-width: min(100% - 26px, 760px);
+  padding: 15px 18px;
+  border: 1px solid rgba(230,222,207,.9);
+  border-radius: 5px 18px 18px 18px;
+  background: linear-gradient(145deg, #fffefa 0%, #fbf8f2 100%);
+  box-shadow: 0 2px 12px rgba(60,42,20,.035);
+}
+.jini-assistant-reply p {
+  line-height: 1.85;
+}
+.jini-thread > div > div {
+  padding-bottom: 4px;
+}
+.jini-empty .orb {
+  filter: drop-shadow(0 10px 22px rgba(198,116,67,.15));
+}
+.jini-empty h1 {
+  letter-spacing: -.045em;
+}
+.jini-empty > p {
+  color: #817668;
+}
+.jini-empty button {
+  border-radius: 17px;
+}
+.jini-empty button:hover {
+  transform: translateY(-2px);
+  border-color: #d8c9b3;
+  box-shadow: 0 12px 28px rgba(60,42,20,.075);
+}
+.jini-main > footer > div {
+  max-width: 760px;
+}
+.jini-windowbar, .jini-canvas, .jini-sidebar, .jini-inspector,
+.jini-assistant-reply, .jini-empty button {
+  transition-timing-function: cubic-bezier(.2,.75,.2,1);
+}
+@media (max-width: 920px) {
+  .jini-windowbar { height: 36px; }
+  .windowbar-kicker { display: none; }
+}
+@media (max-width: 680px) {
+  .jini-window-controls { gap: 0; }
+  .jini-window-control { width: 27px; }
+  .jini-assistant-reply { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jini-window-control, .jini-empty button { transition: none !important; }
+}
