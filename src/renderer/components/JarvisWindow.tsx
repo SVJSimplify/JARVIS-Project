@@ -224,8 +224,8 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
       <div className="jini-shell-body flex min-h-0 flex-1">
       {/* ------------------------------------------------ sidebar (oat chrome) */}
       <aside className="jini-sidebar flex w-[236px] shrink-0 flex-col">
-        <div className="drag flex h-[56px] items-center px-5 pt-1">
-          <Wordmark />
+        <div className="jini-sidebar-heading flex h-[48px] items-center px-5 pt-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[.17em] text-faint">Workspace</span>
         </div>
         <nav className="no-drag flex flex-col gap-0.5 px-3 pt-1" aria-label="Workspace">
           {nav.map(navButton)}

@@ -512,30 +512,24 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       // F-12: REAL STREAMING. Deltas flow to the renderer live while each round streams.
       // A round that turns out to carry tool calls was only narration (it is also sent
       // through the progress channel); the LAST round streams its answer token-by-token,
-      // and the non-streaming fallback (gateway ignores stream) replays once, guarded by
-      // the streamed flag so nothing is delivered twice.
-      let streamedThisRound = false;
+      // Hold all response text until the complete answer can be redacted. This prevents
+      // file contents, credentials and tool output from leaking through partial TTS/UI deltas.
       const { content, toolCalls } = await withModelFallback(
         chain,
-        (m) =>
-          complete(m, (d) => {
-            if (d) {
-              streamedThisRound = true;
-              onDelta?.(d);
-            }
-          }, signal),
+        (m) => complete(m, () => undefined, signal),
         onFallback
       );
       if (toolCalls.length) {
         const note = progressNote(content);
         if (note && note !== lastNote) {
-          lastNote = note;
-          onProgress?.(note);
-          emitActivity({ kind: 'progress', label: 'Working', detail: note, status: 'busy' });
+          const safeNote = redactText(note);
+          lastNote = safeNote;
+          onProgress?.(safeNote);
+          emitActivity({ kind: 'progress', label: 'Working', detail: safeNote, status: 'busy' });
         }
       } else {
         reply = content;
-        if (content && !streamedThisRound) onDelta(content);
+        if (content) onDelta?.(redactText(content));
       }
       history.push({ role: 'assistant', content: content || null, tool_calls: toolCalls.length ? toolCalls : undefined });
 
@@ -618,17 +612,18 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         // display contract, not as the mechanism.
         const res = early ? early[i] : await runToolDetailed(call.function.name, call.function.arguments);
         const raw = res.text;
+        const safeRaw = redactText(raw);
         const failed = res.status !== 'success';
-        recordStep(call.function.name, describe(call), raw); // per-turn evidence ledger
+        recordStep(call.function.name, describe(call), safeRaw); // per-turn evidence ledger
         if (failed) failures++;
         if (res.status === 'error' || res.status === 'cancelled')
-          failLog.push({ tool: call.function.name, args: describe(call), error: raw.slice(0, 200).replace(/\s+/g, ' ') });
+          failLog.push({ tool: call.function.name, args: describe(call), error: safeRaw.slice(0, 200).replace(/\s+/g, ' ') });
         actions.push(describe(call) + (failed ? ' FAILED' : ''));
         if (!failed) used.push({ name: call.function.name, args: call.function.arguments });
-        const body = raw.length > MAX_TOOL_CHARS ? raw.slice(0, MAX_TOOL_CHARS) + '… [truncated]' : raw;
+        const body = safeRaw.length > MAX_TOOL_CHARS ? safeRaw.slice(0, MAX_TOOL_CHARS) + '… [truncated]' : safeRaw;
         if (!failed) {
           // Evidence for the provenance gate: every successful result becomes source material.
-          evidence.push(raw.length > 4000 ? raw.slice(0, 4000) : raw);
+          evidence.push(safeRaw.length > 4000 ? safeRaw.slice(0, 4000) : safeRaw);
           if (evidence.length > 40) evidence.shift();
         }
         history.push({

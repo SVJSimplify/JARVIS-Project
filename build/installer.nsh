@@ -9,7 +9,7 @@
     File /r "${PROJECT_DIR}\build\local-ai\*"
   SectionEnd
   !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_JINI_LOCAL_AI} "Adds local neural memory embeddings and the offline Whisper speech fallback. Not needed for API-based JINI use. Models are downloaded only when a local feature is first used."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_JINI_LOCAL_AI} "Adds local neural memory embeddings and offline Whisper speech. Whisper's runtime and model download on first use. Without this component, voice transcription uses the configured Groq API; typed chat still works."
   !insertmacro MUI_FUNCTION_DESCRIPTION_END
   !endif
 !macroend
