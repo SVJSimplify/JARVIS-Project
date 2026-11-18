@@ -21,7 +21,7 @@ export const RESEARCH_TOOLS = new Set(['search_and_read', 'tinyfish_search', 'ti
 /** Delegation kinds: the three legacy names plus the registry agents (Module D) and the
  *  Round 25 permanent specialists (coder / reviewer / tester / planner). */
 export type AgentKind = 'explore' | 'research' | 'general' | 'document' | 'browser' | 'verifier' | 'desktop' | 'data' | 'coder' | 'reviewer' | 'tester' | 'planner';
-export type SchemaPicker = (kind: AgentKind) => ToolSchema[];
+export type SchemaPicker = (kind: AgentKind, request?: string, includeAllAllowed?: boolean) => ToolSchema[];
 
 export const AGENT_KINDS: AgentKind[] = ['explore', 'research', 'general', 'document', 'browser', 'verifier', 'desktop', 'data', 'coder', 'reviewer', 'tester', 'planner'];
 
@@ -101,7 +101,7 @@ async function pool<T, R>(items: T[], limit: number, fn: (x: T, i: number) => Pr
 const safeAgent = async (prompt: string, kind: AgentKind, schemas: SchemaPicker, run: Runner, opts: { signal?: AbortSignal; taskId?: string; stepId?: string } = {}): Promise<string> => {
   try {
     const def = agentDefFor(kind);
-    return await runSubagent(prompt, schemas(kind), run, { agent: def.name, signal: opts.signal, taskId: opts.taskId, stepId: opts.stepId });
+    return await runSubagent(prompt, schemas(kind, prompt), run, { agent: def.name, signal: opts.signal, taskId: opts.taskId, stepId: opts.stepId });
   } catch (e) {
     return `Sub-agent failed: ${e instanceof Error ? e.message : String(e)}`;
   }
@@ -164,7 +164,7 @@ export const spawnAgentTool = (run: Runner, schemas: SchemaPicker): Tool => ({
     );
     // The specialist only ever sees the tools from its own allowlist — the SAME schemas
     // the runtime can actually dispatch (no invented capabilities), narrowed by the def.
-    const toolsForChild = schemas('general').filter((s) => agentAllows(def, s.function.name));
+    const toolsForChild = schemas('general', String(args.instructions ?? ''), true).filter((s) => agentAllows(def, s.function.name));
     noteDynamicRun(def.name);
     try {
       return await runSubagent(String(args.instructions ?? ''), toolsForChild, run, { agent: def.name });
