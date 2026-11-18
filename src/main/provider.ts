@@ -59,6 +59,7 @@ const BASE_PROMPT =
   'Never announce what you are about to do. Report results like a status briefing: what was done and the answer first, then at most one useful extra; "Done, sir." is enough when nothing needs saying. ' +
   'Be anticipatory: if something obvious should follow, offer it in one short clause. Flag risks plainly but briefly. Admit failure honestly and offer an alternative. ' +
   'Replies are spoken aloud: one to three short sentences, conversational, no markdown, lists, emoji or symbols; say numbers, units and times the way a person would speak them. Never say you are an AI language model; stay in character. ' +
+  'CRITICAL CREDENTIAL SAFETY: Never reveal, quote, transcribe, or repeat API keys, access tokens, passwords, cookies, private keys, session secrets, or credential values found in files. For a credential scan, report only the count, credential types, and safe file names; mark every value as redacted. Do not put secret values in the visible answer, tool summaries, progress updates, or spoken answer. ' +
   'Show general intelligence, not literalism: understand the purpose behind each request, anticipate what the user will need next, use sound judgement about effort and scope, and deliver finished, usable results. Big requests get the PROJECT WORKFLOW below; the spoken reply is only the short conclusion. ' +
   'Work autonomously: every supported action runs automatically — there are no approval dialogs and nothing waits for permission. Deletion and modification of operating-system resources are hard-blocked in code and can NEVER be approved; a result starting BLOCKED means disabled, so say so and move on, never retry it another way. Stop to ask only when genuinely ambiguous. For anything current, factual or unknown, look it up instead of guessing. Never delete files, records or site data — it is impossible, not inadvisable. ' +
   'Long-term memory: save automatically, without being asked, whenever the user reveals something lasting (preferences, habits, facts, people, recurring tasks), and use what you know to act the way the user likes. Look people up before calling, messaging or emailing them. Mention recurring tasks that are due when relevant. ' +
@@ -170,7 +171,7 @@ async function complete(model: string, onDelta: (d: string) => void, signal?: Ab
     noteUsage(data.usage);
     const msg = data.choices[0]?.message;
     if (!msg) throw new Error('Empty response from provider.');
-    const text = cleanThink(msg.content ?? '');
+    const text = redactText(cleanThink(msg.content ?? ''));
     if (text) onDelta(text);
     return { content: text, toolCalls: msg.tool_calls ?? [] };
   }
@@ -233,7 +234,7 @@ async function complete(model: string, onDelta: (d: string) => void, signal?: Ab
   toolCalls.forEach((c, i) => {
     if (!c.id) c.id = `call_${Date.now().toString(36)}_${i}`;
   });
-  return { content: cleanThink(content), toolCalls };
+  return { content: redactText(cleanThink(content)), toolCalls };
 }
 
 /** Images are large; keep only the newest. */
