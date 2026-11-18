@@ -40,6 +40,10 @@ const BEARER = /\b(bearer|basic|token)\s+[\w.\-+/=_]{8,}/gi;
 const PROVIDER_TOKENS = /\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}|(?:sk|rk|pk)_[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|vrm\.[A-Za-z0-9._-]{10,}/g;
 /** set-cookie / cookie header values. */
 const COOKIE_HEADER = /\b(set-cookie|cookie)\s*:\s*[^\r\n"']+/gi;
+/** File-scanner evidence commonly uses "C:\\path\\file -> value"; preserve the path, mask the extracted value. */
+const FILE_RESULT_VALUE = /^(\\s*(?:\\d+[.)]\\s*)?(?:[A-Za-z]:\\\\|\\\\\\\\)[^\\r\\n]*?\\s(?:->|→)\\s*)(?!\\(public key\\)|\\(private key\\))(.+?)$/gim;
+/** Credential assignments in prose, JSON-like output and env files. */
+const CREDENTIAL_ASSIGNMENT = /\\b((?:api[_ -]?key|access[_ -]?token|secret|password|passwd|bearer|private[_ -]?key)\\s*[:=]\\s*)(?:"[^"]*"|'[^']*'|[^\\s,;]+)/gi;
 /** Private key blocks (never quote even a fragment). */
 const PRIVATE_KEY_BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*$/g;
 
@@ -54,6 +58,8 @@ export function redactText(text: string): string {
   t = t.replace(PRIVATE_KEY_BLOCK, '[private-key-redacted]');
   t = t.replace(DEPLOY_HOOK_URL, '<deploy-hook-url-redacted>');
   t = t.replace(PROVIDER_TOKENS, REDACTED);
+  t = t.replace(FILE_RESULT_VALUE, (_m, prefix) => `${prefix}${REDACTED}`);
+  t = t.replace(CREDENTIAL_ASSIGNMENT, (_m, prefix) => `${prefix}${REDACTED}`);
   t = t.replace(BEARER, (_m, kind) => `${kind} ${REDACTED}`);
   t = t.replace(COOKIE_HEADER, (_m, kind) => `${kind}: ${REDACTED}`);
   t = t.replace(URL_USERINFO, (_m, scheme) => `${scheme}[userinfo-redacted]@`);
