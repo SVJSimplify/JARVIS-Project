@@ -122,6 +122,38 @@ describe('shared process runner', () => {
     expect(active.every((result) => result.status === 'success')).toBe(true);
   });
 
+  it('reports queue timeout separately from process timeout', async () => {
+    const first = runProcess({
+      executable: node,
+      args: script('setTimeout(() => process.exit(0), 700);'),
+      cwd: process.cwd(),
+      timeoutMs: 5000,
+      resource: 'command',
+    });
+    const second = runProcess({
+      executable: node,
+      args: script('setTimeout(() => process.exit(0), 700);'),
+      cwd: process.cwd(),
+      timeoutMs: 5000,
+      resource: 'command',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const queued = await runProcess({
+      executable: node,
+      args: script('process.exit(0);'),
+      cwd: process.cwd(),
+      timeoutMs: 5000,
+      queueTimeoutMs: 100,
+      resource: 'command',
+    });
+    expect(queued.status).toBe('queue_timed_out');
+    expect(queued.durationMs).toBe(0);
+    expect(queued.queueWaitMs).toBeGreaterThanOrEqual(80);
+    const finished = await Promise.all([first, second]);
+    expect(finished.every((result) => result.status === 'success')).toBe(true);
+    expect(processSchedulerSnapshot().active).toBe(0);
+  });
+
   it('never exceeds the command-process concurrency limit', async () => {
     let peak = 0;
     const observe = setInterval(() => {
