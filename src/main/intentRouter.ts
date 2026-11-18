@@ -68,7 +68,7 @@ const RULES: IntentRule[] = [
     id: 'research',
     label: 'research and comparison',
     pattern: /\b(?:research|look up|find out|latest|current|compare|comparison|benchmark|competitor|investigate|source|news|price|review|evaluate)\b/i,
-    weight: 3,
+    weight: 5,
     groups: [],
     preferredTools: ['search_and_read', 'tinyfish_search', 'tinyfish_fetch', 'fetch_url', 'code_search'],
     guidance: 'Prefer headless research and fetch source material only as deep as the answer requires. Cross-check material claims; do not open the visible browser for ordinary research.',
