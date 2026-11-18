@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { acquireExecutionSlot } from './execution/ExecutionScheduler';
 
 /**
  * One long-lived PowerShell process. The old code started powershell.exe and recompiled the
@@ -47,40 +48,48 @@ function reset(): void {
   ready = null;
 }
 
-function exec(line: string, id: number, timeoutMs: number): Promise<string> {
+function exec(line: string, id: number, timeoutMs: number, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
-    let timer: NodeJS.Timeout | null = setTimeout(() => {
-      timer = null;
-      reject(new Error('App control timed out.'));
+    let settled = false;
+    let timer: NodeJS.Timeout | null = null;
+    const finish = (fn: (value: any) => void, value: any): void => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      fn(value);
+    };
+    const ok = (value: string): void => finish(resolve, value);
+    const bad = (error: Error): void => finish(reject, error);
+    const onAbort = (): void => {
+      if (settled) return;
+      bad(new Error('PowerShell operation cancelled.'));
+      // The host is stateful. A cancelled command may still be executing, so discard the
+      // session rather than risk mixing its late output with the next request.
+      reset();
+    };
+    if (signal?.aborted) {
+      bad(new Error('PowerShell operation cancelled before dispatch.'));
+      return;
+    }
+    timer = setTimeout(() => {
+      bad(new Error('App control timed out.'));
       reset();
     }, timeoutMs);
-    const ok = (s: string): void => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      resolve(s);
-    };
-    const bad = (e: Error): void => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      reject(e);
-    };
+    timer.unref?.();
     waiting = { id, resolve: ok, reject: bad };
-    // A dead host must fail the call at once, not silently swallow the command until the timeout.
     if (!proc || !proc.stdin.writable) {
       bad(new Error('PowerShell host is not running.'));
       return;
     }
+    signal?.addEventListener('abort', onAbort, { once: true });
     proc.stdin.write(line, (err) => {
-      if (err && timer) bad(err instanceof Error ? err : new Error(String(err)));
+      if (err && !settled) bad(err instanceof Error ? err : new Error(String(err)));
     });
   });
 }
 
-function start(prelude: string): Promise<void> {
+function start(prelude: string, signal?: AbortSignal): Promise<void> {
   const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-NoLogo', '-ExecutionPolicy', 'Bypass', '-Command', '-'], {
     windowsHide: true,
   });
@@ -108,27 +117,32 @@ function start(prelude: string): Promise<void> {
     w?.reject(e);
   });
   p.stdin.write('[Console]::OutputEncoding = [Text.Encoding]::UTF8\n');
-  return exec(wrapPrelude(prelude), 0, 60000).then(() => undefined);
+  return exec(wrapPrelude(prelude), 0, 60000, signal).then(() => undefined);
 }
 
-/** Runs `body` in the shared PowerShell. `env` values are passed as $env:NAME. Calls are queued one at a time. */
-export function runPs(prelude: string, body: string, env: Record<string, string>, timeoutMs = 20000): Promise<string> {
-  const job = chain.then(async () => {
-    if (!proc || !ready) ready = start(prelude);
+/** Runs `body` in the shared PowerShell. Commands are serialized by the shared execution scheduler. */
+export function runPs(prelude: string, body: string, env: Record<string, string>, timeoutMs = 20000, signal?: AbortSignal): Promise<string> {
+  return (async () => {
+    const ticket = await acquireExecutionSlot('persistent_shell', signal, 60_000);
     try {
-      await ready;
-    } catch (e) {
-      reset();
-      throw e;
+      if (signal?.aborted) throw new Error('PowerShell operation cancelled before dispatch.');
+      if (!proc || !ready) ready = start(prelude, signal);
+      try {
+        await ready;
+      } catch (error) {
+        reset();
+        throw error;
+      }
+      if (signal?.aborted) throw new Error('PowerShell operation cancelled before dispatch.');
+      const id = ++seq;
+      const vars = Object.entries(env)
+        .map(([k, v]) => `$env:${k} = ${decode(v)}`)
+        .join('\\n');
+      return await exec(wrapCall(`${vars}\\n${body}`, id), id, timeoutMs, signal);
+    } finally {
+      ticket.release();
     }
-    const id = ++seq;
-    const vars = Object.entries(env)
-      .map(([k, v]) => `$env:${k} = ${decode(v)}`)
-      .join('\n');
-    return exec(wrapCall(`${vars}\n${body}`, id), id, timeoutMs);
-  });
-  chain = job.catch(() => undefined);
-  return job;
+  })();
 }
 
 process.on('exit', () => proc?.kill());
