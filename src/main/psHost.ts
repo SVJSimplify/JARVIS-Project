@@ -141,7 +141,7 @@ export function runPs(prelude: string, body: string, env: Record<string, string>
       const vars = Object.entries(env)
         .map(([k, v]) => `$env:${k} = ${decode(v)}`)
         .join('\n');
-      return await exec(wrapCall(`${vars}\\n${body}`, id), id, timeoutMs, signal);
+      return await exec(wrapCall(`${vars}\n${body}`, id), id, timeoutMs, signal);
     } finally {
       ticket.release();
     }
