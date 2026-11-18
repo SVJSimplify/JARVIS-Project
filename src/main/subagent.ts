@@ -212,7 +212,7 @@ async function runSubagentBody(
       { role: 'system', content: `${COMMON}\n\n${persona}\n\nToday is ${today}. You have at most ${maxRounds} steps.` },
       { role: 'user', content: prompt },
     ];
-    const seen = new Map<string, string>();
+    const seen = new Map<string, { text: string; failed: boolean }>();
     let fails = 0;
 
     for (let round = 0; round < maxRounds; round++) {
@@ -243,9 +243,12 @@ async function runSubagentBody(
         }
         const key = `${call.function.name}:${call.function.arguments}`;
         const prior = seen.get(key);
-        if (prior !== undefined && !isFailure(prior)) return { text: `(identical call already made; same result)\\n${clip(prior, 1500)}`, status: 'success' };
+        if (prior && !prior.failed)
+          return { text: `(identical successful call already made; same observation)\\n${clip(prior.text, 1500)}`, status: 'success' };
+        if (prior?.failed)
+          return { text: `IDENTICAL CALL NOT REPEATED: this exact ${call.function.name} call already failed once in this agent run. Change the arguments, choose a different tool, or inspect the partial state before proceeding. Previous failure: ${clip(prior.text, 900)}`, status: 'error', errorKind: 'duplicate-failed-call' };
         const res = normalize(await runWithExecutionScope({ signal }, () => run(call.function.name, call.function.arguments)));
-        seen.set(key, res.text);
+        seen.set(key, { text: res.text, failed: res.status !== 'success' });
         return res;
       };
 
