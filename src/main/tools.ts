@@ -44,7 +44,8 @@ import { telemetryTools } from './telemetry';
 import { awarenessTools } from './awareness';
 import { FILES_ROOT, clearWorkspaceNotice, displayPath, fsExplain, resolveRead, resolveSafe, resolveWrite, revalidateReadTarget, revalidateWriteTarget, workspaceNotice } from './workspace';
 import { laptopTools } from './laptopTools';
-import { currentSchemas, loadGroups, noteUsed, routeTurn, setAllSchemas } from './toolRouter';
+import { currentSchemas, inferToolGroup, loadGroups, noteUsed, routeTurn, setAllSchemas } from './toolRouter';
+import { routeIntent } from './intentRouter';
 import { checkArgs, parseArgs, resolveTool } from './toolArgs';
 import { emitActivity } from './modes';
 import type { ActivityEvent } from './protocol';
@@ -288,15 +289,36 @@ Object.assign(TOOLS, laptopTools);
 const runDetailed = Object.assign(async (name: string, rawArgs: string) => runToolDetailed(name, rawArgs), { isParallelSafe });
 TOOLS.batch = batchTool(runDetailed);
 TOOLS.chain = chainTool(runDetailed);
-const pickSchemas = (kind: AgentKind) => {
+const AGENT_FAMILY_DEFAULTS: Record<AgentKind, string[]> = {
+  explore: ['files', 'research', 'system'],
+  research: ['research', 'files'],
+  general: ['files'],
+  document: ['documents', 'files', 'research'],
+  browser: ['browser', 'research', 'files'],
+  verifier: ['files', 'research', 'system', 'documents', 'integrations', 'browser'],
+  desktop: ['desktop', 'system', 'files'],
+  data: ['files', 'research', 'documents', 'system'],
+  coder: ['files', 'research', 'integrations', 'system'],
+  reviewer: ['files', 'research', 'system'],
+  tester: ['files', 'research', 'system', 'integrations'],
+  planner: ['files', 'research', 'system', 'desktop', 'browser', 'documents', 'productivity', 'integrations', 'memory', 'orchestration'],
+};
+
+const pickSchemas = (kind: AgentKind, request = '', includeAllAllowed = false) => {
   const def = agentDefFor(kind);
-  // Round 20 (CHANGE 6): SUBAGENT_DENIED is now ENFORCED here — child agents never
-  // receive delegation/control tools (task, research, parallel_tasks, spawn_agent,
-  // background_start, verify_claim, ask_user, plan switches, screen capture). The
-  // coordinator owns ALL delegation: an agent may propose help (SUBTASK proposals), but
-  // it can never create an agent, start a task or spawn an uncontrolled tree. The main
-  // agent's own registry (TOOLS) keeps every tool — this filter applies to CHILD schemas.
-  return schemas((n) => agentAllows(def, n) && !SUBAGENT_DENIED.has(n));
+  // Child schemas are narrowed by BOTH the registry's per-agent allowlist and the
+  // request's intent. Dynamic specialists can request includeAllAllowed because their
+  // exact registered tool allowlist is already their capability boundary.
+  const intent = routeIntent(request);
+  const families = new Set<string>(AGENT_FAMILY_DEFAULTS[kind] ?? ['files']);
+  for (const family of intent.groups) families.add(family);
+  if (kind === 'general' && !intent.groups.length) families.add('files');
+  return schemas((name) => {
+    if (!agentAllows(def, name) || SUBAGENT_DENIED.has(name)) return false;
+    if (includeAllAllowed) return true;
+    const family = inferToolGroup(name);
+    return family === 'core' || families.has(family);
+  });
 };
 TOOLS.task = taskTool(runDetailed, pickSchemas);
 TOOLS.parallel_tasks = parallelTasksTool(runDetailed, pickSchemas);
