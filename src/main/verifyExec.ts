@@ -128,21 +128,22 @@ export const runCmd = async (command: string, cwd: string, timeout: number): Pro
     result.stderr.trim() && `STDERR: ${result.stderr.trim()}`,
     result.outputTruncated ? '[output truncated at 2 MiB]' : '',
   ].filter(Boolean).join('\n');
+  const neverStarted = result.status === 'queue_timed_out' || result.status === 'launch_failed' || (result.status === 'cancelled' && result.durationMs === 0);
   await recordOutcome(
     {
       id,
       t: t0,
-      ms: result.durationMs,
+      ms: Date.now() - t0,
       tool: 'verify_command',
       agent: 'verifier',
       args: `command=${command}`,
       auth: 'autonomous',
-      status: result.status === 'success' ? 'ok' : 'failed',
+      status: result.status === 'success' ? 'ok' : neverStarted ? 'not-run' : result.status === 'cancelled' ? 'cancelled' : 'failed',
       result: resultText,
       retries: 0,
       idempotencyKey: `verify_command:${command.slice(0, 120)}`,
     },
-    { sideEffectMayHaveRun: true }
+    { sideEffectMayHaveRun: !neverStarted }
   );
   return result.status === 'success' ? resultText : `FAILED: ${resultText}`;
 };
