@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { currentSchemas, endTurn, loadGroups, noteUsed, routeTurn, setAllSchemas, unloadedGroups } from '../src/main/toolRouter';
+import { currentSchemas, loadGroups, routeTurn, setAllSchemas, unloadedGroups } from '../src/main/toolRouter';
 import type { ToolSchema } from '../src/main/llm';
 
 const schema = (name: string): ToolSchema => ({
@@ -8,64 +8,58 @@ const schema = (name: string): ToolSchema => ({
 });
 
 const ALL = [
-  // core
-  'web_search', 'calculate',
-  // browser group
-  'browser_open', 'browser_click', 'browser_type',
-  // desktop group
-  'launch_app', 'volume_control',
-  // files group (not core, not always-on)
-  'grep', 'multi_edit', 'apply_patch',
-  // productivity group
-  'set_timer', 'briefing',
-].map(schema);
+  'get_current_time', 'calculate', 'list_capabilities',
+  'analyze_storage', 'list_drives', 'list_files', 'run_command',
+  'browser_open', 'native_browser_tabs', 'launch_app',
+  'remember', 'set_timer', 'github_status', 'make_document',
+];
 
-describe('toolRouter', () => {
+describe('intent-aware toolRouter', () => {
   beforeEach(() => {
-    setAllSchemas(ALL);
-    routeTurn('hello there'); // neutral text: browser+desktop always on
+    setAllSchemas(ALL.map(schema));
   });
 
-  it('always includes core, ungrouped and always-on groups', () => {
+  it('loads only core capabilities for a neutral turn', () => {
+    routeTurn('hello there');
     const names = currentSchemas().map((s) => s.function.name);
-    expect(names).toContain('web_search');
-    expect(names).toContain('browser_open');
-    expect(names).toContain('launch_app');
-  });
-
-  it('keeps the files group out until the text or usage calls for it', () => {
-    routeTurn('what is the weather');
-    expect(currentSchemas().map((s) => s.function.name)).not.toContain('grep');
+    expect(names).toContain('get_current_time');
+    expect(names).toContain('calculate');
+    expect(names).toContain('list_capabilities');
+    expect(names).not.toContain('analyze_storage');
+    expect(names).not.toContain('browser_open');
     expect(unloadedGroups()).toContain('files');
   });
 
-  it('loads a group when the request matches its keywords', () => {
-    routeTurn('fix the bug in my project source code');
-    expect(currentSchemas().map((s) => s.function.name)).toContain('grep');
+  it('loads file and system capabilities for a drive-usage request, without unrelated browser tools', () => {
+    routeTurn('Check which files in D: are taking the most space');
+    const names = currentSchemas().map((s) => s.function.name);
+    expect(names).toContain('analyze_storage');
+    expect(names).toContain('list_drives');
+    expect(names).toContain('list_files');
+    expect(names).not.toContain('browser_open');
+    expect(names).not.toContain('set_timer');
   });
 
-  it('pulls in the group when one of its tools is used mid-turn', () => {
-    routeTurn('random smalltalk');
-    expect(noteUsed('grep')).toBeUndefined();
-    expect(currentSchemas().map((s) => s.function.name)).toContain('multi_edit');
+  it('loads browser tools but not desktop control for an explicit browser request', () => {
+    routeTurn('Open YouTube in my browser');
+    const names = currentSchemas().map((s) => s.function.name);
+    expect(names).toContain('browser_open');
+    expect(names).toContain('native_browser_tabs');
+    expect(names).not.toContain('launch_app');
+    expect(names).not.toContain('run_command');
   });
 
-  it('load_tools loads named groups and rejects unknown ones', () => {
+  it('loads integrations, productivity and document families only when needed', () => {
+    routeTurn('Check my GitHub workflow runs');
+    expect(currentSchemas().map((s) => s.function.name)).toContain('github_status');
+    routeTurn('Set a timer for ten minutes');
+    expect(currentSchemas().map((s) => s.function.name)).toContain('set_timer');
+    routeTurn('Create a PDF report');
+    expect(currentSchemas().map((s) => s.function.name)).toContain('make_document');
+  });
+
+  it('can explicitly load an advanced family when a discovered capability is required', () => {
     routeTurn('hello');
-    const out = loadGroups(['productivity']);
-    expect(out).toContain('set_timer');
-    expect(currentSchemas().map((s) => s.function.name)).toContain('briefing');
-    expect(loadGroups(['nope'])).toMatch(/Unknown group/);
-  });
-
-  it('endTurn keeps the group sticky for the next two turns', () => {
-    routeTurn('fix the bug in the code');
-    endTurn();
-    routeTurn('thanks, now something unrelated entirely');
-    expect(currentSchemas().map((s) => s.function.name)).toContain('grep');
-    endTurn();
-    endTurn();
-    routeTurn('totally different topic now');
-    expect(currentSchemas().map((s) => s.function.name)).not.toContain('grep');
+    expect(loadGroups(['advanced'])).toContain('advanced');
   });
 });
