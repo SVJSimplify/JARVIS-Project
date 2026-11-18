@@ -95,6 +95,14 @@ export const EXTERNAL_STATE_TOOLS: ReadonlySet<string> = new Set([
 export function recommendToolsFor(spec: TaskSpec): string[] {
   const hints: string[] = [];
   const caps = spec.capabilities;
+  if (caps.includes('storage')) {
+    hints.push('use analyze_storage once for the requested drive/folder; it returns capacity, top files and recursive folder sizes in one bounded scan — do not use repeated shell commands');
+  } else if (caps.includes('files') && !caps.includes('write')) {
+    hints.push('use find_files/glob/grep/list_files for discovery and read only the relevant matches; do not use run_command for ordinary filesystem inspection');
+  }
+  if (caps.includes('system')) {
+    hints.push('prefer native system tools (get_system_info, list_processes, list_drives, bluetooth_scan) over ad-hoc PowerShell');
+  }
   if (caps.includes('code') || spec.complexity === 'development') {
     hints.push('inspect_project first (stack/build/test commands), analyze_impact on any shared module before editing it, then coder for the change and its project checks (diagnostics/typecheck/build)');
   }
