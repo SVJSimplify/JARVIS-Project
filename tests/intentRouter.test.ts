@@ -18,6 +18,20 @@ describe('intent routing', () => {
     expect(routeIntent('Open Notepad').primary.id).toBe('desktop_control');
   });
 
+  it('routes music and playback requests to browser and desktop media capabilities', () => {
+    const route = routeIntent('Pause the music playing on Spotify');
+    expect(route.primary.id).toBe('media_control');
+    expect(route.groups).toContain('browser');
+    expect(route.groups).toContain('desktop');
+  });
+
+  it('routes JINI performance complaints to execution diagnostics', () => {
+    const route = routeIntent('Why are my tools taking forever and queueing inconsistently?');
+    expect(route.primary.id).toBe('execution_diagnostics');
+    expect(route.primary.preferredTools).toContain('execution_status');
+    expect(route.groups).toContain('system');
+  });
+
   it('routes research and comparison to headless research capabilities even when the topic is code', () => {
     expect(routeIntent('Compare the best open-source coding agents').primary.id).toBe('research');
   });
