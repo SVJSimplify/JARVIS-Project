@@ -12,7 +12,7 @@ import { beginTask, recordStep, needsRescue, takeRescue, endTask, recordInterrup
 import { isParallelSafe, runToolDetailed, schemasFor, capabilityPrompt } from './tools';
 import type { ToolResultEnvelope } from './toolResult';
 import { runWithExecutionScope } from './toolResult';
-import { currentSchemas, endTurn, unloadedGroups } from './toolRouter';
+import { currentSchemas, currentIntentPrompt, endTurn, unloadedGroups } from './toolRouter';
 import { resetPlanMode } from './planning';
 import { redactText } from './redact';
 
@@ -84,7 +84,7 @@ let turnContext = '';
 
 /** Static prefix first (provider prompt caching), turn-dependent parts last; memory and session are read once per turn, not per round. */
 async function systemMessage(): Promise<Message> {
-  return { role: 'system', content: [BASE_PROMPT, OPERATING_PRINCIPLES, DECISION_RULES, TOOL_GUIDE, capabilityPrompt(), projectTurn ? WORKFLOW : '', toolCatalog(), turnContext].filter(Boolean).join('\n\n') };
+  return { role: 'system', content: [BASE_PROMPT, OPERATING_PRINCIPLES, DECISION_RULES, TOOL_GUIDE, capabilityPrompt(), currentIntentPrompt(), projectTurn ? WORKFLOW : '', toolCatalog(), turnContext].filter(Boolean).join('\n\n') };
 }
 
 let history: Message[] = [];
