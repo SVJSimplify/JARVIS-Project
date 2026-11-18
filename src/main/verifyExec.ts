@@ -1,4 +1,3 @@
-import { execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { shellVerdict } from './policy';
@@ -6,6 +5,7 @@ import { recordOutcome, recordStartedStrict } from './toolRecord';
 import { loadJson } from './store';
 import { FILES_ROOT } from './workspace';
 import { executionSignal } from './toolResult';
+import { runProcess } from './execution/ProcessRunner';
 
 /**
  * VERIFICATION EXECUTION — the command runner for acceptance checks, extracted from the
@@ -100,36 +100,45 @@ export const runCmd = async (command: string, cwd: string, timeout: number): Pro
     auth: 'autonomous',
     idempotencyKey: `verify_command:${command.slice(0, 120)}`,
   });
-  return await new Promise((resolve) => {
-    execFile(
-      process.platform === 'win32' ? 'powershell.exe' : 'bash',
-      process.platform === 'win32' ? ['-NoProfile', '-NonInteractive', '-Command', command] : ['-lc', command],
-      { cwd, timeout, maxBuffer: 8 * 1024 * 1024, windowsHide: true, signal: executionSignal() },
-      (err, stdout, stderr) => {
-        const out = `${stdout}${stderr}`.trim();
-        const code = err ? ((err as NodeJS.ErrnoException & { code?: number }).code ?? 1) : 0;
-        const killed = (err as { killed?: boolean })?.killed;
-        const result = killed ? `TIMEOUT after ${Math.round(timeout / 1000)}s\n${out.slice(-3000)}` : `exit ${code}\n${out.slice(-3000)}`;
-        // The outcome receipt is durable BEFORE the result is reported (§4.1 step 6).
-        // Round 20 (CHANGE 1): the strict outcome path — a lost completion receipt is
-        // escalated to the unknown-marker/pending flush instead of silently dropped.
-        recordOutcome(
-          {
-            id,
-            t: t0,
-            ms: Date.now() - t0,
-            tool: 'verify_command',
-            agent: 'verifier',
-            args: `command=${command}`,
-            auth: 'autonomous',
-            status: code === 0 && !killed ? 'ok' : 'failed',
-            result,
-            retries: 0,
-            idempotencyKey: `verify_command:${command.slice(0, 120)}`,
-          },
-          { sideEffectMayHaveRun: true }
-        ).then(() => resolve(result));
-      }
-    );
+  const isWindows = process.platform === 'win32';
+  const result = await runProcess({
+    executable: isWindows ? 'powershell.exe' : 'bash',
+    args: isWindows ? ['-NoProfile', '-NonInteractive', '-Command', command] : ['-lc', command],
+    cwd,
+    timeoutMs: timeout,
+    maxOutputBytes: 2 * 1024 * 1024,
+    resource: 'build',
+    signal: executionSignal(),
   });
+  const resultText = [
+    result.status === 'success'
+      ? `exit 0 · ${result.durationMs}ms · queue ${result.queueWaitMs}ms`
+      : result.status === 'timed_out'
+        ? `TIMEOUT after ${Math.round(timeout / 1000)}s · ${result.durationMs}ms`
+        : result.status === 'cancelled'
+          ? `CANCELLED · ${result.durationMs}ms`
+          : result.status === 'launch_failed'
+            ? `LAUNCH FAILED (${result.errorCode ?? 'unknown'}) · ${result.durationMs}ms`
+            : `exit ${result.exitCode ?? 'unknown'} · ${result.durationMs}ms`,
+    result.stdout.trim(),
+    result.stderr.trim() && `STDERR: ${result.stderr.trim()}`,
+    result.outputTruncated ? '[output truncated at 2 MiB]' : '',
+  ].filter(Boolean).join('\\n');
+  await recordOutcome(
+    {
+      id,
+      t: t0,
+      ms: result.durationMs,
+      tool: 'verify_command',
+      agent: 'verifier',
+      args: `command=${command}`,
+      auth: 'autonomous',
+      status: result.status === 'success' ? 'ok' : 'failed',
+      result: resultText,
+      retries: 0,
+      idempotencyKey: `verify_command:${command.slice(0, 120)}`,
+    },
+    { sideEffectMayHaveRun: true }
+  );
+  return result.status === 'success' ? resultText : `FAILED: ${resultText}`;;
 };
