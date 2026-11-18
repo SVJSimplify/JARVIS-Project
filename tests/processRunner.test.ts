@@ -76,6 +76,52 @@ describe('shared process runner', () => {
     expect(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr)).toBeLessThanOrEqual(16384);
   });
 
+  it('distinguishes a process launch failure from a command that ran and failed', async () => {
+    const result = await runProcess({
+      executable: 'jini-missing-executable-4c1e',
+      args: [],
+      cwd: process.cwd(),
+      timeoutMs: 500,
+      resource: 'command',
+    });
+    expect(result.status).toBe('launch_failed');
+    expect(result.errorCode).toBeTruthy();
+  });
+
+  it('expires a queued process with a separate queue-timeout status', async () => {
+    const first = runProcess({
+      executable: node,
+      args: script('setTimeout(() => process.exit(0), 420);'),
+      cwd: process.cwd(),
+      timeoutMs: 2000,
+      resource: 'command',
+    });
+    const second = runProcess({
+      executable: node,
+      args: script('setTimeout(() => process.exit(0), 420);'),
+      cwd: process.cwd(),
+      timeoutMs: 2000,
+      resource: 'command',
+    });
+    const started = Date.now();
+    while (processSchedulerSnapshot().byResource.command < 2) {
+      if (Date.now() - started > 1500) throw new Error('The two command slots did not become active.');
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    const queued = await runProcess({
+      executable: node,
+      args: script('process.exit(0);'),
+      cwd: process.cwd(),
+      timeoutMs: 1000,
+      queueTimeoutMs: 250,
+      resource: 'command',
+    });
+    expect(queued.status).toBe('queue_timed_out');
+    expect(queued.queueWaitMs).toBeGreaterThanOrEqual(200);
+    const active = await Promise.all([first, second]);
+    expect(active.every((result) => result.status === 'success')).toBe(true);
+  });
+
   it('never exceeds the command-process concurrency limit', async () => {
     let peak = 0;
     const observe = setInterval(() => {
