@@ -1,5 +1,5 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import { runProcess } from './execution/ProcessRunner';
+import { executionSignal } from './toolResult';
 
 /**
  * PROCESS IDENTITY (F-05).
@@ -14,8 +14,6 @@ import { promisify } from 'util';
  * unknown pid, non-Windows host), the caller must refuse the stop. Tests inject a
  * resolver with setPidNameResolver; production uses tasklist.
  */
-
-const run = promisify(execFile);
 
 type PidResolver = (pid: number) => Promise<string | null>;
 
@@ -38,11 +36,19 @@ export async function resolveProcessName(pid: number): Promise<string | null> {
     }
   }
   try {
-    const { stdout } = await run('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], {
-      windowsHide: true,
-      timeout: 8000,
-      maxBuffer: 1024 * 1024,
+    if (process.platform !== 'win32') return null;
+    const result = await runProcess({
+      executable: 'tasklist',
+      args: ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'],
+      cwd: process.cwd(),
+      timeoutMs: 8_000,
+      queueTimeoutMs: 8_000,
+      maxOutputBytes: 128 * 1024,
+      resource: 'system',
+      signal: executionSignal(),
     });
+    if (result.status !== 'success') return null;
+    const stdout = result.stdout;
     const line = stdout.split(/\r?\n/).find((l) => l.trim().length > 0) ?? '';
     if (line.toLowerCase().startsWith('info:')) return null; // no such pid
     const name = line
