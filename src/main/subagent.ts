@@ -241,7 +241,7 @@ async function runSubagentBody(
         const key = `${call.function.name}:${call.function.arguments}`;
         const prior = seen.get(key);
         if (prior && !prior.failed)
-          return { text: `(identical successful call already made; same observation)\\n${clip(prior.text, 1500)}`, status: 'success' };
+          return { text: `(identical successful call already made; same observation)\n${clip(prior.text, 1500)}`, status: 'success' };
         if (prior?.failed)
           return { text: `IDENTICAL CALL NOT REPEATED: this exact ${call.function.name} call already failed once in this agent run. Change the arguments, choose a different tool, or inspect the partial state before proceeding. Previous failure: ${clip(prior.text, 900)}`, status: 'error', errorKind: 'duplicate-failed-call' };
         const res = normalize(await runWithExecutionScope({ signal }, () => run(call.function.name, call.function.arguments)));
