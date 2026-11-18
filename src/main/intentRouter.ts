@@ -22,7 +22,7 @@ const RULES: IntentRule[] = [
   {
     id: 'storage_analysis',
     label: 'disk and storage analysis',
-    pattern: /\b(?:disk ?space|storage|taking (?:up )?(?:the )?(?:most|maximum) space|what(?:'s| is) using (?:the )?(?:most|maximum) space|largest files|biggest files|drive usage|folder sizes|space on [a-z]:|files? (?:that|which) (?:take|takes|taking|uses?|are taking) up space|files? in [a-z]:)\b|\b[a-z]:\\?$/i,
+    pattern: /\b(?:disk ?space|storage|taking (?:up )?(?:the )?(?:most|maximum) space|what(?:'s| is) using (?:the )?(?:most|maximum) space|largest files|biggest files|drive usage|folder sizes|space on [a-z]:|files? (?:that|which) (?:take|takes|taking|uses?|are taking) up space|files? in [a-z]:)\b|\b[a-z]:/i,
     weight: 6,
     groups: ['files'],
     preferredTools: ['analyze_storage'],
@@ -40,7 +40,7 @@ const RULES: IntentRule[] = [
   {
     id: 'desktop_control',
     label: 'desktop and application control',
-    pattern: /\b(?:open|launch|close|focus|minimi[sz]e|maximi[sz]e|move|resize|click|type|press|screenshot|screen|window|desktop|volume|brightness|bluetooth|pair|clipboard|cpu|memory usage|ram|battery|processes?)\b/i,
+    pattern: /\b(?:desktop|window|screen|notepad|calculator|task manager|file explorer|volume|brightness|bluetooth|pairing|clipboard|cpu|memory usage|ram|battery|processes?|mouse|keyboard|vs ?code|discord|whatsapp|spotify)\b/i,
     weight: 3,
     groups: ['desktop'],
     preferredTools: ['inspect_app', 'list_windows', 'launch_app', 'click_control', 'set_control_text', 'type_text', 'press_keys', 'see_screen'],
