@@ -554,7 +554,7 @@ async function runOneStep(t: TaskRecord, step: TaskStep, deps: CoordinatorDeps, 
         // context as the sub-agent path, so its tool calls are attributed to this task in
         // the execution ledger — verification and evidence projections see them.
         await runWithCallContext({ agent: `step:${step.id}`, taskId: t.id, stepId: step.id }, () => deps.stepRunner!(prompt, kind, t, step.id, stepSignal))
-      : await runSubagent(prompt, deps.schemas(kind), deps.run, {
+      : await runSubagent(prompt, deps.schemas(kind, prompt), deps.run, {
           agent: def.name,
           signal: stepSignal,
           taskId: t.id,
@@ -620,7 +620,7 @@ async function runOneStep(t: TaskRecord, step: TaskStep, deps: CoordinatorDeps, 
         try {
           const def = registerDynamicAgent({ name: st.name, purpose: st.purpose, tools: st.tools }, `step:${t.id}:${step.id}`);
           noteDynamicRun(def.name);
-          const toolsForChild = deps.schemas('general').filter((schema) => agentAllows(def, schema.function.name));
+          const toolsForChild = deps.schemas('general', st.instructions, true).filter((schema) => agentAllows(def, schema.function.name));
           const out = deps.subtaskRunner
             ? await deps.subtaskRunner(def.name, st.instructions, signal)
             : await runSubagent(st.instructions, toolsForChild, deps.run, { agent: def.name, signal, taskId: t.id, stepId: step.id, runId: `subtask:${t.id}:${step.id}:${def.name}`, why: `subtask proposed by step "${step.title}": ${clip(st.purpose, 100)}` });
@@ -1218,7 +1218,7 @@ const v_Results = (t: TaskRecord): string => (t.verification?.results ?? []).map
 
 export interface CoordinatorDeps {
   run: Runner;
-  schemas: (kind: AgentKind) => ToolSchema[];
+  schemas: (kind: AgentKind, request?: string, includeAllAllowed?: boolean) => ToolSchema[];
   /** Test hook: deterministic planner. */
   planner?: (spec: TaskSpec) => Promise<PlanStep[]>;
   /** Round 18 §5.5: deterministic adaptive replanner (tests). Return null/[] to refuse. */
