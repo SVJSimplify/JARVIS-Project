@@ -10,6 +10,7 @@ import ApprovalCard from './ApprovalCard';
 import ToolActivitySummary from './ToolActivitySummary';
 import SystemPanel from './SystemPanel';
 import JiniOrb from './JiniOrb';
+import CommandPalette from './CommandPalette';
 import { useTelemetry } from '../hooks/useTelemetry';
 import { useClock } from '../hooks/useClock';
 import { MODE_LABEL, type JarvisMode, type LogEntry } from '../lib/jarvisMode';
@@ -113,12 +114,24 @@ const navItemClass = (active: boolean) =>
 export default function JarvisWindow({ version, mode, interactionMode, levelRef, log, caption, mini, voiceReady, turnsCount = 0, onSuggest, onOpenChat, children }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('provider');
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const tele = useTelemetry();
   const openSettings = (section: SettingsSection) => {
     setSettingsSection(section);
     setSettingsOpen(true);
   };
+
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onShortcut);
+    return () => window.removeEventListener('keydown', onShortcut);
+  }, []);
 
   const panels = (
     <>
@@ -129,6 +142,20 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
       <NativeBrowserPanel open={panel === 'browser'} onClose={() => setPanel(null)} />
       <TaskProgress mini={mini} />
       <ApprovalCard />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onNavigate={(destination) => {
+          if (destination === 'assistant') { setPanel(null); setSettingsOpen(false); }
+          else if (destination === 'projects') { setSettingsOpen(false); setPanel('projects'); }
+          else if (destination === 'operations') { setSettingsOpen(false); setPanel('operations'); }
+          else if (destination === 'history') { setSettingsOpen(false); setPanel('conversations'); }
+          else if (destination === 'browser') { setSettingsOpen(false); setPanel('browser'); }
+          else if (destination === 'devices') openSettings('devices');
+          else if (destination === 'settings') openSettings('provider');
+          else if (destination === 'activity') openSettings('activity');
+        }}
+      />
     </>
   );
 
@@ -223,7 +250,16 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
         <header className="hud-header relative z-20 flex h-[52px] shrink-0 items-center gap-3 border-b border-hairline pl-6">
           <h2 className="text-[14px] font-semibold text-ink">Assistant</h2>
           <StatusChip mode={mode} quiet={interactionMode === 'background'} />
-          <div className="no-drag">
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="no-drag command-trigger ml-auto inline-flex h-8 items-center gap-2 rounded-lg border border-hairline bg-surface px-2.5 text-[11.5px] text-faint transition-colors hover:border-sand hover:text-ink"
+            aria-label="Open command palette"
+            title="Search navigation and commands (Ctrl+K)"
+          >
+            <span className="text-[13px]">⌕</span><span>Quick open</span><kbd className="rounded border border-hairline bg-paper px-1.5 py-0.5 text-[10px]">Ctrl K</kbd>
+          </button>
+          <div className="no-drag ml-1">
             <ToolActivitySummary onOpenActivity={() => openSettings('activity')} />
           </div>
           {tele.alerts.length > 0 && (
