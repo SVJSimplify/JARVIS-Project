@@ -46,7 +46,7 @@ export function inferToolGroup(name: string): string {
   if (/^(start_task$|task$|task_|parallel_tasks$|chain$|batch$|research$|spawn_agent$|background_|todo_|plan_|quality_gate$|decide$|playbook_)/.test(name)) return 'orchestration';
   if (/^(set_timer$|list_timers$|cancel_timer$|schedule_task$|list_scheduled$|cancel_scheduled$|add_recurring_task$|briefing$)/.test(name)) return 'productivity';
   if (/^(make_document$|read_document$|artifact_|show_visual$|visual_|make_diagram$)/.test(name)) return 'documents';
-  if (isOneOf(name, ['get_system_info', 'list_drives', 'list_processes', 'analyze_storage', 'bluetooth_scan', 'stop_process', 'get_device_info', 'device_status', 'device_list'])) return 'system';
+  if (isOneOf(name, ['get_system_info', 'list_drives', 'list_processes', 'analyze_storage', 'bluetooth_scan', 'stop_process', 'execution_status', 'get_device_info', 'device_status', 'device_list'])) return 'system';
   if (/^(inspect_app$|click_control$|set_control_text$|type_text$|press_keys$|click_at$|close_app$|launch_app$|open_app$|media_control$|list_windows$|focus_window$|window_control$|set_hud_mode$|place_window$|volume_control$|set_brightness$|lock_screen$|clipboard_|take_screenshot$|screen_text$|see_screen$|scroll_at$|drag_at$)/.test(name)) return 'desktop';
   if (isOneOf(name, ['list_files', 'write_file', 'edit_file', 'open_file', 'glob', 'grep', 'multi_edit', 'apply_patch', 'run_command', 'diagnostics', 'code_search', 'skill', 'copy_file', 'make_dir', 'move_file', 'find_files', 'open_anything', 'inspect_project', 'project_context', 'analyze_impact', 'project_profile', 'write_project_memory'])) return 'files';
   return 'advanced';
