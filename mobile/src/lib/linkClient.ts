@@ -46,23 +46,55 @@ async function linkKey(l: LinkState): Promise<LinkKey> {
   return key;
 }
 
-const base = (host: string, port: number) => `http://${host}:${port}`;
+const base = (host: string, port: number) => (/^https?:\/\//.test(host) ? host : `http://${host}:${port}`);
 
-/** Find a reachable desktop address (the last good one first). */
-async function reachableHost(l: LinkState): Promise<string> {
-  const candidates = [l.host, ...l.hosts.filter((h) => h !== l.host)].filter(Boolean);
-  for (const h of candidates) {
-    try {
-      const res = await withTimeout(fetch(`${base(h, l.port)}/jini/hello`), 2500);
-      if (res.ok) {
-        if (h !== l.host) setState({ link: { ...l, host: h } });
-        return h;
-      }
-    } catch {
-      /* try the next address */
+/** Ask the rendezvous topic for the desktop's current public address (it changes when the desktop restarts). */
+async function discoverRemote(l: LinkState): Promise<string | null> {
+  try {
+    const res = await withTimeout(fetch(`https://ntfy.sh/jini-${l.deviceId}/json?poll=1&since=all`), 8000);
+    const lines = (await res.text()).split('\n').filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const m = JSON.parse(lines[i]) as { event?: string; message?: string };
+      if (m.event === 'message' && /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(m.message ?? '')) return m.message!;
     }
+  } catch {
+    /* rendezvous unreachable */
   }
-  throw new OfflineError('Desktop JINI is not reachable on this network.');
+  return null;
+}
+
+/** Find a reachable desktop address: all known ones race (LAN wins at home, the tunnel anywhere else). */
+async function reachableHost(l: LinkState): Promise<string> {
+  const race = (hs: string[]) =>
+    new Promise<string>((ok, no) => {
+      let left = hs.length;
+      if (!left) return no(new Error('none'));
+      for (const h of hs)
+        withTimeout(fetch(`${base(h, l.port)}/jini/hello`), 5000).then(
+          (res) => (res.ok ? ok(h) : --left === 0 && no(new Error('none'))),
+          () => --left === 0 && no(new Error('none'))
+        );
+    });
+  const keep = (h: string) => {
+    if (h !== l.host) setState({ link: { ...l, host: h } });
+    return h;
+  };
+  try {
+    return keep(await race([l.host, ...l.hosts.filter((h) => h !== l.host)].filter(Boolean)));
+  } catch {
+    const fresh = await discoverRemote(l);
+    if (fresh) {
+      try {
+        const hosts = [fresh, ...l.hosts.filter((h) => !h.startsWith('https://'))];
+        const h = await race([fresh]);
+        setState({ link: { ...l, host: h, hosts } });
+        return h;
+      } catch {
+        /* the desktop is off or has no tunnel */
+      }
+    }
+    throw new OfflineError('Desktop JINI is not reachable. Make sure it is running with phone connections on.');
+  }
 }
 
 // ---------------- pairing ----------------
@@ -73,7 +105,7 @@ export async function pairWithOffer(offerText: string, deviceName: string, platf
   const kp = await generateLinkKeyPair();
   const devicePub = await exportPublicKey(kp);
   const proof = await hmacB64u(o.secret, pairingProofInput(o.id, devicePub));
-  let lastErr = 'Could not reach the desktop. Make sure the phone is on the same Wi-Fi network.';
+  let lastErr = 'Could not reach the desktop. Check that JINI is running and "Allow phone connections" is on.';
   for (const host of o.hosts) {
     let res: Response;
     try {
@@ -340,7 +372,7 @@ export async function connect(): Promise<void> {
     return;
   }
   const k = await linkKey(l);
-  const ws = new WebSocket(`ws://${host}:${l.port}/jini/live`);
+  const ws = new WebSocket(`${base(host, l.port).replace(/^http/, 'ws')}/jini/live`);
   socket = ws;
   ws.onopen = async () => {
     const env = await seal(k, l.deviceId, 'c2d', { ts: Date.now(), ctr: counter(), body: { op: 'live' } });

@@ -17,6 +17,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { WebSocketServer, type WebSocket } from 'ws';
+import { startTunnel, stopTunnel } from './tunnel';
 import {
   LINK_VERSION,
   ReplayGuard,
@@ -102,6 +103,8 @@ export interface HubStatus {
   listening: boolean;
   port: number;
   hosts: string[];
+  /** Public https address for off-network access ('' while connecting / unavailable). */
+  remote: string;
   pairing: { exp: number } | null;
   lastError: string;
   seq: number;
@@ -144,6 +147,9 @@ export class DeviceHub {
   private enabled = false;
   private port = DEFAULT_PORT;
   private lastError = '';
+  private tunnelUrl = '';
+  private tunnelWaiters: Array<() => void> = [];
+  private republish: NodeJS.Timeout | null = null;
   private loaded = false;
   private saveTimer: NodeJS.Timeout | null = null;
   private failuresByIp = new Map<string, { n: number; since: number }>();
@@ -308,6 +314,7 @@ export class DeviceHub {
       listening: Boolean(this.server?.listening),
       port: this.port,
       hosts: lanHosts(),
+      remote: this.tunnelUrl,
       pairing: this.pairing && !this.pairing.used && this.pairing.exp > Date.now() ? { exp: this.pairing.exp } : null,
       lastError: this.lastError,
       seq: this.seq,
@@ -353,10 +360,50 @@ export class DeviceHub {
     });
     this.server = server;
     this.wss = wss;
+    startTunnel(
+      this.boundPort(),
+      this.deps.dataDir,
+      (url) => {
+        this.tunnelUrl = url;
+        if (url) {
+          this.tunnelWaiters.splice(0).forEach((f) => f());
+          void this.publishRemote();
+        }
+      },
+      (msg) => (this.lastError = `Remote access unavailable: ${msg}`)
+    );
+    // ntfy keeps messages ~12 h: re-announce the address hourly so a phone away for a day still finds it.
+    this.republish = setInterval(() => void this.publishRemote(), 3_600_000);
+  }
+
+  /** Addresses the phone may try: the public tunnel first (works anywhere), then LAN. */
+  private hosts(): string[] {
+    return [...(this.tunnelUrl ? [this.tunnelUrl] : []), ...lanHosts()];
+  }
+
+  /** Tell each paired phone the current public address (topic = its device id, unguessable; payload is public-safe). */
+  private async publishRemote(): Promise<void> {
+    if (!this.tunnelUrl) return;
+    for (const d of this.devices.values()) {
+      if (d.revokedAt) continue;
+      void fetch(`https://ntfy.sh/jini-${d.id}`, { method: 'POST', body: this.tunnelUrl }).catch(() => undefined);
+    }
+  }
+
+  private waitForTunnel(ms: number): Promise<void> {
+    if (this.tunnelUrl) return Promise.resolve();
+    return new Promise((resolve) => {
+      const t = setTimeout(resolve, ms);
+      this.tunnelWaiters.push(() => (clearTimeout(t), resolve()));
+    });
   }
 
   async stop(): Promise<void> {
     this.pairing = null;
+    stopTunnel();
+    this.tunnelUrl = '';
+    if (this.republish) clearInterval(this.republish);
+    this.republish = null;
     for (const set of this.sockets.values()) for (const s of set) s.close(1001, 'link disabled');
     this.sockets.clear();
     this.wss?.close();
@@ -381,6 +428,7 @@ export class DeviceHub {
   async startPairing(): Promise<{ offer: string; exp: number }> {
     await this.load();
     if (!this.server?.listening) throw new Error('Turn on "Allow phone connections" first.');
+    await this.waitForTunnel(20_000); // so the QR carries the public address when it can
     const keyPair = await generateLinkKeyPair();
     const p: Pairing = {
       id: randomB64u(9),
@@ -397,7 +445,7 @@ export class DeviceHub {
       id: p.id,
       secret: p.secret,
       pub: p.pub,
-      hosts: lanHosts(),
+      hosts: this.hosts(),
       port: this.boundPort(),
       exp: p.exp,
       name: this.deps.desktopName,
@@ -449,6 +497,7 @@ export class DeviceHub {
     const confirm = await seal(key, deviceId, 'd2c', { ts: now, ctr: this.counterFor(deviceId)(), body: { ok: true, desktop: this.deps.desktopName } });
     this.deps.onSecurityEvent?.(`New device paired: "${rec.name}" (${rec.platform}).`);
     this.append('notice', { text: `Paired ${rec.name}` });
+    void this.publishRemote();
     return { status: 200, json: { deviceId, confirm } };
   }
 
@@ -636,7 +685,9 @@ export class DeviceHub {
   }
 
   private async handleHttp(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const ip = req.socket.remoteAddress ?? '?';
+    // Behind the tunnel every request arrives from loopback: rate-limit by the real client instead.
+    const ra = req.socket.remoteAddress ?? '?';
+    const ip = /^(::ffff:)?127\.|^::1$/.test(ra) ? String(req.headers['cf-connecting-ip'] ?? ra) : ra;
     const send = (status: number, json: unknown) => {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(json));

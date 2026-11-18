@@ -67,7 +67,7 @@ export default function DevicesSection() {
       const r = await window.electronAPI.devices.pairStart();
       setOffer(r.offer);
       setExp(r.exp);
-      setQr(await QRCode.toDataURL(r.offer, { errorCorrectionLevel: 'M', margin: 1, width: 280, color: { dark: '#FBF8F2ff', light: '#e9fbffff' } }));
+      setQr(await QRCode.toDataURL(r.offer, { errorCorrectionLevel: 'L', margin: 3, width: 360, color: { dark: '#000000ff', light: '#ffffffff' } }));
       void refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -101,7 +101,7 @@ export default function DevicesSection() {
 
       {status?.enabled && (
         <p className="mb-5 font-mono text-xs text-steel">
-          {status.listening ? `Listening on ${(status.hosts.length ? status.hosts : ['this computer']).join(', ')} : ${status.port}` : 'Not listening'}
+          {status.listening ? `Listening on ${(status.hosts.length ? status.hosts : ['this computer']).join(', ')} : ${status.port} · ${status.remote ? 'Remote access on (any network)' : 'Remote access connecting…'}` : 'Not listening'}
         </p>
       )}
       {(error || status?.lastError) && <p className="mb-5 text-sm text-danger">{error || status?.lastError}</p>}
@@ -114,7 +114,7 @@ export default function DevicesSection() {
 
       {showingQr && (
         <div className="mb-6 flex flex-col items-start gap-3">
-          <img src={qr} alt="JINI pairing QR code" width={280} height={280} className="rounded" />
+          <img src={qr} alt="JINI pairing QR code" width={320} height={320} className="rounded bg-white" />
           <p className="text-sm text-hot">Open JINI on your phone → Pair → scan this code. It expires in {left}s and works once.</p>
           <details className="w-full text-xs text-steel">
             <summary className="cursor-pointer">Can’t scan? Copy the pairing code instead</summary>
