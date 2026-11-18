@@ -8,8 +8,11 @@ type PropSchema = {
   minLength?: number;
   maxLength?: number;
   description?: string;
+  minItems?: number;
+  maxItems?: number;
+  items?: PropSchema;
 };
-type Schema = { type?: string; properties?: Record<string, PropSchema>; required?: string[] };
+type Schema = { type?: string; properties?: Record<string, PropSchema>; required?: string[]; additionalProperties?: boolean };
 
 const ALIASES: Record<string, string> = {
   open_browser: 'browser_open', browser_navigate: 'browser_open', browser_goto: 'browser_open', navigate: 'browser_open',
@@ -80,8 +83,12 @@ export function checkArgs(name: string, args: Record<string, unknown>, params: u
   for (const [k, def] of Object.entries(props)) {
     const v = out[k];
     if (v === undefined || v === null) continue;
-    if (def.type === 'number' && typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v))) out[k] = Number(v);
-    else if (def.type === 'boolean' && typeof v === 'string') out[k] = /^(true|yes|1)$/i.test(v);
+    if ((def.type === 'number' || def.type === 'integer') && typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) out[k] = Number(v);
+    else if (def.type === 'boolean' && typeof v === 'string') {
+      if (/^(true|yes|1)$/i.test(v)) out[k] = true;
+      else if (/^(false|no|0)$/i.test(v)) out[k] = false;
+      else throw new Error(`${name}.${k} must be true or false (got ${JSON.stringify(v)}).`);
+    }
     else if (def.type === 'string' && (typeof v === 'number' || typeof v === 'boolean')) out[k] = String(v);
     else if (def.type === 'array' && typeof v === 'string') {
       try {
@@ -92,11 +99,33 @@ export function checkArgs(name: string, args: Record<string, unknown>, params: u
       }
     } else if (def.type === 'object' && typeof v === 'string') {
       try {
-        out[k] = JSON.parse(v) as unknown;
+        const parsed = JSON.parse(v) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('expected an object');
+        out[k] = parsed;
       } catch {
-        /* leave as is */
+        throw new Error(`${name}.${k} must be a valid JSON object.`);
       }
     }
+  }
+  for (const [k, def] of Object.entries(props)) {
+    const v = out[k];
+    if (v === undefined || v === null) continue;
+    if (def.type === 'string' && typeof v !== 'string')
+      throw new Error(`${name}.${k} must be a string.`);
+    if (def.type === 'number' && (typeof v !== 'number' || !Number.isFinite(v)))
+      throw new Error(`${name}.${k} must be a finite number.`);
+    if (def.type === 'integer' && (typeof v !== 'number' || !Number.isInteger(v)))
+      throw new Error(`${name}.${k} must be an integer.`);
+    if (def.type === 'boolean' && typeof v !== 'boolean')
+      throw new Error(`${name}.${k} must be a boolean.`);
+    if (def.type === 'array' && !Array.isArray(v))
+      throw new Error(`${name}.${k} must be an array.`);
+    if (def.type === 'object' && (!v || typeof v !== 'object' || Array.isArray(v)))
+      throw new Error(`${name}.${k} must be an object.`);
+  }
+  if (sch.additionalProperties === false) {
+    const unknown = Object.keys(out).filter((key) => !(key in props));
+    if (unknown.length) throw new Error(`${name} received unsupported argument(s): ${unknown.join(', ')}.`);
   }
   const missing = (sch.required ?? []).filter((k) => out[k] === undefined || out[k] === null || out[k] === '');
   if (missing.length) {
@@ -109,6 +138,20 @@ export function checkArgs(name: string, args: Record<string, unknown>, params: u
     if (v === undefined || v === null) continue;
     if (def.enum && !def.enum.some((e) => e === v || JSON.stringify(e) === JSON.stringify(v)))
       throw new Error(`${name}.${k} must be one of: ${def.enum.map((e) => String(e)).join(' | ')} (got ${JSON.stringify(v)}). Call it again with a valid value.`);
+    if (Array.isArray(v)) {
+      if (def.minItems !== undefined && v.length < def.minItems)
+        throw new Error(`${name}.${k} requires at least ${def.minItems} item(s).`);
+      if (def.maxItems !== undefined && v.length > def.maxItems)
+        throw new Error(`${name}.${k} accepts at most ${def.maxItems} item(s).`);
+      if (def.items?.type) {
+        const badIndex = v.findIndex((item) => def.items?.type === 'string' ? typeof item !== 'string'
+          : def.items?.type === 'number' ? typeof item !== 'number' || !Number.isFinite(item)
+          : def.items?.type === 'integer' ? typeof item !== 'number' || !Number.isInteger(item)
+          : def.items?.type === 'boolean' ? typeof item !== 'boolean'
+          : false);
+        if (badIndex >= 0) throw new Error(`${name}.${k}[${badIndex}] must be ${def.items.type}.`);
+      }
+    }
     if (typeof v === 'number' && Number.isFinite(v)) {
       if (def.minimum !== undefined && v < def.minimum)
         throw new Error(`${name}.${k} must be ≥ ${def.minimum} (got ${v}). Call it again.`);
