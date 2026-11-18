@@ -23,6 +23,14 @@ import { AsyncLocalStorage } from 'async_hooks';
 
 export type ToolStatus = 'success' | 'error' | 'cancelled' | 'unavailable' | 'conflict';
 
+export interface ToolExecutionMetrics {
+  queueWaitMs?: number;
+  processMs?: number;
+  pid?: number;
+  exitCode?: number | null;
+  processStatus?: string;
+}
+
 export interface ToolResultEnvelope {
   /** Human-readable result exactly as tools returned it before (backwards compatible). */
   text: string;
@@ -38,6 +46,7 @@ export interface ToolResultEnvelope {
    *  account for actions (completion audit, verification) must treat this call as
    *  requiring ledger reconciliation — never as a reason to repeat the action. */
   receiptPending?: boolean;
+  metrics?: ToolExecutionMetrics;
 }
 
 export const successEnvelope = (text: string, auth?: string): ToolResultEnvelope => ({ text, status: 'success', auth });
@@ -47,6 +56,7 @@ interface ScopeState {
   errorKind?: string;
   soft?: boolean;
   signal?: AbortSignal;
+  metrics?: ToolExecutionMetrics;
 }
 const als = new AsyncLocalStorage<ScopeState>();
 
@@ -70,6 +80,19 @@ export const currentToolStatus = (): { status: ToolStatus; errorKind?: string; s
   const cur = als.getStore();
   if (!cur) return { status: 'success' };
   return { status: cur.status, errorKind: cur.errorKind, soft: cur.soft };
+};
+
+/** Process telemetry written by process-backed tools into the same invocation scope. */
+export const setToolExecutionMetrics = (patch: ToolExecutionMetrics): void => {
+  const cur = als.getStore();
+  if (!cur) return;
+  cur.metrics = { ...cur.metrics, ...patch };
+};
+
+/** Snapshot of any subprocess timing attached to the current tool invocation. */
+export const currentToolExecutionMetrics = (): ToolExecutionMetrics | undefined => {
+  const metrics = als.getStore()?.metrics;
+  return metrics ? { ...metrics } : undefined;
 };
 
 /** The cancellation signal governing the work running in this scope, if any. */
