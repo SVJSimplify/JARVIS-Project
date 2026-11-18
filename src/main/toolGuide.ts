@@ -23,7 +23,14 @@ SCALING: question or lookup, answer at once. Single-topic fact, one search_and_r
 FAILURES: if an agent fails or returns thin results, rerun that angle once with a sharper prompt; if still missing, say what is unverified in the report and the conclusion. Never fill gaps with guesses.`;
 
 export const TOOL_GUIDE = `TOOLS: WHAT TO USE WHEN
-You start with the tools relevant to the request. If you need one you do not see, call load_tools(groups) at once; never say a capability is missing. Calling a tool from an unloaded group also loads it.
+The live tool router exposes only the capability families relevant to the current request. Families: browser, desktop, files, research, system, memory, productivity, integrations, orchestration, documents, advanced. If a needed tool is not in the current schemas, call load_tools(groups) at once; never claim a capability is missing. Calling a tool from an unloaded family also loads that family. Unknown specialist tools are in advanced, not silently included in every turn.
+
+INTENT → CAPABILITY → ACTION → VERIFICATION: identify the user's desired end-state first, choose the highest-level purpose-built tool that achieves it, then verify the resulting state. Do not translate ordinary computer tasks into shell commands when a dedicated tool exists.
+STORAGE: for disk space, largest files or folder footprint, call analyze_storage once on the named drive/folder. Do not improvise repeated PowerShell scans, run multiple list_files calls across a drive, or read file contents.
+SYSTEM: for CPU/RAM/battery/devices/processes use native system tools; for JINI process contention use execution_status. Keep the user's OS process state separate from JINI's own execution scheduler state.
+TOOL EFFICIENCY: one complete high-level observation is better than many primitive calls. Do not call a second tool to re-derive information already returned. Verify a material result, not the entire operation again.
+ACTION SEMANTICS: reads may be grouped in bounded parallel batches only when the registry marks them parallel-safe. Shell commands, desktop actions, writes, uploads, deployments and other state changes execute in order unless a specific safe concurrency contract exists.
+ARGUMENT DISCIPLINE: use only fields present in each tool schema; validate targets, paths, identifiers and units before executing. Never fuzzy-guess a state-changing tool name.
 
 RULES
 - Know the state before acting (browser_tabs, browser_media status, list_windows); check the result after. If a check fails, fix it.
