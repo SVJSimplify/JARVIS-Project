@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { acquireExecutionSlot, executionSchedulerSnapshot, resetExecutionSchedulerForTests, QueueTimeoutError, type ExecutionResource } from './ExecutionScheduler';
+import { setToolExecutionMetrics } from '../toolResult';
 
 export type ProcessResource = ExecutionResource;
 export type ProcessStatus = 'success' | 'failed' | 'timed_out' | 'queue_timed_out' | 'cancelled' | 'launch_failed';
@@ -87,9 +88,17 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
   try {
     ticket = await acquireExecutionSlot(resource, request.signal, request.queueTimeoutMs ?? 60_000);
   } catch (error) {
-    return error instanceof QueueTimeoutError
+    const result = error instanceof QueueTimeoutError
       ? { ...emptyResult('queue_timed_out', error.queueWaitMs, error.message), durationMs: 0 }
       : emptyResult('cancelled', 0, error instanceof Error ? error.message : String(error));
+    setToolExecutionMetrics({
+      queueWaitMs: result.queueWaitMs,
+      processMs: 0,
+      processStatus: result.status,
+      exitCode: result.exitCode,
+      pid: result.pid,
+    });
+    return result;
   }
 
   const queueWaitMs = ticket.queueWaitMs;
@@ -102,7 +111,7 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
   try {
     if (request.signal?.aborted) return emptyResult('cancelled', queueWaitMs, 'aborted-before-launch');
 
-    return await new Promise<ProcessResult>((resolve) => {
+    const result = await new Promise<ProcessResult>((resolve) => {
       let stdout = '';
       let stderr = '';
       let capturedBytes = 0;
@@ -221,6 +230,14 @@ export async function runProcess(request: ProcessRequest): Promise<ProcessResult
 
       if (request.signal?.aborted) onAbort();
     });
+    setToolExecutionMetrics({
+      queueWaitMs: result.queueWaitMs,
+      processMs: result.durationMs,
+      processStatus: result.status,
+      exitCode: result.exitCode,
+      pid: result.pid,
+    });
+    return result;
   } finally {
     // runProcess's Promise finalizer normally releases the ticket. This protects early
     // exceptions before the child close event is wired, without releasing twice.
