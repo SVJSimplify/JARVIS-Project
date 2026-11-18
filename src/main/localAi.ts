@@ -1,3 +1,4 @@
+import { app } from 'electron';
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 
@@ -8,10 +9,11 @@ import * as path from 'node:path';
  * the user's JINI data directory when a local feature is first used.
  */
 export function localAiPackageRoot(): string | null {
-  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  if (resourcesPath) {
+  if (app.isPackaged) {
+    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+    if (!resourcesPath) return null;
     const packagedPackage = path.join(resourcesPath, 'local-ai', 'node_modules', '@huggingface', 'transformers', 'package.json');
-    if (existsSync(packagedPackage)) return path.join(resourcesPath, 'local-ai', 'package.json');
+    return existsSync(packagedPackage) ? path.join(resourcesPath, 'local-ai', 'package.json') : null;
   }
 
   const developmentPackage = path.join(process.cwd(), 'node_modules', '@huggingface', 'transformers', 'package.json');
