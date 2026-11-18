@@ -49,7 +49,7 @@ const RULES: IntentRule[] = [
   {
     id: 'media_control',
     label: 'music, video and media playback',
-    pattern: /\\b(?:play|pause|resume|stop|skip|next|previous|mute|unmute|seek|volume)\\b.{0,45}\\b(?:music|song|track|playlist|video|media|spotify|youtube|audio|podcast)\\b|\\b(?:music|song|track|playlist|video|media|spotify|youtube|audio|podcast)\\b.{0,35}\\b(?:play|pause|resume|stop|skip|next|previous|mute|unmute|seek)\\b/i,
+    pattern: /\b(?:play|pause|resume|stop|skip|next|previous|mute|unmute|seek|volume)\b.{0,45}\b(?:music|song|track|playlist|video|media|spotify|youtube|audio|podcast)\b|\b(?:music|song|track|playlist|video|media|spotify|youtube|audio|podcast)\b.{0,35}\b(?:play|pause|resume|stop|skip|next|previous|mute|unmute|seek)\b/i,
     weight: 4,
     groups: ['browser', 'desktop'],
     preferredTools: ['browser_play', 'browser_media', 'media_control'],
