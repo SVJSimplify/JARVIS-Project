@@ -334,7 +334,7 @@ const localProvider = (model: string): EmbeddingProvider => ({
   dims: 384, // all-MiniLM-L6-v2
   async embed(texts: string[]): Promise<number[][]> {
     if (!(await isLocalEmbedderAvailable()) || !localPipeline) {
-      throw new Error('Local embeddings unavailable: the optional @huggingface/transformers package is not installed. Install it or configure the openai provider.');
+      throw new Error('Local AI support was not selected during JINI setup. Enable the Local AI installer component for local embeddings, or configure an OpenAI-compatible embeddings provider.');
     }
     // Batched through the pipeline; normalize:true yields unit vectors, so cosine is a
     // plain dot product — but we still normalize defensively.
