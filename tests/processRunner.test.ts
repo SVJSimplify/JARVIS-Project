@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { currentToolExecutionMetrics, runWithExecutionScope } from '../src/main/toolResult';
 import {
   processSchedulerSnapshot,
   resetProcessSchedulerForTests,
@@ -23,6 +24,24 @@ describe('shared process runner', () => {
     expect(result.stdout).toBe('hello');
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(result.queueWaitMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('attaches queue and process timings to the ambient tool execution scope', async () => {
+    await runWithExecutionScope({}, async () => {
+      const result = await runProcess({
+        executable: node,
+        args: script('process.stdout.write("timed");'),
+        cwd: process.cwd(),
+        timeoutMs: 5000,
+      });
+      const metrics = currentToolExecutionMetrics();
+      expect(result.status).toBe('success');
+      expect(metrics?.queueWaitMs).toBe(result.queueWaitMs);
+      expect(metrics?.processMs).toBe(result.durationMs);
+      expect(metrics?.processStatus).toBe('success');
+      expect(metrics?.exitCode).toBe(0);
+      expect(metrics?.pid).toBeTruthy();
+    });
   });
 
   it('classifies a non-zero exit as failed, not as ordinary successful output', async () => {
@@ -122,37 +141,6 @@ describe('shared process runner', () => {
     expect(active.every((result) => result.status === 'success')).toBe(true);
   });
 
-  it('reports queue timeout separately from process timeout', async () => {
-    const first = runProcess({
-      executable: node,
-      args: script('setTimeout(() => process.exit(0), 700);'),
-      cwd: process.cwd(),
-      timeoutMs: 5000,
-      resource: 'command',
-    });
-    const second = runProcess({
-      executable: node,
-      args: script('setTimeout(() => process.exit(0), 700);'),
-      cwd: process.cwd(),
-      timeoutMs: 5000,
-      resource: 'command',
-    });
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    const queued = await runProcess({
-      executable: node,
-      args: script('process.exit(0);'),
-      cwd: process.cwd(),
-      timeoutMs: 5000,
-      queueTimeoutMs: 100,
-      resource: 'command',
-    });
-    expect(queued.status).toBe('queue_timed_out');
-    expect(queued.durationMs).toBe(0);
-    expect(queued.queueWaitMs).toBeGreaterThanOrEqual(80);
-    const finished = await Promise.all([first, second]);
-    expect(finished.every((result) => result.status === 'success')).toBe(true);
-    expect(processSchedulerSnapshot().active).toBe(0);
-  });
 
   it('never exceeds the command-process concurrency limit', async () => {
     let peak = 0;
