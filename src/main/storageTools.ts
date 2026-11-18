@@ -193,7 +193,7 @@ export const storageTools: Record<string, Tool> = {
         detail: `${filesSeen.toLocaleString()} files · ${formatBytes(result.bytes)} scanned · ${elapsed}ms${truncated ? ' · partial scan' : ''}`,
         status: truncated ? 'fail' : 'ok',
       });
-      return lines.join('\\n');
+      return lines.join('\n');
     },
   },
 };
