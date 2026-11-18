@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { createRequire } from 'node:module';
 import { FILES_ROOT } from './workspace';
 import { atomicWrite, loadJson, withStoreLock } from './store';
 import { pinnedRequest } from './safeNet';
@@ -16,11 +17,11 @@ import { pinnedRequest } from './safeNet';
  *  - provider 'openai': any OpenAI-compatible /embeddings endpoint (configurable base
  *    URL + model + key) — NEURAL embeddings from the configured provider. Requests ride
  *    the SAME pinned DNS transport as every other web call (safeNet.pinnedRequest).
- *  - provider 'local': NEURAL local embeddings via an OPTIONAL install of
- *    `@huggingface/transformers` (feature-extraction pipeline, e.g. all-MiniLM-L6-v2,
- *    ~25 MB model, CPU inference, cached under the user's own cache dir). The dependency
- *    is intentionally OPTIONAL: the app works fully without it, and `import()` fails
- *    soft when it is absent (reported as unavailable, never faked).
+ *  - provider 'local': NEURAL local embeddings via the OPTIONAL installer component
+ *    `resources/local-ai` (`@huggingface/transformers`; feature-extraction pipeline,
+ *    e.g. all-MiniLM-L6-v2, ~25 MB model, CPU inference, cached under the user's cache dir).
+ *    The core application does not ship this runtime. When the installer option is omitted,
+ *    local embeddings report unavailable and retrieval falls back honestly to lexical.
  *  - provider 'none' (default): no embeddings — hybrid retrieval honestly degrades to
  *    the lexical retriever and is labeled as lexical. We never CALL TF-IDF "semantic".
  *
@@ -305,19 +306,31 @@ let localPipeline: FeatureExtractor | null = null;
 let localPipelineTried = false;
 
 /**
- * The local NEURAL backend requires the OPTIONAL dependency `@huggingface/transformers`.
- * It is loaded lazily and never installed by us (the mandate forbids unnecessary hard
- * dependencies); when absent this reports unavailable and retrieval falls back to
- * lexical — honestly labeled, never faked.
+ * The local NEURAL backend is an opt-in installer component. Packaged builds load it
+ * from resources/local-ai; development builds resolve the locked devDependency. A missing
+ * optional component is a normal state: retrieval falls back to lexical, never faked.
  */
 export const isLocalEmbedderAvailable = async (): Promise<boolean> => {
   if (localPipeline) return true;
   if (localPipelineTried) return false;
   localPipelineTried = true;
   try {
-    const mod = (await import(/* webpackIgnore: true */ '@huggingface/transformers')) as {
-      pipeline: (task: string, model?: string) => Promise<FeatureExtractor>;
-    };
+    const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+    const roots = [
+      ...(resourcesPath ? [path.join(resourcesPath, 'local-ai', 'package.json')] : []),
+      path.join(process.cwd(), 'package.json'),
+    ];
+    let mod: { pipeline: (task: string, model?: string) => Promise<FeatureExtractor> } | null = null;
+    for (const root of roots) {
+      try {
+        const runtimeRequire = createRequire(root);
+        mod = runtimeRequire('@huggingface/transformers') as typeof mod;
+        if (mod) break;
+      } catch {
+        // Try the next trusted package root. No arbitrary user-controlled module paths.
+      }
+    }
+    if (!mod) return false;
     localPipeline = await mod.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
     return true;
   } catch {
