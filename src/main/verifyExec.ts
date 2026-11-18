@@ -115,7 +115,9 @@ export const runCmd = async (command: string, cwd: string, timeout: number): Pro
       ? `exit 0 · ${result.durationMs}ms · queue ${result.queueWaitMs}ms`
       : result.status === 'timed_out'
         ? `TIMEOUT after ${Math.round(timeout / 1000)}s · ${result.durationMs}ms`
-        : result.status === 'cancelled'
+        : result.status === 'queue_timed_out'
+          ? `QUEUE TIMEOUT after ${result.queueWaitMs}ms`
+          : result.status === 'cancelled'
           ? `CANCELLED · ${result.durationMs}ms`
           : result.status === 'launch_failed'
             ? `LAUNCH FAILED (${result.errorCode ?? 'unknown'}) · ${result.durationMs}ms`
@@ -140,5 +142,5 @@ export const runCmd = async (command: string, cwd: string, timeout: number): Pro
     },
     { sideEffectMayHaveRun: true }
   );
-  return result.status === 'success' ? resultText : `FAILED: ${resultText}`;;
+  return result.status === 'success' ? resultText : `FAILED: ${resultText}`;
 };
