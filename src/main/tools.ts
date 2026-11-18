@@ -304,7 +304,7 @@ const AGENT_FAMILY_DEFAULTS: Record<AgentKind, string[]> = {
   planner: ['files', 'research', 'system', 'desktop', 'browser', 'documents', 'productivity', 'integrations', 'memory', 'orchestration'],
 };
 
-const pickSchemas = (kind: AgentKind, request = '', includeAllAllowed = false) => {
+export const pickSchemas = (kind: AgentKind, request = '', includeAllAllowed = false) => {
   const def = agentDefFor(kind);
   // Child schemas are narrowed by BOTH the registry's per-agent allowlist and the
   // request's intent. Dynamic specialists can request includeAllAllowed because their
