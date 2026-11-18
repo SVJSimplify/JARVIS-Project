@@ -22,7 +22,7 @@ const RULES: IntentRule[] = [
   {
     id: 'storage_analysis',
     label: 'disk and storage analysis',
-    pattern: /\b(?:disk ?space|storage|taking up (?:the )?most space|what(?:'s| is) using (?:the )?most space|largest files|biggest files|drive usage|folder sizes|space on [a-z]:|files? (?:that|which) (?:take|uses?) up space)\b|\b[a-z]:\\/i,
+    pattern: /\b(?:disk ?space|storage|taking (?:up )?(?:the )?(?:most|maximum) space|what(?:'s| is) using (?:the )?(?:most|maximum) space|largest files|biggest files|drive usage|folder sizes|space on [a-z]:|files? (?:that|which) (?:take|takes|taking|uses?|are taking) up space|files? in [a-z]:)\b|\b[a-z]:\\?$/i,
     weight: 6,
     groups: ['files'],
     preferredTools: ['analyze_storage'],
