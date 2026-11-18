@@ -7,6 +7,7 @@ import * as path from 'path';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import { getGroqKey } from './settings';
+import { isLocalAiEnabled } from './localAi';
 
 const BIN_URL = 'https://github.com/ggml-org/whisper.cpp/releases/download/v1.7.6/whisper-bin-x64.zip';
 const MODEL = 'ggml-small.en-q5_1.bin'; // swap for ggml-base.en-q5_1.bin if you need more speed
@@ -75,6 +76,9 @@ async function waitUp(): Promise<void> {
 }
 
 async function init(onPct: (pct: number) => void): Promise<void> {
+  if (!isLocalAiEnabled()) {
+    throw new Error('Local AI support was not selected during JINI setup. Add a Groq API key for cloud speech, or rerun the installer and enable Local AI support for offline Whisper.');
+  }
   if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('Native Whisper supports Windows x64 only.');
   const dir = path.join(app.getPath('userData'), 'whisper');
   await fs.mkdir(dir, { recursive: true });
