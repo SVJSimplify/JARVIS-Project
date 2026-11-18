@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
 import { findCustomApp } from './extraTools';
+import { runProcess } from './execution/ProcessRunner';
 import { setMini } from './hud';
 import type { Tool } from './toolTypes';
 import { FILES_ROOT } from './workspace';
@@ -21,13 +22,28 @@ const APPS: Record<string, string> = {
 };
 const APP_NAMES = [...Object.keys(APPS), 'settings'];
 
-const ps = (script: string, arg = '', timeoutMs = 15000) =>
-  run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-    windowsHide: true,
-    timeout: timeoutMs,
-    maxBuffer: 8 * 1024 * 1024,
-    env: { ...process.env, JARVIS_ARG: arg },
+const ps = async (script: string, arg = '', timeoutMs = 15000) => {
+  const result = await runProcess({
+    executable: 'powershell.exe',
+    args: ['-NoProfile', '-NonInteractive', '-Command', script],
+    cwd: process.cwd(),
+    timeoutMs,
+    maxOutputBytes: 2 * 1024 * 1024,
+    resource: 'system',
+    env: { JARVIS_ARG: arg },
   });
+  if (result.status !== 'success') {
+    const detail = result.status === 'timed_out'
+      ? `PowerShell timed out after ${Math.round(timeoutMs / 1000)}s`
+      : result.status === 'cancelled'
+        ? 'PowerShell operation was cancelled'
+        : result.status === 'launch_failed'
+          ? `PowerShell could not start (${result.errorCode ?? 'unknown error'})`
+          : `PowerShell exited with code ${result.exitCode ?? 'unknown'}`;
+    throw new Error(`${detail}. ${result.stderr.trim().slice(0, 1200)}`.trim());
+  }
+  return { stdout: result.stdout, stderr: result.stderr };
+};
 
 const requireWindows = () => {
   if (process.platform !== 'win32') throw new Error('This control is only supported on Windows.');
