@@ -9,6 +9,13 @@ describe('credential evidence redaction', () => {
     expect(output).not.toContain('raw-secret-value');
   });
 
+  it('masks scanner values for key files even when the token has an unknown prefix', () => {
+    const output = redactText('1. D:\\German Wallet\\keys.txt -> synthetic-test-key-value-000000');
+    expect(output).toContain('D:\\German Wallet\\keys.txt');
+    expect(output).not.toContain('synthetic-test-key-value-000000');
+    expect(output).toContain('[redacted]');
+  });
+
   it('masks common credential assignments', () => {
     const output = redactText('api_key=private-value password: another-private-value');
     expect(output).not.toContain('private-value');

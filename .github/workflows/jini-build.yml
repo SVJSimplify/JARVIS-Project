@@ -2,8 +2,9 @@ name: JINI build
 
 on:
   push:
-    branches: [jini-mvp, jini-mvp-chatgpt, main]
+    branches: [jini-mvp, main]
   pull_request:
+    branches: [jini-mvp, main]
   workflow_dispatch:
 
 jobs:

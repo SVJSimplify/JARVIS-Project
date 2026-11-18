@@ -595,3 +595,9 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .jini-window-control, .jini-empty button { transition: none !important; }
 }
+
+
+.jini-sidebar-heading {
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(230,222,207,.55);
+}

@@ -85,11 +85,7 @@ export default function App() {
         subtitles.begin();
       }
       try {
-        const reply = await window.electronAPI.ai.chat(
-          cmd,
-          () => undefined // Hold speech until the final answer can be safely summarized.
-
-        );
+        const reply = await window.electronAPI.ai.chat(cmd, () => undefined);
         if (turnRef.current !== my) return setReply('(interrupted)');
         if (live) {
           subtitles.finish(reply);

@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { localAiPackageRoot } from './localAi';
 import { FILES_ROOT } from './workspace';
 import { atomicWrite, loadJson, withStoreLock } from './store';
@@ -319,7 +320,8 @@ export const isLocalEmbedderAvailable = async (): Promise<boolean> => {
     const packageRoot = localAiPackageRoot();
     if (!packageRoot) return false;
     const runtimeRequire = createRequire(packageRoot);
-    const mod = runtimeRequire('@huggingface/transformers') as {
+    const entry = runtimeRequire.resolve('@huggingface/transformers');
+    const mod = (await import(pathToFileURL(entry).href)) as {
       pipeline: (task: string, model?: string) => Promise<FeatureExtractor>;
     };
     localPipeline = await mod.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');

@@ -16,6 +16,12 @@ describe('speechSummary', () => {
     expect(result).not.toMatch(/ghp_|D:\\secrets|123456789/);
   });
 
+  it('flags generic key discovery output even without provider-specific token prefixes', () => {
+    const result = speechSummary('Keys found in 3 files. D:\\keys\\config.key -> ctx7sk-unknown-prefix-value');
+    expect(result).toMatch(/potentially sensitive credential material/i);
+    expect(result).not.toContain('ctx7sk-unknown-prefix-value');
+  });
+
   it('omits code blocks and numbered raw output', () => {
     expect(speechSummary('The report is ready.\n\n```json\n{"token":"secret"}\n```\n1. raw file contents'))
       .toBe('The report is ready.');
