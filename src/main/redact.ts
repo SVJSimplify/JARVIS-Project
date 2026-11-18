@@ -41,9 +41,9 @@ const PROVIDER_TOKENS = /\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}|
 /** set-cookie / cookie header values. */
 const COOKIE_HEADER = /\b(set-cookie|cookie)\s*:\s*[^\r\n"']+/gi;
 /** File-scanner evidence commonly uses "C:\\path\\file -> value"; preserve the path, mask the extracted value. */
-const FILE_RESULT_VALUE = /^(\\s*(?:\\d+[.)]\\s*)?(?:[A-Za-z]:\\\\|\\\\\\\\)[^\\r\\n]*?\\s(?:->|→)\\s*)(?!\\(public key\\)|\\(private key\\))(.+?)$/gim;
+const FILE_RESULT_VALUE = /^(\s*(?:\d+[.)]\s*)?(?:[A-Za-z]:\\|\\\\)[^\r\n]*?\s(?:->|→)\s*)(?!\(public key\)|\(private key\))(.+?)$/gim;
 /** Credential assignments in prose, JSON-like output and env files. */
-const CREDENTIAL_ASSIGNMENT = /\\b((?:api[_ -]?key|access[_ -]?token|secret|password|passwd|bearer|private[_ -]?key)\\s*[:=]\\s*)(?:"[^"]*"|'[^']*'|[^\\s,;]+)/gi;
+const CREDENTIAL_ASSIGNMENT = /\b((?:api[_ -]?key|access[_ -]?token|secret|password|passwd|bearer|private[_ -]?key)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
 /** Private key blocks (never quote even a fragment). */
 const PRIVATE_KEY_BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*$/g;
 
