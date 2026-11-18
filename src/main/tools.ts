@@ -283,7 +283,7 @@ Object.assign(TOOLS, laptopTools);
 // Detailed runner: aggregation tools (batch/chain/task/parallel/research/agi/coordinator)
 // receive the structured envelope so their stop rules and aggregation read `status`, not
 // word-sniffing (F-07). Legacy text runners still satisfy the same Runner contract.
-const runDetailed = async (name: string, rawArgs: string) => runToolDetailed(name, rawArgs);
+const runDetailed = Object.assign(async (name: string, rawArgs: string) => runToolDetailed(name, rawArgs), { isParallelSafe });
 TOOLS.batch = batchTool(runDetailed);
 TOOLS.chain = chainTool(runDetailed);
 const pickSchemas = (kind: AgentKind) => {
