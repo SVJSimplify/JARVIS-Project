@@ -1,12 +1,17 @@
 !include "LogicLib.nsh"
 
 !macro customHeader
+  !ifndef BUILD_UNINSTALLER
   Var JiniLocalAIWasInstalled
 
-  Section /o "Local AI support - Hugging Face embeddings" SEC_JINI_LOCAL_AI
+  Section /o "Optional: Local AI embeddings (Hugging Face)" SEC_JINI_LOCAL_AI
     SetOutPath "$INSTDIR\resources\local-ai"
     File /r "${PROJECT_DIR}\build\local-ai\*"
   SectionEnd
+  !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_JINI_LOCAL_AI} "Adds local neural memory embeddings. Not needed for API-based JINI use. The model is downloaded when local embeddings are first used."
+  !insertmacro MUI_FUNCTION_DESCRIPTION_END
+  !endif
 !macroend
 
 !macro customInit
