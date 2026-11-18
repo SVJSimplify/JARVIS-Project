@@ -26,6 +26,7 @@ const PROBES: Array<{ tool: string; args?: Record<string, unknown>; expect: RegE
   { tool: 'get_current_time', expect: /\w{3} \w{3} \d{2}/ },
   { tool: 'list_files', expect: /./ },
   { tool: 'get_system_info', args: {}, expect: /./ },
+  { tool: 'execution_status', expect: /Process scheduler:/ },
   { tool: 'calculate', args: { expression: '(12.5 * 8) / 3' }, expect: /33\.3?/ },
   { tool: 'list_timers', expect: /./ },
   { tool: 'list_scheduled', expect: /./ },
