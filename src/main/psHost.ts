@@ -12,7 +12,6 @@ let proc: ChildProcessWithoutNullStreams | null = null;
 let ready: Promise<void> | null = null;
 let buf = '';
 let waiting: { id: number; resolve: (s: string) => void; reject: (e: Error) => void } | null = null;
-let chain: Promise<unknown> = Promise.resolve();
 let seq = 0;
 
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
