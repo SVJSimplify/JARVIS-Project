@@ -391,9 +391,9 @@ ipcMain.handle('ai-chat', (event, text: string) => {
   const deliver = (channel: string, payload: string): void => {
     if (!event.sender.isDestroyed()) event.sender.send(channel, payload);
   };
-  // Do not stream raw model text into the renderer. It may contain file contents or
-  // credential-shaped values; the renderer receives only the final redacted response.
-  return chat(text, () => undefined, (note) => deliver('ai-progress', note));
+  // Provider output and tool results are redacted before deltas are emitted.
+  // Keep progressive rendering without forwarding raw, unfiltered model text.
+  return chat(text, (delta) => deliver('ai-delta', delta), (note) => deliver('ai-progress', note));
 });
 ipcMain.handle('ai-models', () => listModels());
 ipcMain.handle('ai-cancel', () => { stopEverything(); });
