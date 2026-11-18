@@ -14,6 +14,7 @@ import type { ToolResultEnvelope } from './toolResult';
 import { runWithExecutionScope } from './toolResult';
 import { currentSchemas, endTurn, unloadedGroups } from './toolRouter';
 import { resetPlanMode } from './planning';
+import { redactText } from './redact';
 
 
 /** Optional extra request fields as JSON, e.g. JARVIS_EXTRA_BODY={"temperature":0.2}; check your API host's docs for a thinking/reasoning option. */
