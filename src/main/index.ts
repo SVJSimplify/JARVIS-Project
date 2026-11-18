@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Notification, safeStorage, shell } from 'electron';
 import * as path from 'path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chat, listModels, stopEverything } from './provider';
 import { getPublicSettings, setSettings } from './settings';
 import { migrateEmbeddingsKeyStorage, setEmbeddingsCipher } from './embeddings';
@@ -56,6 +57,9 @@ app.setPath('userData', path.join(app.getPath('appData'), 'JARVIS'));
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  const rendererFile = path.resolve(__dirname, '../../dist/renderer/index.html');
+  const isDevRenderer = !app.isPackaged && process.env.NODE_ENV !== 'production';
+  const rendererUrl = isDevRenderer ? 'http://localhost:5173' : pathToFileURL(rendererFile).href;
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -72,15 +76,37 @@ function createWindow() {
       preload: path.join(__dirname, '../../dist/preload/index.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false,
       backgroundThrottling: false
     }
   });
 
-  if (app.isPackaged || process.env.NODE_ENV === 'production') {
-    mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
+  // The privileged application window must never be navigated to page-controlled
+  // content. External links use the validated open-external IPC route instead.
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+    let trusted = false;
+    try {
+      const target = new URL(targetUrl);
+      if (isDevRenderer) {
+        trusted = target.origin === new URL(rendererUrl).origin;
+      } else if (target.protocol === 'file:') {
+        trusted = path.resolve(fileURLToPath(target)) === rendererFile;
+      }
+    } catch {
+      trusted = false;
+    }
+    if (!trusted) event.preventDefault();
+  });
+  mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+
+  if (isDevRenderer) {
+    mainWindow.loadURL(rendererUrl);
   } else {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadFile(rendererFile);
   }
 
   attachHud(mainWindow);

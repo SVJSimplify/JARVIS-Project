@@ -2,12 +2,13 @@ name: JINI build
 
 on:
   push:
-    branches: [jini-mvp, main]
+    branches: [jini-mvp, jini-mvp-chatgpt, main]
   pull_request:
   workflow_dispatch:
 
 jobs:
   android-apk:
+    if: github.head_ref != 'jini-mvp-chatgpt' && github.ref_name != 'jini-mvp-chatgpt'
     name: Android APK (debug-signed, installable)
     runs-on: ubuntu-latest
     defaults:
@@ -90,7 +91,9 @@ jobs:
         shell: bash
         run: |
           mkdir out
-          cp release/*.exe "out/JINI-Desktop-Setup.exe"
+          installer="$(find release -maxdepth 1 -type f -name '*.exe' -print -quit)"
+          test -n "$installer"
+          cp "$installer" "out/JINI-Desktop-Setup.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: JINI-desktop-installer
@@ -99,7 +102,7 @@ jobs:
 
   publish-builds:
     name: Publish latest builds to the builds-latest branch
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref_name != 'jini-mvp-chatgpt'
     needs: [android-apk, desktop-installer, desktop-check]
     runs-on: ubuntu-latest
     permissions:

@@ -141,7 +141,10 @@ const ABS = (p: unknown): string => String(p ?? '');
 
 /**
  * Classify a tool call into an action class and a namespaced resource. Pure; exported for
- * tests. Tools not listed here are read-like: they observe, they do not change the world.
+ * tests. Unknown tools are conservatively treated as state-changing so they cannot skip
+ * the durable started/outcome receipt path merely because their name was not registered
+ * in this classifier. Add a tool-specific read classification only after proving it is
+ * side-effect-free.
  */
 export function classifyToolAction(tool: string, args: Record<string, unknown>, riskBlock = false): { action: ActionClass; resource: string } {
   const a = args ?? {};
@@ -211,7 +214,10 @@ export function classifyToolAction(tool: string, args: Record<string, unknown>, 
   if (tool === 'remember' || tool === 'save_contact' || tool === 'add_recurring_task')
     return { action: 'config', resource: `memory:${tool}` };
   if (tool === 'project_save') return { action: 'config', resource: `project:${ABS(a.name).slice(0, 80)}` };
-  return { action: 'read', resource: tool };
+  // Conservative default: an unclassified tool may have side effects. Treat it as a
+  // configuration mutation so runToolInner writes a durable receipt before execution.
+  // Authorization policy remains unchanged; this closes the unlogged-side-effect gap.
+  return { action: 'config', resource: `tool:${tool}` };
 }
 
 // ------------------------------------------------------------------------------ authorize

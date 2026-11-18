@@ -102,6 +102,13 @@ describe('the deletion tooth at the gate is LIVE and agent-independent', () => {
     expect(classifyToolAction('write_file', { path: 'notes/a.txt' }).action).toBe('write');
   });
 
+  it('treats unclassified future tools as side-effecting so they cannot bypass durable receipts', () => {
+    expect(classifyToolAction('future_integration_write', { payload: 'x' })).toEqual({
+      action: 'config',
+      resource: 'tool:future_integration_write',
+    });
+  });
+
   it('classifyToolAction flags an apply_patch Delete op independent of assessRisk', () => {
     const r = classifyToolAction('apply_patch', { patch: '*** Begin Patch\n*** Delete File: notes/a.txt\n*** End Patch' });
     expect(r.action).toBe('delete');
