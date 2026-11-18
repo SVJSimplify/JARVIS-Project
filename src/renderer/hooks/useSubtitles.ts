@@ -57,7 +57,6 @@ export function useSubtitles(): [Caption | null, SubtitleControls] {
   const controls = useMemo<SubtitleControls>(() => {
     let buffer = '';
     let pending = 0;
-    let spoken = 0;
     let finished = false;
     let progressPending = 0;
     let turnStart = 0;
@@ -94,7 +93,6 @@ export function useSubtitles(): [Caption | null, SubtitleControls] {
       clearHide();
       buffer = '';
       pending = 0;
-      spoken = 0;
       progressPending = 0;
       finished = false;
     };
@@ -107,7 +105,6 @@ export function useSubtitles(): [Caption | null, SubtitleControls] {
       const starts = pages.map((_, i) => pages.slice(0, i).reduce((n, p) => n + p.length + 1, 0));
       pending++;
       if (kind === 'progress') progressPending++;
-      else spoken++;
       enqueue({
         text,
         onStart: (durationMs) => {
