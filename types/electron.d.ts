@@ -55,6 +55,13 @@ declare global {
       tts: {
         synthesize: (text: string) => Promise<Uint8Array>;
       };
+      windowControl: {
+        minimize: () => Promise<void>;
+        toggleMaximize: () => Promise<boolean>;
+        isMaximized: () => Promise<boolean>;
+        close: () => Promise<void>;
+        onMaximizedChange: (cb: (maximized: boolean) => void) => () => void;
+      };
       hud: {
         setMini: (on: boolean) => Promise<void>;
         onMini: (cb: (on: boolean) => void) => () => void;
