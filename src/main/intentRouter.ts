@@ -92,6 +92,15 @@ const RULES: IntentRule[] = [
     guidance: 'Use persistent memory only for durable preferences and facts; use notes for temporary information. Never infer a sensitive fact from context.',
   },
   {
+    id: 'execution_diagnostics',
+    label: 'JINI execution performance diagnostics',
+    pattern: /\\b(?:tools?|commands?|processes?)\\b.{0,50}\\b(?:slow|slower|taking (?:forever|ages|too long)|stalled|hung|timeout|latency|queue|inconsistent|unreliable)\\b|\\b(?:queue|latency|timeouts?|scheduler|execution performance)\\b.{0,45}\\b(?:jini|tools?|commands?|agents?)\\b/i,
+    weight: 5,
+    groups: ['system'],
+    preferredTools: ['execution_status', 'tool_log'],
+    guidance: 'Inspect execution_status first for active/queued work and resource saturation, then tool_log for recent outcomes. Separate queue wait, process runtime, provider latency, timeout, and launch/policy errors before proposing a fix.',
+  },
+  {
     id: 'system',
     label: 'computer and system diagnostics',
     pattern: /\b(?:computer health|system info|hardware|cpu|ram|memory usage|battery|bluetooth|paired devices|running processes|drive capacity|disk usage|storage|files in [a-z]:)\b/i,
