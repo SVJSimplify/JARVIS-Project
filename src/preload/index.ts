@@ -18,6 +18,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   tts: {
     synthesize: (text: string): Promise<Uint8Array> => ipcRenderer.invoke('tts-synthesize', text)
   },
+  windowControl: {
+    minimize: (): Promise<void> => ipcRenderer.invoke('window-minimize'),
+    toggleMaximize: (): Promise<boolean> => ipcRenderer.invoke('window-toggle-maximize'),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window-is-maximized'),
+    close: (): Promise<void> => ipcRenderer.invoke('window-close'),
+    onMaximizedChange: (cb: (maximized: boolean) => void): (() => void) => {
+      const handler = (_event: unknown, maximized: boolean) => cb(maximized);
+      ipcRenderer.on('window-maximized', handler);
+      return () => ipcRenderer.removeListener('window-maximized', handler);
+    },
+  },
   hud: {
     setMini: (on: boolean): Promise<void> => ipcRenderer.invoke('hud-set-mini', on),
     onMini: (cb: (on: boolean) => void): (() => void) => {
