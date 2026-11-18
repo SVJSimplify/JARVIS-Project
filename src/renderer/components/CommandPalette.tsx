@@ -9,15 +9,15 @@ interface Props {
   onNavigate: (destination: Destination) => void;
 }
 
-const COMMANDS: Array<{ id: Destination; title: string; detail: string; keys: string }> = [
-  { id: 'assistant', title: 'Go to Assistant', detail: 'Return to your conversation', keys: 'A' },
-  { id: 'projects', title: 'Open Projects', detail: 'Browse projects and deliverables', keys: 'P' },
-  { id: 'operations', title: 'Open Operations', detail: 'Tasks, schedules and integrations', keys: 'O' },
-  { id: 'history', title: 'Search History', detail: 'Find a previous conversation', keys: 'H' },
-  { id: 'browser', title: 'Open Browser', detail: 'Continue a connected browser session', keys: 'B' },
-  { id: 'devices', title: 'Manage Devices', detail: 'Connections and paired devices', keys: 'D' },
-  { id: 'settings', title: 'Open Settings', detail: 'Preferences, providers and privacy', keys: ',' },
-  { id: 'activity', title: 'View Activity', detail: 'Recent tool calls and execution events', keys: '⌘  J' },
+const COMMANDS: Array<{ id: Destination; title: string; detail: string }> = [
+  { id: 'assistant', title: 'Go to Assistant', detail: 'Return to your conversation' },
+  { id: 'projects', title: 'Open Projects', detail: 'Browse projects and deliverables' },
+  { id: 'operations', title: 'Open Operations', detail: 'Tasks, schedules and integrations' },
+  { id: 'history', title: 'Search History', detail: 'Find a previous conversation' },
+  { id: 'browser', title: 'Open Browser', detail: 'Continue a connected browser session' },
+  { id: 'devices', title: 'Manage Devices', detail: 'Connections and paired devices' },
+  { id: 'settings', title: 'Open Settings', detail: 'Preferences, providers and privacy' },
+  { id: 'activity', title: 'View Activity', detail: 'Recent tool calls and execution events' },
 ];
 
 export default function CommandPalette({ open, onClose, onNavigate }: Props) {
@@ -111,7 +111,7 @@ export default function CommandPalette({ open, onClose, onNavigate }: Props) {
                     <span className="block text-[13px] font-medium">{item.title}</span>
                     <span className="mt-0.5 block text-[11.5px] text-faint">{item.detail}</span>
                   </span>
-                  <kbd className="text-[10px] text-faint">{item.keys}</kbd>
+                  <kbd className="text-[10px] text-faint">↵</kbd>
                 </button>
               )) : (
                 <p className="px-3 py-8 text-center text-[13px] text-muted">No matching commands</p>
