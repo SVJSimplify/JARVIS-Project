@@ -329,6 +329,22 @@ TOOLS.load_tools = {
   run: (args) => loadGroups(args.groups),
 };
 
+TOOLS.execution_status = {
+  description:
+    'Inspect JINI internal process execution pressure: active and queued subprocesses, global slots, and per-resource limits for shell commands, system operations and builds. Use when commands seem slow or are waiting. This reports JINI scheduler state, not all operating-system processes.',
+  parameters: { type: 'object', properties: {} },
+  parallelSafe: true,
+  run: () => {
+    const s = processSchedulerSnapshot();
+    return [
+      `Process scheduler: ${s.active}/4 active · ${s.queued} queued`,
+      `Commands: ${s.byResource.command}/2 active · ${s.queuedByResource.command} queued`,
+      `System: ${s.byResource.system}/2 active · ${s.queuedByResource.system} queued`,
+      `Builds: ${s.byResource.build}/1 active · ${s.queuedByResource.build} queued`,
+    ].join('\\n');
+  },
+};
+
 TOOLS.tool_log = {
   description:
     'Show recent tool calls with OK or FAIL, timing and the error text. Use when the user asks what failed or why something did not work, or to check yourself after an unexpected result.',
