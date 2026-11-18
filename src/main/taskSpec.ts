@@ -360,7 +360,7 @@ export function decomposeGoals(text: string, complexity: TaskComplexity): SubGoa
     if (CODE_HINT_RE.test(lowerClause)) caps.push('code');
     if (INTEGRATION_HINT_RE.test(lowerClause)) caps.push('integration');
     if (DESKTOP_HINT_RE.test(lowerClause)) caps.push('desktop');
-    if (/\\b(?:file|folder|directory|drive|disk|storage)\\b/i.test(lowerClause)) caps.push('files');
+    if (/\b(?:file|folder|directory|drive|disk|storage)\b/i.test(lowerClause)) caps.push('files');
     if (WRITE_HINT_RE.test(lowerClause)) caps.push('write');
     if (!caps.length) caps.push('general');
     const risk: RiskClass = HIGH_RISK_RE.test(lowerClause) ? 'high' : MEDIUM_RISK_RE.test(lowerClause) ? 'medium' : 'low';
@@ -409,9 +409,9 @@ export function buildTaskSpec(request: string, now: number = Date.now()): TaskSp
   if (BROWSER_HINT_RE.test(lower)) capabilities.push('browser');
   if (RESEARCH_HINT_RE.test(lower)) capabilities.push('research');
   if (CODE_HINT_RE.test(lower)) capabilities.push('code');
-  if (FILE_TARGET_RE.test(lower) || /\\b(?:files?|folders?|directories|drives?|disk|storage|largest files|disk space)\\b/i.test(lower)) capabilities.push('files');
-  if (/\\b(?:disk ?space|storage|largest files|biggest files|taking (?:up )?(?:the )?most space|drive usage)\\b/i.test(lower)) capabilities.push('storage');
-  if (/\\b(?:cpu|memory usage|ram|battery|bluetooth|processes?|system info|devices?)\\b/i.test(lower)) capabilities.push('system');
+  if (FILE_TARGET_RE.test(lower) || /\b(?:files?|folders?|directories|drives?|disk|storage|largest files|disk space)\b/i.test(lower)) capabilities.push('files');
+  if (/\b(?:disk ?space|storage|largest files|biggest files|taking (?:up )?(?:the )?most space|drive usage)\b/i.test(lower)) capabilities.push('storage');
+  if (/\b(?:cpu|memory usage|ram|battery|bluetooth|processes?|system info|devices?)\b/i.test(lower)) capabilities.push('system');
   // A request can inspect or search files without changing them; 'write' is only a
   // capability when its wording actually asks to create, edit, save or modify something.
   if (kind === 'action' && WRITE_HINT_RE.test(lower)) capabilities.push('write');
