@@ -165,15 +165,18 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
         <header className="hud-header mini-drag flex h-9 shrink-0 items-center gap-2 pl-3">
           <Wordmark small />
           <span className="text-[12px] text-faint">{mode === 'idle' ? 'Ready' : MODE_LABEL[mode]}</span>
-          <button
-            type="button"
-            onClick={() => void window.electronAPI.hud.setMini(false)}
-            aria-label="Expand to full window"
-            title="Expand (Ctrl+Alt+J)"
-            className="no-drag ml-auto grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-black/[0.04] hover:text-ink"
-          >
-            <Icon name="expand" size={15} />
-          </button>
+          <div className="no-drag ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void window.electronAPI.hud.setMini(false)}
+              aria-label="Expand to full window"
+              title="Expand (Ctrl+Alt+J)"
+              className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-black/[0.04] hover:text-ink"
+            >
+              <Icon name="expand" size={15} />
+            </button>
+            <WindowControls compact />
+          </div>
         </header>
         <main className="mini-drag flex min-h-0 flex-1 items-center gap-3 px-4">
           <JiniOrb mode={mode} levelRef={levelRef} size={30} />
@@ -208,7 +211,17 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
   );
 
   return (
-    <div className="hud jini-shell flex h-screen w-screen overflow-hidden bg-oat" data-mode={mode} data-mini="false">
+    <div className="hud jini-shell flex h-screen w-screen flex-col overflow-hidden bg-oat" data-mode={mode} data-mini="false">
+      <header className="jini-windowbar flex h-10 shrink-0 items-center border-b border-hairline px-4">
+        <div className="drag flex h-full items-center gap-3">
+          <Wordmark small />
+          <span className="windowbar-kicker">PERSONAL INTELLIGENCE</span>
+        </div>
+        <div className="no-drag ml-auto">
+          <WindowControls />
+        </div>
+      </header>
+      <div className="jini-shell-body flex min-h-0 flex-1">
       {/* ------------------------------------------------ sidebar (oat chrome) */}
       <aside className="jini-sidebar flex w-[236px] shrink-0 flex-col">
         <div className="drag flex h-[56px] items-center px-5 pt-1">
@@ -288,8 +301,47 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
           </aside>
         </div>
       </div>
+      </div>
 
       {panels}
+    </div>
+  );
+}
+
+function WindowControls({ compact = false }: { compact?: boolean }) {
+  const [maximized, setMaximized] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    void window.electronAPI.windowControl.isMaximized()
+      .then((value) => { if (mounted) setMaximized(value); })
+      .catch(() => undefined);
+    const off = window.electronAPI.windowControl.onMaximizedChange(setMaximized);
+    return () => { mounted = false; off(); };
+  }, []);
+
+  const controlClass = `jini-window-control ${compact ? 'jini-window-control--compact' : ''}`;
+  return (
+    <div className="jini-window-controls flex items-center gap-1" aria-label="Window controls">
+      <button type="button" className={controlClass} onClick={() => void window.electronAPI.windowControl.minimize()} aria-label="Minimize window" title="Minimize">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" /></svg>
+      </button>
+      <button
+        type="button"
+        className={controlClass}
+        onClick={() => void window.electronAPI.windowControl.toggleMaximize().then(setMaximized).catch(() => undefined)}
+        aria-label={maximized ? 'Restore window' : 'Maximize window'}
+        title={maximized ? 'Restore' : 'Maximize'}
+      >
+        {maximized ? (
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.5h5.5V8M8 4H2.5v5.5H8z" /></svg>
+        ) : (
+          <svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.25" y="2.25" width="7.5" height="7.5" rx=".35" /></svg>
+        )}
+      </button>
+      <button type="button" className={`${controlClass} jini-window-control--close`} onClick={() => void window.electronAPI.windowControl.close()} aria-label="Close window" title="Close">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3 3 6 6M9 3 3 9" /></svg>
+      </button>
     </div>
   );
 }
