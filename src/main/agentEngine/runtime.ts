@@ -30,6 +30,8 @@ export interface AgentSessionSnapshot {
   lastError?: string;
 }
 export interface AgentRuntimeEvent {
+  eventId: string;
+  sequence: number;
   type: 'session-created' | 'run-start' | 'model-start' | 'model-end' | 'tool-start' | 'tool-end' | 'delta' | 'progress' | 'run-end' | 'session-restored';
   sessionId: string;
   at: number;
@@ -55,6 +57,8 @@ export interface AgentRuntimeDriver {
 export interface AgentRuntimePersistence {
   load(): Promise<unknown>;
   save(sessions: AgentSessionSnapshot[]): Promise<void>;
+  loadEvents?(): Promise<unknown>;
+  saveEvents?(events: AgentRuntimeEvent[]): Promise<void>;
 }
 const defaultPersistence: AgentRuntimePersistence = {
   load: () => loadJson<unknown>(path.join(FILES_ROOT, 'brain', 'agent-runtime', 'sessions.json'), []),
@@ -63,10 +67,18 @@ const defaultPersistence: AgentRuntimePersistence = {
     await fs.mkdir(dir, { recursive: true });
     await atomicWrite(path.join(dir, 'sessions.json'), JSON.stringify(sessions));
   },
+  loadEvents: () => loadJson<unknown>(path.join(FILES_ROOT, 'brain', 'agent-runtime', 'events.json'), []),
+  saveEvents: async (events) => {
+    const dir = path.join(FILES_ROOT, 'brain', 'agent-runtime');
+    await fs.mkdir(dir, { recursive: true });
+    await atomicWrite(path.join(dir, 'events.json'), JSON.stringify(events));
+  },
 };
 const validStatus = (v: unknown): v is AgentSessionStatus =>
   ['idle', 'running', 'aborting', 'completed', 'failed', 'aborted', 'interrupted'].includes(String(v));
 const clone = (s: AgentSessionSnapshot): AgentSessionSnapshot => structuredClone(s);
+const cloneEvent = (event: AgentRuntimeEvent): AgentRuntimeEvent => structuredClone(event);
+const MAX_RUNTIME_EVENTS = 10_000;
 
 export class AgentRuntime {
   private readonly sessions = new Map<string, AgentSessionSnapshot>();
@@ -74,6 +86,8 @@ export class AgentRuntime {
   private readonly cancelRequested = new Set<string>();
   private readonly listeners = new Set<(event: AgentRuntimeEvent) => void>();
   private readonly sessionListeners = new Map<string, Set<(event: AgentRuntimeEvent) => void>>();
+  private readonly eventLog: AgentRuntimeEvent[] = [];
+  private eventSequence = 0;
   private hydrated: Promise<void> | null = null;
   private persistChain: Promise<void> = Promise.resolve();
 
@@ -85,7 +99,22 @@ export class AgentRuntime {
   private async hydrate(): Promise<void> {
     if (!this.hydrated) {
       this.hydrated = (async () => {
-        const raw = await this.persistence.load().catch(() => []);
+        const [raw, rawEvents] = await Promise.all([
+          this.persistence.load().catch(() => []),
+          this.persistence.loadEvents?.().catch(() => []) ?? Promise.resolve([]),
+        ]);
+        if (Array.isArray(rawEvents)) {
+          for (const item of rawEvents) {
+            if (!item || typeof item !== 'object') continue;
+            const event = item as Partial<AgentRuntimeEvent>;
+            if (typeof event.eventId !== 'string' || !event.eventId || !Number.isSafeInteger(event.sequence) || !Number.isFinite(event.at) || typeof event.sessionId !== 'string' || !validStatus(event.status)) continue;
+            if (!['session-created', 'run-start', 'model-start', 'model-end', 'tool-start', 'tool-end', 'delta', 'progress', 'run-end', 'session-restored'].includes(String(event.type))) continue;
+            this.eventLog.push(event as AgentRuntimeEvent);
+            this.eventSequence = Math.max(this.eventSequence, Number(event.sequence));
+          }
+          this.eventLog.sort((a, b) => a.sequence - b.sequence);
+          if (this.eventLog.length > MAX_RUNTIME_EVENTS) this.eventLog.splice(0, this.eventLog.length - MAX_RUNTIME_EVENTS);
+        }
         if (!Array.isArray(raw)) return;
         for (const item of raw) {
           if (!item || typeof item !== 'object') continue;
@@ -112,15 +141,23 @@ export class AgentRuntime {
     await this.hydrated;
   }
 
-  private emit(event: AgentRuntimeEvent): void {
-    for (const listener of [...this.listeners, ...(this.sessionListeners.get(event.sessionId) ?? [])]) {
-      try { listener(event); } catch (error) { console.warn('[agent-runtime] listener failed', error); }
+  private emit(event: Omit<AgentRuntimeEvent, 'eventId' | 'sequence'>): AgentRuntimeEvent {
+    const recorded: AgentRuntimeEvent = { ...event, eventId: randomUUID(), sequence: ++this.eventSequence };
+    this.eventLog.push(recorded);
+    if (this.eventLog.length > MAX_RUNTIME_EVENTS) this.eventLog.splice(0, this.eventLog.length - MAX_RUNTIME_EVENTS);
+    for (const listener of [...this.listeners, ...(this.sessionListeners.get(recorded.sessionId) ?? [])]) {
+      try { listener(cloneEvent(recorded)); } catch (error) { console.warn('[agent-runtime] listener failed', error); }
     }
+    return recorded;
   }
 
   private save(): Promise<void> {
     const snapshot = [...this.sessions.values()].map(clone);
-    this.persistChain = this.persistChain.catch(() => undefined).then(() => this.persistence.save(snapshot));
+    const events = this.eventLog.map(cloneEvent);
+    this.persistChain = this.persistChain.catch(() => undefined).then(async () => {
+      await this.persistence.save(snapshot);
+      await this.persistence.saveEvents?.(events);
+    });
     return this.persistChain;
   }
 
@@ -133,6 +170,7 @@ export class AgentRuntime {
     this.sessions.set(id, session);
     await this.save();
     this.emit({ type: 'session-created', sessionId: id, at: now, status: session.status });
+    await this.save();
     return clone(session);
   }
 
@@ -179,6 +217,7 @@ export class AgentRuntime {
       return '';
     }
     this.emit({ type: 'run-start', sessionId: id, at: session.updatedAt, status: session.status });
+    await this.save();
     let output = '';
     try {
       const callerHooks = options.hooks;
@@ -233,6 +272,7 @@ export class AgentRuntime {
       session.updatedAt = Date.now();
       await this.save();
       this.emit({ type: 'run-end', sessionId: id, at: session.updatedAt, status: session.status, text: output });
+      await this.save();
       return output;
     } catch (error) {
       session.status = this.cancelRequested.has(id) || (session as AgentSessionSnapshot).status === 'aborting' ? 'aborted' : 'failed';
@@ -243,6 +283,7 @@ export class AgentRuntime {
       session.updatedAt = Date.now();
       await this.save().catch(() => undefined);
       this.emit({ type: 'run-end', sessionId: id, at: session.updatedAt, status: session.status, error: session.lastError });
+      await this.save().catch(() => undefined);
       throw error;
     }
   }
@@ -289,6 +330,14 @@ export class AgentRuntime {
     return clone(session);
   }
 
+  /** Replay the durable session event stream after a sequence cursor. */
+  async replay(sessionId: string, afterSequence = 0): Promise<AgentRuntimeEvent[]> {
+    await this.hydrate();
+    if (!this.sessions.has(sessionId)) throw new Error(`Unknown agent session \"${sessionId}\".`);
+    const cursor = Number.isFinite(afterSequence) ? Math.max(0, Math.floor(afterSequence)) : 0;
+    return this.eventLog.filter((event) => event.sessionId === sessionId && event.sequence > cursor).map(cloneEvent);
+  }
+
   async list(): Promise<AgentSessionSnapshot[]> {
     await this.hydrate();
     return [...this.sessions.values()].map(clone).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -308,6 +357,7 @@ export class AgentRuntime {
     this.driver.restoreHistory?.(newSessionId, fork.messages ?? []);
     await this.save();
     this.emit({ type: 'session-created', sessionId: newSessionId, at: now, status: 'idle' });
+    await this.save();
     return clone(fork);
   }
 
@@ -331,6 +381,7 @@ export class AgentRuntime {
     if (restored.messages) this.driver.restoreHistory?.(restored.id, restored.messages);
     await this.save();
     this.emit({ type: 'session-restored', sessionId: restored.id, at: restored.updatedAt, status: restored.status });
+    await this.save();
     return clone(restored);
   }
 }

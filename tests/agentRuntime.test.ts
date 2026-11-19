@@ -36,6 +36,27 @@ describe('Cline-compatible JINI agent session runtime', () => {
     expect(events).toContain('run-end');
   });
 
+  it('persists and replays ordered session events across runtime restoration', async () => {
+    let sessions: AgentSessionSnapshot[] = [];
+    let events: any[] = [];
+    const persistence: AgentRuntimePersistence = {
+      load: async () => structuredClone(sessions),
+      save: async (next) => { sessions = structuredClone(next); },
+      loadEvents: async () => structuredClone(events),
+      saveEvents: async (next) => { events = structuredClone(next); },
+    };
+    const first = new AgentRuntime({ chat: vi.fn(async () => 'persisted'), cancelChat: vi.fn() }, persistence);
+    await first.run('persist events', { sessionId: 'event-session' });
+    const beforeRestart = await first.replay('event-session');
+    expect(beforeRestart.length).toBeGreaterThan(1);
+    expect(beforeRestart.every((event) => typeof event.eventId === 'string' && event.sequence > 0)).toBe(true);
+    const second = new AgentRuntime({ chat: vi.fn(async () => 'unused'), cancelChat: vi.fn() }, persistence);
+    const afterRestart = await second.replay('event-session');
+    expect(afterRestart.map((event) => event.eventId)).toEqual(beforeRestart.map((event) => event.eventId));
+    expect(afterRestart.map((event) => event.sequence)).toEqual([...afterRestart.map((event) => event.sequence)].sort((a, b) => a - b));
+    expect((await second.replay('event-session', afterRestart[0].sequence)).every((event) => event.sequence > afterRestart[0].sequence)).toBe(true);
+  });
+
   it('aborts only the requested active session', async () => {
     const { runtime, driver } = setup();
     await runtime.createSession('session-b');
