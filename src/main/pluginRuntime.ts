@@ -15,7 +15,7 @@ export function registerPlugin(plugin: JiniPlugin): PluginRegistration {
   if (!plugin.version || plugin.version.length > 40) throw new Error('Plugin version is required and must be at most 40 characters.');
   const disposers: Array<() => void> = [];
   for (const [event, handler] of Object.entries(plugin.events ?? {})) {
-    if (typeof handler === 'function') disposers.push(runtimeEvents.on(event as RuntimeEventName<JiniRuntimeEvents>, handler as (payload: never) => void));
+    if (typeof handler === 'function') disposers.push(runtimeEvents.on(event as RuntimeEventName<JiniRuntimeEvents>, handler as (payload: any) => void));
   }
   const registration: PluginRegistration = { id, dispose: () => {
     if (installed.get(id) !== registration) return;
