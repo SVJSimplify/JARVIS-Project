@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Empty, ScreenHeader, ago } from '../components/ui';
 import { rpc } from '../lib/linkClient';
 
@@ -56,9 +56,11 @@ export default function AgentsScreen() {
   const [busy, setBusy] = useState(false);
   const [action, setAction] = useState('');
   const [error, setError] = useState('');
+  const loadingRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    if (busy) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setBusy(true);
     try {
       const [list, toolList, pluginList] = await Promise.all([
@@ -88,9 +90,10 @@ export default function AgentsScreen() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load agent runtime.');
     } finally {
+      loadingRef.current = false;
       setBusy(false);
     }
-  }, [selected, busy]);
+  }, [selected]);
 
   useEffect(() => {
     if (view !== 'sessions' && view !== 'tools' && view !== 'plugins') return;

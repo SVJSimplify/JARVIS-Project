@@ -22,11 +22,25 @@ import { pendingApprovalViews, respondApprovalFromPairedDevice } from '../approv
 import { listConversations } from '../history';
 import type { DeviceHub, OpHandler } from './deviceHub';
 import { randomB64u } from './link';
-import { agentRuntime } from '../agentEngine/runtime';
+import { agentRuntime, type AgentSessionSnapshot } from '../agentEngine/runtime';
 import { agentToolRegistry } from '../agentEngine/toolRegistry';
 import { listPlugins } from '../pluginRuntime';
 
 const MAX_TEXT = 8000;
+
+/** Expose session control-plane metadata only; never mirror the full transcript over device RPC. */
+const publicAgentSession = (session: AgentSessionSnapshot) => ({
+  id: session.id,
+  parentSessionId: session.parentSessionId,
+  status: session.status,
+  createdAt: session.createdAt,
+  updatedAt: session.updatedAt,
+  turnCount: session.turnCount,
+  iteration: session.iteration,
+  pendingToolCalls: session.pendingToolCalls,
+  lastOutput: session.lastOutput,
+  lastError: session.lastError,
+});
 
 const text = (v: unknown, what: string): string => {
   const t = String(v ?? '').trim();
@@ -105,17 +119,11 @@ export function buildDeviceOps(hub: () => DeviceHub): Record<string, OpHandler> 
       return { saved: file, ...runTurn(prompt, { kind, threadId: String(args.threadId ?? ''), chatId: chatId ?? '', from: ctx.deviceName, text: note || name }, chatId, isImage ? [`data:${mime};base64,${data.toString('base64')}`] : []) };
     },
 
-    'agents.sessions': async () => (await agentRuntime.list()).map(({ messages: _messages, ...session }) => session),
-    'agents.snapshot': async (args) => {
-      const { messages: _messages, ...session } = await agentRuntime.snapshot(text(args.id, 'Session id'));
-      return session;
-    },
+    'agents.sessions': async () => (await agentRuntime.list()).map(publicAgentSession),
+    'agents.snapshot': async (args) => publicAgentSession(await agentRuntime.snapshot(text(args.id, 'Session id')),),
     'agents.replay': (args) => agentRuntime.replay(text(args.id, 'Session id'), Math.max(0, Number(args.afterSequence) || 0)).then((events) => events.slice(-150)),
     'agents.abort': (args) => agentRuntime.abort(text(args.id, 'Session id')),
-    'agents.fork': async (args) => {
-      const { messages: _messages, ...session } = await agentRuntime.fork(text(args.id, 'Session id'));
-      return session;
-    },
+    'agents.fork': async (args) => publicAgentSession(await agentRuntime.fork(text(args.id, 'Session id'))),
     'agents.tools': () => agentToolRegistry.list({ includeDisabled: true }),
     'agents.plugins': () => listPlugins(),
 
