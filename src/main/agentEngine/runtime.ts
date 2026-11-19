@@ -202,8 +202,10 @@ export class AgentRuntime {
               ...(event.tool === undefined ? {} : { tool: event.tool }),
               ...(event.status === undefined ? {} : { text: event.status }),
             });
-            // Model/tool boundaries are recovery checkpoints. If the process exits mid-run,
-            // hydration can distinguish an interrupted run and retain its last known step.
+            // Model/tool boundaries are recovery checkpoints. Persist both execution state
+            // and the provider's transcript projection so a crash can resume from known state.
+            const checkpointMessages = this.driver.snapshotHistory?.(id);
+            if (checkpointMessages) session!.messages = checkpointMessages;
             await this.save();
           }
         },

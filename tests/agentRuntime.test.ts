@@ -44,6 +44,22 @@ describe('Cline-compatible JINI agent session runtime', () => {
     expect(driver.cancelChat).not.toHaveBeenCalled();
   });
 
+  it('persists transcript checkpoints at model and tool lifecycle boundaries', async () => {
+    const saved: AgentSessionSnapshot[][] = [];
+    const persistence: AgentRuntimePersistence = { load: async () => [], save: async (sessions) => { saved.push(structuredClone(sessions)); } };
+    const driver = {
+      chat: vi.fn(async (_prompt: string, _delta: (value: string) => void, _progress?: (value: string) => void, options?: { hooks?: { onEvent?: (event: any) => Promise<void> | void } }) => {
+        await options?.hooks?.onEvent?.({ type: 'model-start', agentId: 'checkpoint-session', agentName: 'JINI', round: 0 });
+        return 'done';
+      }),
+      cancelChat: vi.fn(),
+      snapshotHistory: () => [{ role: 'user' as const, content: 'checkpoint transcript' }],
+    };
+    const runtime = new AgentRuntime(driver, persistence);
+    await runtime.run('checkpoint transcript', { sessionId: 'checkpoint-session' });
+    expect(saved.some((batch) => batch.some((session) => session.id === 'checkpoint-session' && session.messages?.[0]?.content === 'checkpoint transcript'))).toBe(true);
+  });
+
   it('treats an empty model response as completed rather than cancelled', async () => {
     const persistence: AgentRuntimePersistence = { load: async () => [], save: async () => undefined };
     const runtime = new AgentRuntime({ chat: vi.fn(async () => ''), cancelChat: vi.fn() }, persistence);
