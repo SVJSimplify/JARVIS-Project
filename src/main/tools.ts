@@ -323,7 +323,7 @@ export function schemasFor(text: string): typeof TOOL_SCHEMAS {
 }
 
 TOOLS.load_tools = {
-  description: 'Load a capability family when the current tools cannot complete the user's goal. Families: research, browser, desktop, files, development, memory, productivity, orchestration, integrations, system, vision, documents, advanced (or all). Load the smallest relevant family; tools become callable immediately.',
+  description: "Load a capability family when the current tools cannot complete the user's goal. Families: research, browser, desktop, files, development, memory, productivity, orchestration, integrations, system, vision, documents, advanced (or all). Load the smallest relevant family; tools become callable immediately.",
   parameters: { type: 'object', properties: { groups: { type: 'array', items: { type: 'string' } } }, required: ['groups'] },
   run: (args) => loadGroups(args.groups),
 };
