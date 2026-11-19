@@ -36,11 +36,47 @@ jobs:
         run: npm run build
       - name: Sync native project
         run: npx cap sync android
-      - name: Assemble APK
+      # Cache Gradle distributions and dependency artifacts between CI runs. This avoids
+      # repeatedly hitting Maven repositories for the Android Gradle Plugin dependency graph.
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+      - name: Assemble APK (retry transient repository failures)
         working-directory: mobile/android
+        shell: bash
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          for attempt in 1 2 3; do
+            log_file="$(mktemp)"
+            gradle_args=(assembleDebug --no-daemon --stacktrace)
+            if [ "$attempt" -gt 1 ]; then
+              gradle_args+=(--refresh-dependencies)
+            fi
+
+            set +e
+            ./gradlew "${gradle_args[@]}" 2>&1 | tee "$log_file"
+            build_status=${PIPESTATUS[0]}
+            set -e
+            if [ "$build_status" -eq 0 ]; then
+              rm -f "$log_file"
+              exit 0
+            fi
+
+            # Retry only repository/dependency resolution failures. Compilation, source,
+            # manifest and packaging errors are deterministic and should fail immediately.
+            if ! grep -Eqi 'Could not (find|resolve|GET|HEAD)|Could not resolve all (artifacts|files)|Resource missing' "$log_file"; then
+              rm -f "$log_file"
+              exit "$build_status"
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "Gradle dependency resolution failed after 3 attempts."
+              rm -f "$log_file"
+              exit "$build_status"
+            fi
+            echo "Transient Gradle repository resolution failure (attempt $attempt/3); retrying after backoff..."
+            rm -f "$log_file"
+            sleep $((attempt * 15))
+          done
       - name: Rename APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk ../JINI-mobile-debug.apk
       - uses: actions/upload-artifact@v4
