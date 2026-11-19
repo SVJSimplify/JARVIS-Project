@@ -329,7 +329,9 @@ const turnControllers = new Map<string, Set<AbortController>>();
  *  task must never abort an interactive turn (or another scheduled one); a user message
  *  always takes precedence over background work. */
 let turnSource: 'interactive' | 'scheduled' = 'interactive';
-let turnChain: Promise<unknown> = Promise.resolve();
+// One execution queue per chat. Independent conversations no longer block one another.
+const turnChains = new Map<string, Promise<unknown>>();
+let legacyTurnChain: Promise<unknown> = Promise.resolve();
 
 /** Stop the active turn, or only the turns owned by one chat/session when an id is supplied. */
 export function cancelChat(chatId?: string): void {
@@ -389,36 +391,37 @@ export function chat(
       turnAbort?.abort();
     }
   }
-  // source === 'scheduled': no abort. The turnChain serializes; a due scheduled task
-  // simply waits for the user's turn to finish instead of killing it.
+  // Scheduled turns serialize behind work in their own session. Interactive turns
+  // interrupt only that session's current turn; other sessions execute independently.
   const ctl = new AbortController();
   const controllerKey = chatIdOpt ?? '__active__';
   const owned = turnControllers.get(controllerKey) ?? new Set<AbortController>();
   owned.add(ctl);
   turnControllers.set(controllerKey, owned);
-  // Ownership (turnAbort/turnSource/turnSignal) transfers only when this turn ACTUALLY
-  // starts running — a queued scheduled turn must never steal the running turn's signal
-  // while it waits (Stop must keep stopping the turn that is really executing).
-  const p = turnChain.then(async () => {
+  const chain = chatIdOpt ? (turnChains.get(chatIdOpt) ?? Promise.resolve()) : legacyTurnChain;
+  const p = chain.catch(() => undefined).then(async () => {
     if (ctl.signal.aborted) return '';
     turnAbort = ctl;
     turnSource = source;
-    setTurnSignal(ctl.signal); // sub-agents check this so Stop also stops them
+    setTurnSignal(ctl.signal);
     const sessionId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
-    // Nested tool scopes inherit the owning session alongside the cancellation signal.
     return runWithExecutionScope({ signal: ctl.signal, sessionId }, () =>
       runTurn(text, onDelta, ctl.signal, onProgress, sessionId, imagesOpt, hooksOpt)
     );
   });
-  turnChain = p
-    .catch(() => undefined)
-    .then(() => {
-      if (currentTurnSignal() === ctl.signal) setTurnSignal(null);
-      if (turnAbort === ctl) turnAbort = null;
-      const remaining = turnControllers.get(controllerKey);
-      remaining?.delete(ctl);
-      if (remaining?.size === 0) turnControllers.delete(controllerKey);
-    });
+  const settled = p.catch(() => undefined).then(() => {
+    if (currentTurnSignal() === ctl.signal) setTurnSignal(null);
+    if (turnAbort === ctl) turnAbort = null;
+    const remaining = turnControllers.get(controllerKey);
+    remaining?.delete(ctl);
+    if (remaining?.size === 0) turnControllers.delete(controllerKey);
+  });
+  if (chatIdOpt) {
+    turnChains.set(chatIdOpt, settled);
+    void settled.then(() => { if (turnChains.get(chatIdOpt) === settled) turnChains.delete(chatIdOpt); });
+  } else {
+    legacyTurnChain = settled;
+  }
   return p;
 }
 
