@@ -223,7 +223,7 @@ export class AgentRuntime {
         },
         { chatId: id, source: options.source ?? 'interactive', hooks },
       );
-      const wasAborted = this.cancelRequested.has(id) || session.status === 'aborting';
+      const wasAborted = this.cancelRequested.has(id);
       this.cancelRequested.delete(id);
       session.status = wasAborted ? 'aborted' : 'completed';
       session.lastOutput = output;
