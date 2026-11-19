@@ -47,7 +47,7 @@ describe('Cline-compatible JINI agent session runtime', () => {
   it('restores active snapshots as interrupted and validates session state', async () => {
     const { runtime } = setup();
     const restored = await runtime.restore({
-      id: 'session-c', status: 'running', createdAt: 1, updatedAt: 2, turnCount: 3,
+      id: 'session-c', status: 'running', createdAt: 1, updatedAt: 2, turnCount: 3, iteration: 0, pendingToolCalls: [],
     });
     expect(restored.status).toBe('interrupted');
     expect((await runtime.list()).map((s) => s.id)).toContain('session-c');
@@ -57,6 +57,22 @@ describe('Cline-compatible JINI agent session runtime', () => {
     const hooks = { beforeRun: vi.fn(), beforeModel: vi.fn(), afterModel: vi.fn(), afterRun: vi.fn() };
     await runtime.run('hooked prompt', { sessionId: 'hook-session', hooks });
     expect(driver.chat).toHaveBeenCalledWith('hooked prompt', expect.any(Function), expect.any(Function), expect.objectContaining({ chatId: 'hook-session', hooks }));
+  });
+
+  it('persists the provider transcript and restores it into the existing chat engine', async () => {
+    const restored: string[] = [];
+    const persistence: AgentRuntimePersistence = { load: async () => [], save: async () => undefined };
+    const driver = {
+      chat: vi.fn(async () => 'done'),
+      cancelChat: vi.fn(),
+      snapshotHistory: () => [{ role: 'user' as const, content: 'hello' }],
+      restoreHistory: (id: string) => { restored.push(id); },
+    };
+    const runtime = new AgentRuntime(driver, persistence);
+    await runtime.run('hello', { sessionId: 'history-session' });
+    expect((await runtime.snapshot('history-session')).messages).toEqual([{ role: 'user', content: 'hello' }]);
+    await runtime.restore({ id: 'restored-session', status: 'completed', createdAt: 1, updatedAt: 1, turnCount: 1, iteration: 2, pendingToolCalls: [], messages: [{ role: 'user', content: 'restored' }] });
+    expect(restored).toContain('restored-session');
   });
 
 });

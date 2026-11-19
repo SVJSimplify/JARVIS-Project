@@ -10,7 +10,8 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { FILES_ROOT } from '../workspace';
 import { atomicWrite, loadJson } from '../store';
-import { chat, cancelChat } from '../provider';
+import { chat, cancelChat, snapshotChatHistory, restoreChatHistory } from '../provider';
+import type { Message } from '../llm';
 import type { AgentRuntimeHooks } from '../agentRuntimeHooks';
 
 export type AgentSessionStatus = 'idle' | 'running' | 'aborting' | 'completed' | 'failed' | 'aborted' | 'interrupted';
@@ -20,16 +21,21 @@ export interface AgentSessionSnapshot {
   createdAt: number;
   updatedAt: number;
   turnCount: number;
+  iteration: number;
+  pendingToolCalls: string[];
+  messages?: Message[];
   lastOutput?: string;
   lastError?: string;
 }
 export interface AgentRuntimeEvent {
-  type: 'session-created' | 'run-start' | 'delta' | 'progress' | 'run-end' | 'session-restored';
+  type: 'session-created' | 'run-start' | 'model-start' | 'model-end' | 'tool-start' | 'tool-end' | 'delta' | 'progress' | 'run-end' | 'session-restored';
   sessionId: string;
   at: number;
   status: AgentSessionStatus;
   text?: string;
   error?: string;
+  round?: number;
+  tool?: string;
 }
 export interface AgentRunOptions {
   sessionId?: string;
@@ -41,6 +47,8 @@ export interface AgentRunOptions {
 export interface AgentRuntimeDriver {
   chat: typeof chat;
   cancelChat: typeof cancelChat;
+  snapshotHistory?: (sessionId: string) => Message[];
+  restoreHistory?: (sessionId: string, messages: readonly Message[]) => void;
 }
 export interface AgentRuntimePersistence {
   load(): Promise<unknown>;
@@ -56,7 +64,7 @@ const defaultPersistence: AgentRuntimePersistence = {
 };
 const validStatus = (v: unknown): v is AgentSessionStatus =>
   ['idle', 'running', 'aborting', 'completed', 'failed', 'aborted', 'interrupted'].includes(String(v));
-const clone = (s: AgentSessionSnapshot): AgentSessionSnapshot => ({ ...s });
+const clone = (s: AgentSessionSnapshot): AgentSessionSnapshot => structuredClone(s);
 
 export class AgentRuntime {
   private readonly sessions = new Map<string, AgentSessionSnapshot>();
@@ -85,10 +93,14 @@ export class AgentRuntime {
             createdAt: Number.isFinite(s.createdAt) ? Number(s.createdAt) : Date.now(),
             updatedAt: Number.isFinite(s.updatedAt) ? Number(s.updatedAt) : Date.now(),
             turnCount: Number.isFinite(s.turnCount) ? Math.max(0, Number(s.turnCount)) : 0,
+            iteration: Number.isFinite(s.iteration) ? Math.max(0, Number(s.iteration)) : 0,
+            pendingToolCalls: Array.isArray(s.pendingToolCalls) ? s.pendingToolCalls.filter((v): v is string => typeof v === 'string') : [],
+            ...(Array.isArray(s.messages) ? { messages: s.messages as Message[] } : {}),
             ...(typeof s.lastOutput === 'string' ? { lastOutput: s.lastOutput } : {}),
             ...(typeof s.lastError === 'string' ? { lastError: s.lastError } : {}),
           };
           this.sessions.set(restored.id, restored);
+          if (restored.messages) this.driver.restoreHistory?.(restored.id, restored.messages);
         }
       })();
     }
@@ -111,7 +123,7 @@ export class AgentRuntime {
     await this.hydrate();
     if (this.sessions.has(id)) throw new Error(`Agent session "${id}" already exists.`);
     const now = Date.now();
-    const session: AgentSessionSnapshot = { id, status: 'idle', createdAt: now, updatedAt: now, turnCount: 0 };
+    const session: AgentSessionSnapshot = { id, status: 'idle', createdAt: now, updatedAt: now, turnCount: 0, iteration: 0, pendingToolCalls: [], messages: [] };
     this.sessions.set(id, session);
     await this.save();
     this.emit({ type: 'session-created', sessionId: id, at: now, status: session.status });
@@ -128,12 +140,38 @@ export class AgentRuntime {
       throw new Error(`Agent session "${id}" already has an active run.`);
     }
     session.status = 'running';
+    session.iteration = 0;
+    session.pendingToolCalls = [];
     session.updatedAt = Date.now();
     delete session.lastError;
     await this.save();
     this.emit({ type: 'run-start', sessionId: id, at: session.updatedAt, status: session.status });
     let output = '';
     try {
+      const callerHooks = options.hooks;
+      const hooks: AgentRuntimeHooks = {
+        ...callerHooks,
+        onEvent: async (event) => {
+          try { await callerHooks?.onEvent?.(event); }
+          finally {
+            if (event.type === 'model-start') session!.iteration = Math.max(session!.iteration, (event.round ?? session!.iteration) + 1);
+            if (event.type === 'tool-start' && event.tool) session!.pendingToolCalls.push(event.tool);
+            if (event.type === 'tool-end' && event.tool) {
+              const index = session!.pendingToolCalls.indexOf(event.tool);
+              if (index >= 0) session!.pendingToolCalls.splice(index, 1);
+            }
+            this.emit({
+              type: event.type,
+              sessionId: id,
+              at: Date.now(),
+              status: session!.status,
+              ...(event.round === undefined ? {} : { round: event.round }),
+              ...(event.tool === undefined ? {} : { tool: event.tool }),
+              ...(event.status === undefined ? {} : { text: event.status }),
+            });
+          }
+        },
+      };
       output = await this.driver.chat(
         prompt,
         (delta) => {
@@ -145,10 +183,12 @@ export class AgentRuntime {
           options.onProgress?.(progress);
           this.emit({ type: 'progress', sessionId: id, at: Date.now(), status: 'running', text: progress });
         },
-        { chatId: id, source: options.source ?? 'interactive', hooks: options.hooks },
+        { chatId: id, source: options.source ?? 'interactive', hooks },
       );
       session.status = (session as AgentSessionSnapshot).status === 'aborting' ? 'aborted' : 'completed';
       session.lastOutput = output;
+      session.messages = this.driver.snapshotHistory?.(id) ?? session.messages ?? [];
+      session.pendingToolCalls = [];
       session.turnCount++;
       session.updatedAt = Date.now();
       await this.save();
@@ -157,6 +197,8 @@ export class AgentRuntime {
     } catch (error) {
       session.status = 'failed';
       session.lastError = error instanceof Error ? error.message : String(error);
+      session.messages = this.driver.snapshotHistory?.(id) ?? session.messages ?? [];
+      session.pendingToolCalls = [];
       session.updatedAt = Date.now();
       await this.save().catch(() => undefined);
       this.emit({ type: 'run-end', sessionId: id, at: session.updatedAt, status: 'failed', error: session.lastError });
@@ -196,6 +238,8 @@ export class AgentRuntime {
     await this.hydrate();
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Unknown agent session "${sessionId}".`);
+    const messages = this.driver.snapshotHistory?.(sessionId);
+    if (messages) session.messages = messages;
     return clone(session);
   }
 
@@ -213,13 +257,17 @@ export class AgentRuntime {
       ...snapshot,
       status: snapshot.status === 'running' || snapshot.status === 'aborting' ? 'interrupted' : snapshot.status,
       turnCount: Math.max(0, Math.floor(snapshot.turnCount || 0)),
+      iteration: Math.max(0, Math.floor(snapshot.iteration || 0)),
+      pendingToolCalls: [],
+      messages: Array.isArray(snapshot.messages) ? structuredClone(snapshot.messages) : [],
       updatedAt: Date.now(),
     };
     this.sessions.set(restored.id, restored);
+    if (restored.messages) this.driver.restoreHistory?.(restored.id, restored.messages);
     await this.save();
     this.emit({ type: 'session-restored', sessionId: restored.id, at: restored.updatedAt, status: restored.status });
     return clone(restored);
   }
 }
 
-export const agentRuntime = new AgentRuntime({ chat, cancelChat });
+export const agentRuntime = new AgentRuntime({ chat, cancelChat, snapshotHistory: snapshotChatHistory, restoreHistory: restoreChatHistory });
