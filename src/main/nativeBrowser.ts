@@ -117,13 +117,6 @@ export function browserPreferencePrompt(): string {
     : "BROWSER CHOICE (user setting): web tasks run in JINI's own real Chrome profile (native_browser_* tools, Mode B) — a persistent profile where the user's sign-ins and Chrome-saved passwords live. If not connected, call native_browser_connect (permission is standing). Use browser_* panel tools only if the user asks for the in-app browser. Never type passwords yourself; Chrome's password manager autofills, and the user signs in once.";
 }
 
-/** Auto-connect when the user made the native browser their default (their standing choice). */
-async function ensureNativeForDefault(): Promise<void> {
-  const cfg = await getNativeConfig();
-  if (cfg.defaultBrowser !== 'native' || (st.info && st.info.status === 'connected')) return;
-  await connectNativeBrowser({ mode: cfg.mode });
-}
-
 export async function setNativeConfig(patch: Partial<NativeBrowserConfig>): Promise<NativeBrowserConfig> {
   return withStoreLock(configFile(), async () => {
     const cur = await getNativeConfig();
@@ -607,6 +600,7 @@ const launchArgs = (profileDir: string, visibility: 'normal' | 'minimized'): str
     `--user-data-dir=${profileDir}`,
     '--remote-debugging-port=0', // the OS picks a free loopback port; it is read from DevToolsActivePort
     '--no-first-run',
+    '--no-startup-window', // don't create an unsolicited blank Edge/Chrome window at launch
     '--no-default-browser-check',
     '--disable-session-crashed-bubble',
     '--disable-features=Translate,IntrusiveAdsSigninPromo',
@@ -617,7 +611,7 @@ const launchArgs = (profileDir: string, visibility: 'normal' | 'minimized'): str
   // separated, opt-in, never used to enable anything headless by default.
   const extra = (process.env.JARVIS_BROWSER_EXTRA_ARGS ?? '').trim();
   if (extra) args.push(...extra.split(/\s+/));
-  args.push('about:blank');
+  // No startup URL: the first tab is created only by an explicit native_browser_open call.
   return args;
 };
 
@@ -2278,10 +2272,9 @@ export const nativeBrowserTools: Record<string, Tool> = {
 
   native_browser_open: {
     description:
-      "Open a URL in the connected NATIVE browser as a BACKGROUND tab (default) — your current tab keeps focus. focus=true ONLY when the user explicitly asked to SEE the page now (it brings the tab to the front). Requires an active session (native_browser_connect).",
+      "Open a URL in the connected NATIVE browser as a BACKGROUND tab (default) — your current tab keeps focus. focus=true ONLY when the user explicitly asked to SEE the page now (it brings the tab to the front). Requires an active session (native_browser_connect). Never launch or reconnect a browser implicitly.",
     parameters: { type: 'object', properties: { url: { type: 'string' }, background: { type: 'boolean' }, focus: { type: 'boolean' } }, required: ['url'] },
     run: async (args) => {
-      await ensureNativeForDefault();
       const url = normalizeUrl(String(args.url ?? ''));
       const res = await openNativeTab(url, { background: args.background !== false, focus: args.focus === true });
       const state = await waitNativeTab(res.tabId, 8000).catch(() => '');
@@ -2290,7 +2283,7 @@ export const nativeBrowserTools: Record<string, Tool> = {
   },
 
   native_browser_navigate: {
-    description: 'Navigate a NATIVE browser tab (tabId from native_browser_tabs, default the newest) to a URL in the background. Returns the reached title/URL — a navigation is not yet an outcome.',
+    description: 'Navigate a NATIVE browser tab (tabId from native_browser_tabs, default the newest) to a URL in the background. Requires an explicitly connected session; never launch or reconnect a browser implicitly. Returns the reached title/URL — a navigation is not yet an outcome.',
     parameters: { type: 'object', properties: { url: { type: 'string' }, tabId: { type: 'string' } }, required: ['url'] },
     run: async (args) => {
       await ensureNativeForDefault();

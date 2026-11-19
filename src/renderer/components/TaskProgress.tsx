@@ -22,6 +22,35 @@ import type { AgentProgressView, ProgressSnapshot, ProgressStep, TaskProgressVie
 
 const pad = (n: number): string => String(n).padStart(2, '0');
 
+const friendlyLabel = (raw: string): string => {
+  const value = String(raw ?? '').trim();
+  const known: Record<string, string> = {
+    native_browser_open: 'Opening a page', native_browser_navigate: 'Moving to another page',
+    native_browser_read: 'Reading a page', native_browser_snapshot: 'Understanding the page',
+    browser_open: 'Opening a page', browser_search: 'Searching the web', browser_read: 'Reading a page',
+    list_files: 'Looking through files', read_file: 'Reading a file', write_file: 'Creating a file',
+    edit_file: 'Updating a file', run_command: 'Running a task', run_shell: 'Running a task',
+    verify: 'Checking the result',
+  };
+  if (known[value]) return known[value];
+  const cleaned = value.replace(/^native_browser_/, '').replace(/^browser_/, '').replace(/[_:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return 'Making progress';
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+};
+
+const friendlyStatus = (status: string): string => {
+  const labels: Record<string, string> = {
+    CREATED: 'Getting ready', PLANNING: 'Planning', READY: 'Ready', RUNNING: 'In progress',
+    VERIFYING: 'Checking', WAITING_FOR_INPUT: 'Needs you', RETRYING: 'Trying again',
+    RECOVERING: 'Picking up where it left off', COMPLETED: 'Complete', FAILED: 'Could not finish',
+    CANCELLED: 'Stopped', PAUSED: 'Paused', INTERRUPTED: 'Paused',
+    planning: 'Planning', running: 'In progress', verifying: 'Checking',
+    completed: 'Complete', failed: 'Could not finish', cancelled: 'Stopped',
+  };
+  return labels[status] ?? status;
+};
+
+
 /** Compact elapsed: 42s / 12:05 / 1:02:10. Guards garbage clocks. */
 export const elapsed = (since: unknown, nowMs: number): string => {
   if (typeof since !== 'number' || !Number.isFinite(since)) return '';
@@ -105,7 +134,7 @@ function NowLine({ snap, nowMs }: { snap: ProgressSnapshot; nowMs: number }) {
     <div className="flex items-baseline gap-2">
       <span className={`font-mono text-[12px] leading-none ${busy ? 'animate-pulse text-accent' : 'text-steel'}`}>{busy ? '▶' : '·'}</span>
       <span className="truncate text-[13px] leading-snug text-hot" title={snap.now.detail || snap.now.label}>
-        {snap.now.label}
+        {friendlyLabel(snap.now.label)}
       </span>
       {busy && <span className="ml-auto shrink-0 font-mono text-[12px] tabular-nums text-steel">{elapsed(snap.now.since, nowMs)}</span>}
     </div>
@@ -121,11 +150,11 @@ function TurnSection({ turn, nowMs, stepLimit }: { turn: TurnProgress; nowMs: nu
       <SectionTitle
         right={
           <span className={`font-mono text-[12px]   ${outcome === 'running' ? 'animate-pulse text-accent' : outcome === 'fail' || outcome === 'interrupted' ? 'text-hot' : 'text-steel'}`}>
-            {outcome === 'running' ? elapsed(turn.startedAt, nowMs) : outcome}
+            {outcome === 'running' ? elapsed(turn.startedAt, nowMs) : outcome === 'ok' ? 'Complete' : outcome === 'fail' ? 'Could not finish' : 'Paused'}
           </span>
         }
       >
-        Task
+        Working on
       </SectionTitle>
       <p className="truncate text-[13px] leading-snug text-hot" title={turn.task}>
         {turn.task}
@@ -141,7 +170,7 @@ function TurnSection({ turn, nowMs, stepLimit }: { turn: TurnProgress; nowMs: nu
                 <li key={s.key} className="flex items-baseline gap-2">
                   <span className={`w-3 shrink-0 text-center font-mono text-[12px] leading-none ${tone.cls}`}>{tone.g}</span>
                   <span className={`truncate text-[12px] leading-snug ${s.status === 'running' ? 'text-accent' : s.status === 'fail' ? 'text-hot/80' : 'text-steel'}`} title={s.detail || s.label}>
-                    {s.label}
+                    {friendlyLabel(s.label)}
                   </span>
                   {s.ms !== undefined && <span className="ml-auto shrink-0 font-mono text-[12px] tabular-nums text-steel/70">{s.ms}ms</span>}
                 </li>
@@ -161,11 +190,11 @@ function TaskSection({ t, compact }: { t: TaskProgressView; compact?: boolean })
       <SectionTitle
         right={
           <span className={`font-mono text-[12px]  ${active ? 'animate-pulse text-accent' : t.status === 'FAILED' || t.status === 'CANCELLED' ? 'text-hot' : 'text-steel'}`}>
-            {t.status}
+            {friendlyStatus(t.status)}
           </span>
         }
       >
-        {`Task ${t.id}`}
+        {'In the background'}
       </SectionTitle>
       <p className="truncate text-[12px] leading-snug text-hot/90" title={t.objective}>
         {t.objective}
@@ -215,7 +244,7 @@ export function AgentsSection({ agents, nowMs, detailed }: { agents: AgentProgre
           return (
             <li key={a.id} className="flex items-baseline gap-2">
               <span className={`w-3 shrink-0 text-center font-mono text-[12px] leading-none ${tone.cls}`}>{tone.g}</span>
-              <span className={`shrink-0 font-mono text-[12px]   ${a.status === 'running' ? 'text-accent' : 'text-steel/80'}`}>{a.agent}</span>
+              <span className={`shrink-0 font-mono text-[12px]   ${a.status === 'running' ? 'text-accent' : 'text-steel/80'}`}>{friendlyLabel(a.agent)}</span>
               <span className={`truncate text-[12px] leading-snug ${a.status === 'running' ? 'text-accent' : a.status === 'failed' || a.status === 'cancelled' ? 'text-hot/80' : 'text-steel'}`} title={a.note || a.why}>
                 {a.note || a.why}
               </span>
@@ -274,8 +303,8 @@ export default function TaskProgress({ mini = false }: { mini?: boolean }) {
         className="no-drag pointer-events-none max-w-[94vw] truncate rounded-full border border-accent/40 bg-[#FBF8F2d9] px-4 py-1 font-mono text-[12px] text-accent"
       >
         <span className="mr-2 animate-pulse">▶</span>
-        {snap?.now?.label ? `${snap.now.label}` : 'Working'}
-        {task && <span className="text-steel">{` · ${task.id} ${task.done}/${task.total}`}</span>}
+        {snap?.now?.label ? friendlyLabel(snap.now.label) : 'Making progress'}
+        {task && <span className="text-steel">{` · ${task.done}/${task.total}`}</span>}
       </motion.div>
     );
   }
@@ -292,9 +321,9 @@ export default function TaskProgress({ mini = false }: { mini?: boolean }) {
           >
             <div className="relative z-[3] max-h-[46vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-accent/20 px-4 pb-1.5 pt-2.5">
-                <h2 className="font-display text-[12px] font-bold text-accent/90">Task Progress</h2>
+                <h2 className="font-display text-[12px] font-bold text-accent/90">Jini is working</h2>
                 <span className="font-mono text-[12px] text-steel">
-                  {snap.busy ? <span className="animate-pulse text-accent">● live</span> : 'idle'} · {snap.mode === 'background' ? 'background' : 'interactive'}
+                  {snap.busy ? <span className="animate-pulse text-accent">In progress</span> : 'Just finished'}
                 </span>
               </div>
               <TaskProgressBody snap={snap} nowMs={now.getTime()} overlay />

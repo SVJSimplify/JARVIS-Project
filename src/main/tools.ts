@@ -55,6 +55,7 @@ import { autopilotTools } from './autopilot/tools';
 import { artifactTools } from './artifact';
 import { buildCapabilityManifest, manifestForPrompt, manifestReport, manifestIssues } from './capabilityManifest';
 import { POLICY_STATEMENT } from './policy';
+import { skillTools } from './skills';
 
 const MAX_LINES = 1000;
 const MAX_READ_BYTES = 2 * 1024 * 1024;
@@ -309,6 +310,8 @@ Object.assign(TOOLS, autopilotTools({ run: runDetailed, schemas: pickSchemas }))
 // ROUND 32 (Phase 4 §4.2): cross-application playbooks — genuine plans through the SAME
 // coordinator (run_playbook composes the brief and calls start_task on this registry).
 Object.assign(TOOLS, playbookTools(runDetailed));
+// Skills are lightweight, on-demand instruction packs; they never bypass the shared tool policy.
+Object.assign(TOOLS, skillTools);
 
 export const toolRegistry = (): Record<string, Tool> => TOOLS;
 
