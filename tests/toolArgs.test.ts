@@ -118,7 +118,7 @@ describe('checkArgs', () => {
     const arraySchema = { type: 'object', properties: { names: { type: 'array', minItems: 1, maxItems: 2, items: { type: 'string' } } } };
     expect(checkArgs('t', { names: ['a', 'b'] }, arraySchema).names).toEqual(['a', 'b']);
     expect(() => checkArgs('t', { names: [] }, arraySchema)).toThrow(/at least 1 item/);
-    expect(() => checkArgs('t', { names: ['a', 2] }, arraySchema)).toThrow(/must be string/);
+    expect(() => checkArgs('t', { names: ['a', 2] }, arraySchema)).toThrow(/must be a string/);
   });
 
   it('rejects non-numeric values instead of passing them to the handler', () => {
