@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Notification, safeStorage, shell } from 'electron';
 import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { chat, listModels, stopEverything } from './provider';
+import { listModels, stopEverything } from './provider';
 import { agentRuntime } from './agentEngine/runtime';
 import { getPublicSettings, setSettings } from './settings';
 import { migrateEmbeddingsKeyStorage, setEmbeddingsCipher } from './embeddings';

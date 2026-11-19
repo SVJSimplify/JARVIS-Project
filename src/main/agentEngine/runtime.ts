@@ -155,9 +155,6 @@ export class AgentRuntime {
 
   private async runSession(prompt: string, options: AgentRunOptions, id: string): Promise<string> {
     await this.hydrate();
-    let idSession = this.sessions.get(id);
-    if (!idSession) idSession = await this.createSession(id);
-    let session = idSession;
     let session = this.sessions.get(id);
     if (!session) session = await this.createSession(id);
     if (session.status === 'running' || session.status === 'aborting') {
