@@ -399,6 +399,8 @@ ipcMain.handle('ai-chat', async (event, text: string) => {
   const ownedRuns = activeChatRuns.get(senderId) ?? new Set<string>();
   ownedRuns.add(chatId);
   activeChatRuns.set(senderId, ownedRuns);
+  const onDestroyed = () => { void agentRuntime.abort(chatId).catch(() => undefined); };
+  event.sender.once('destroyed', onDestroyed);
   // The desktop chat now enters the same persistent Cline-compatible runtime used by
   // delegated agents. It still delegates model/tool work to JINI's existing guarded engine.
   const unsubscribe = await agentRuntime.subscribe((runtimeEvent) => deliver('agent-runtime-event', runtimeEvent), chatId);
@@ -410,6 +412,7 @@ ipcMain.handle('ai-chat', async (event, text: string) => {
     });
   } finally {
     unsubscribe();
+    event.sender.removeListener('destroyed', onDestroyed);
     const active = activeChatRuns.get(senderId);
     active?.delete(chatId);
     if (active?.size === 0) activeChatRuns.delete(senderId);
