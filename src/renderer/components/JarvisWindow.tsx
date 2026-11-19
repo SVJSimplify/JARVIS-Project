@@ -5,6 +5,7 @@ import TaskProgress, { TaskRailPanel } from './TaskProgress';
 import ConversationsPanel from './ConversationsPanel';
 import ProjectsPanel from './ProjectsPanel';
 import OperationsPanel from './OperationsPanel';
+import AgentSessionsPanel from './AgentSessionsPanel';
 import NativeBrowserPanel from './NativeBrowserPanel';
 import ApprovalCard from './ApprovalCard';
 import ToolActivitySummary from './ToolActivitySummary';
@@ -38,13 +39,14 @@ interface Props {
   children?: ReactNode;
 }
 
-type Panel = 'projects' | 'operations' | 'conversations' | 'browser' | null;
+type Panel = 'projects' | 'operations' | 'conversations' | 'browser' | 'agents' | null;
 
 /** One icon family (Lucide geometry): 24px grid, 1.6 stroke, round joins. */
 const ICON = {
   assistant: ['M7.9 20A9 9 0 1 0 4 16.1L2 22Z'],
   projects: ['M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z'],
   operations: ['M3 3h7v7H3z', 'M14 3h7v7h-7z', 'M3 14h7v7H3z', 'M17.5 14v7', 'M14 17.5h7'],
+  agents: ['M12 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M5 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M12 9v3', 'M5 15v-2h14v2'],
   plus: ['M12 5v14', 'M5 12h14'],
   history: ['M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8', 'M3 3v5h5', 'M12 7v5l4 2'],
   browser: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M2 12h20', 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'],
@@ -139,6 +141,7 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
       <ConversationsPanel open={panel === 'conversations'} onClose={() => setPanel(null)} refreshKey={turnsCount} />
       <ProjectsPanel open={panel === 'projects'} onClose={() => setPanel(null)} />
       <OperationsPanel open={panel === 'operations'} onClose={() => setPanel(null)} />
+      <AgentSessionsPanel open={panel === 'agents'} onClose={() => setPanel(null)} />
       <NativeBrowserPanel open={panel === 'browser'} onClose={() => setPanel(null)} />
       <TaskProgress mini={mini} />
       <ApprovalCard />
@@ -149,6 +152,7 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
           if (destination === 'assistant') { setPanel(null); setSettingsOpen(false); }
           else if (destination === 'projects') { setSettingsOpen(false); setPanel('projects'); }
           else if (destination === 'operations') { setSettingsOpen(false); setPanel('operations'); }
+          else if (destination === 'agents') { setSettingsOpen(false); setPanel('agents'); }
           else if (destination === 'history') { setSettingsOpen(false); setPanel('conversations'); }
           else if (destination === 'browser') { setSettingsOpen(false); setPanel('browser'); }
           else if (destination === 'devices') openSettings('devices');
@@ -194,6 +198,7 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
     { id: 'assistant', label: 'Assistant', icon: 'assistant', onClick: () => setPanel(null), active: !panel && !settingsOpen },
     { id: 'projects', label: 'Projects', icon: 'projects', onClick: () => setPanel('projects'), active: panel === 'projects' },
     { id: 'operations', label: 'Operations', icon: 'operations', onClick: () => setPanel('operations'), active: panel === 'operations' },
+    { id: 'agents', label: 'Agents', icon: 'agents', onClick: () => setPanel('agents'), active: panel === 'agents' },
     { id: 'history', label: 'History', icon: 'history', onClick: () => setPanel('conversations'), active: panel === 'conversations' },
   ];
   const connected: typeof nav = [

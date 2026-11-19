@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-type Destination = 'assistant' | 'projects' | 'operations' | 'history' | 'browser' | 'devices' | 'settings' | 'activity';
+type Destination = 'assistant' | 'projects' | 'operations' | 'agents' | 'history' | 'browser' | 'devices' | 'settings' | 'activity';
 
 interface Props {
   open: boolean;
@@ -13,6 +13,7 @@ const COMMANDS: Array<{ id: Destination; title: string; detail: string }> = [
   { id: 'assistant', title: 'Go to Assistant', detail: 'Return to your conversation' },
   { id: 'projects', title: 'Open Projects', detail: 'Browse projects and deliverables' },
   { id: 'operations', title: 'Open Operations', detail: 'Tasks, schedules and integrations' },
+  { id: 'agents', title: 'Open Agent Runtime', detail: 'Sessions, lifecycle events, forks and cancellation' },
   { id: 'history', title: 'Search History', detail: 'Find a previous conversation' },
   { id: 'browser', title: 'Open Browser', detail: 'Continue a connected browser session' },
   { id: 'devices', title: 'Manage Devices', detail: 'Connections and paired devices' },
