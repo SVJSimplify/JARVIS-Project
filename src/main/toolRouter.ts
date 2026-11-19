@@ -68,9 +68,9 @@ const FAMILIES: Family[] = [
   {
     id: 'development',
     hint: 'software projects, source code, debugging, terminal commands, builds, tests, Git and code analysis',
-    cues: ['code', 'coding', 'program', 'software', 'project', 'repository', 'repo', 'bug', 'fix', 'debug', 'build', 'website', 'web site', 'web app', 'fan site', 'landing page', 'frontend', 'front end', 'test suite', 'typescript', 'javascript', 'python', 'terminal', 'shell command', 'powershell', 'git', 'refactor', 'implement', 'compile', 'npm', 'install package', 'code review'],
+    cues: ['code', 'coding', 'program', 'software', 'project', 'repository', 'repo', 'bug', 'fix', 'debug', 'build', 'website', 'web site', 'web app', 'fan site', 'fan website', 'web design', 'web development', 'create website', 'build website', 'landing page', 'frontend', 'front end', 'test suite', 'typescript', 'javascript', 'python', 'terminal', 'shell command', 'powershell', 'git', 'refactor', 'implement', 'compile', 'npm', 'install package', 'code review'],
     patterns: [/^(run_command|run_python|diagnostics|code_search|inspect_project|project_context|analyze_impact|plan_enter|plan_exit|skill$|todo_write|todo_read)/],
-    minScore: 2,
+    minScore: 1.5,
   },
   {
     id: 'memory',

@@ -131,12 +131,19 @@ describe('JINI intent-aware capability router', () => {
     expect(currentSchemas().map((item) => item.function.name)).toContain('github_create_issue');
   });
 
-  it('retains only the last relevant family for one follow-up turn', () => {
+  it('routes a website creation request directly to development tools', () => {
+    const route = classifyIntent('Can you create a nice website for me?');
+    expect(route.families).toContain('development');
+    routeTurn('Can you create a nice website for me?');
+    expect(currentSchemas().map((item) => item.function.name)).toContain('run_command');
+  });
+
+  it('retains recently relevant capability families across short project follow-ups', () => {
     routeTurn('Debug my code project');
     endTurn();
     routeTurn('thanks, can you also explain that?');
     expect(currentSchemas().map((item) => item.function.name)).toContain('run_command');
-    endTurn();
+    for (let i = 0; i < 5; i++) endTurn();
     routeTurn('hello again');
     expect(currentSchemas().map((item) => item.function.name)).not.toContain('run_command');
   });
