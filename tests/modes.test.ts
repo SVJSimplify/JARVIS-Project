@@ -52,8 +52,7 @@ describe('session-scoped turn digests', () => {
       const result = endTurn({ reply: 'Research incomplete.', failed: true });
       a.push(result?.body ?? '');
     });
-    expect(a[0]).toContain('research task');
-    expect(a[0]).toContain('1 steps failed');
+    expect(a[0]).toContain('1 of 1 step failed');
     expect(b[0]).toContain('Written.');
     expect(b[0]).not.toContain('research task');
   });
