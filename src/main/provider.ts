@@ -88,7 +88,6 @@ const PROJECT_CONTINUATION_RE = /^(?:yes|yeah|yep|no|nope|continue|go on|do it|p
 /** The request itself demands currency: the answer must come from the live web, stamped "as of <today>". */
 const FRESH_RE = /\b(right now|currently|as of (?:today|now)|today'?s|in stock|still sold|latest)\b/i;
 let projectTurn = false;
-let projectContextChat = '';
 let projectContextAt = 0;
 let turnContext = '';
 
@@ -97,10 +96,39 @@ async function systemMessage(): Promise<Message> {
   return { role: 'system', content: [BASE_PROMPT, OPERATING_PRINCIPLES, DECISION_RULES, TOOL_GUIDE, capabilityPrompt(), projectTurn ? WORKFLOW : '', toolCatalog(), turnContext].filter(Boolean).join('\n\n') };
 }
 
+interface SessionExecutionState {
+  history: Message[];
+  lastTurnAt: number;
+  projectTurn: boolean;
+  projectContextAt: number;
+}
+const sessionStates = new Map<string, SessionExecutionState>();
+let activeSessionId = '';
 let history: Message[] = [];
-/** Each chat keeps its own model-message history; switching chats swaps it (bounded). */
-const chatHistories = new Map<string, Message[]>();
-let historyChat = '';
+let lastTurnAt = 0;
+let projectTurn = false;
+let projectContextAt = 0;
+const sessionState = (id: string): SessionExecutionState => {
+  let state = sessionStates.get(id);
+  if (!state) { state = { history: [], lastTurnAt: 0, projectTurn: false, projectContextAt: 0 }; sessionStates.set(id, state); }
+  return state;
+};
+const activateSession = (id: string): void => {
+  if (activeSessionId === id) return;
+  if (activeSessionId) {
+    const previous = sessionState(activeSessionId);
+    previous.history = history;
+    previous.lastTurnAt = lastTurnAt;
+    previous.projectTurn = projectTurn;
+    previous.projectContextAt = projectContextAt;
+  }
+  const next = sessionState(id);
+  activeSessionId = id;
+  history = next.history;
+  lastTurnAt = next.lastTurnAt;
+  projectTurn = next.projectTurn;
+  projectContextAt = next.projectContextAt;
+};
 let lastTurnAt = 0;
 const IDLE_RESET_MS = 10 * 60 * 1000;
 
@@ -302,10 +330,11 @@ function describe(call: ToolCall): string {
 /** Snapshot/restore the canonical transcript for one conversation.
  *  AgentRuntime persists this projection; the provider remains the sole model/tool executor. */
 export function snapshotChatHistory(chatId: string): Message[] {
-  const source = historyChat === chatId ? history : chatHistories.get(chatId) ?? [];
+  const source = activeSessionId === chatId ? history : sessionState(chatId).history;
   const snapshot = structuredClone(source);
   // Images have already been consumed by the completed turn. Persist the transcript and
   // interpretation, not multi-megabyte base64 payloads that cannot be replayed safely.
+  sessionState(chatId).history = snapshot;
   return snapshot.map((message) => Array.isArray(message.content)
     ? { ...message, content: message.content.map((part) =>
         part && typeof part === 'object' && 'type' in part && part.type === 'image_url'
@@ -318,8 +347,9 @@ export function snapshotChatHistory(chatId: string): Message[] {
 export function restoreChatHistory(chatId: string, messages: readonly Message[]): void {
   if (!chatId || !Array.isArray(messages)) throw new Error('Invalid chat history restore request.');
   const restored = structuredClone(messages) as Message[];
-  if (historyChat === chatId) history = restored;
-  else chatHistories.set(chatId, restored);
+  const state = sessionState(chatId);
+  state.history = restored;
+  if (activeSessionId === chatId) history = restored;
 }
 
 let turnAbort: AbortController | null = null;
@@ -463,13 +493,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   // The chat is fixed when the turn starts: switching chats mid-turn never moves this turn.
   const chatId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
   resetTurnShot();
-  if (chatId !== historyChat) {
-    chatHistories.set(historyChat, history);
-    history = chatHistories.get(chatId) ?? [];
-    chatHistories.delete(chatId);
-    historyChat = chatId;
-    while (chatHistories.size > 12) chatHistories.delete(chatHistories.keys().next().value as string);
-  }
+  activateSession(chatId);
   const model = await getModel();
   if (!model) throw new Error('No model set. Open Settings and choose one.');
   const hookContext = { agentId: chatId, sessionId: chatId, agentName: 'JINI', model };
@@ -497,16 +521,14 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   const goalContext = await getGoalContext(chatId).catch(() => '');
   schemasFor([goalContext, text].filter(Boolean).join('\n'));
   const explicitProject = PROJECT_RE.test(text);
-  const sameProjectThread = projectContextChat === chatId && Date.now() - projectContextAt < 30 * 60_000;
+  const currentSessionState = sessionState(chatId);
+  const sameProjectThread = currentSessionState.projectTurn && Date.now() - projectContextAt < 30 * 60_000;
   const shortContinuation = text.trim().length <= 180;
   projectTurn = explicitProject || (sameProjectThread && (shortContinuation || PROJECT_CONTINUATION_RE.test(text.trim())));
-  if (projectTurn) {
-    projectContextChat = chatId;
-    projectContextAt = Date.now();
-  } else if (projectContextChat === chatId) {
-    projectContextChat = '';
-    projectContextAt = 0;
-  }
+  if (projectTurn) projectContextAt = Date.now();
+  else projectContextAt = 0;
+  currentSessionState.projectTurn = projectTurn;
+  currentSessionState.projectContextAt = projectContextAt;
   const freshTurn = FRESH_RE.test(text);
   await observeUser(text).catch(() => undefined);
   // ROUND 31 (§3.5): the per-turn context is ASSEMBLED under one budget by the context
