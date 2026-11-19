@@ -90,8 +90,8 @@ const FRESH_RE = /\b(right now|currently|as of (?:today|now)|today'?s|in stock|s
 let turnContext = '';
 
 /** Static prefix first (provider prompt caching), turn-dependent parts last; memory and session are read once per turn, not per round. */
-async function systemMessage(): Promise<Message> {
-  return { role: 'system', content: [BASE_PROMPT, OPERATING_PRINCIPLES, DECISION_RULES, TOOL_GUIDE, capabilityPrompt(), projectTurn ? WORKFLOW : '', toolCatalog(), turnContext].filter(Boolean).join('\n\n') };
+async function systemMessage(state: SessionExecutionState): Promise<Message> {
+  return { role: 'system', content: [BASE_PROMPT, OPERATING_PRINCIPLES, DECISION_RULES, TOOL_GUIDE, capabilityPrompt(), state.projectTurn ? WORKFLOW : '', toolCatalog(), state.turnContext].filter(Boolean).join('\n\n') };
 }
 
 interface SessionExecutionState {
@@ -102,33 +102,10 @@ interface SessionExecutionState {
   turnContext: string;
 }
 const sessionStates = new Map<string, SessionExecutionState>();
-let activeSessionId = '';
-let history: Message[] = [];
-let lastTurnAt = 0;
-let projectTurn = false;
-let projectContextAt = 0;
 const sessionState = (id: string): SessionExecutionState => {
   let state = sessionStates.get(id);
   if (!state) { state = { history: [], lastTurnAt: 0, projectTurn: false, projectContextAt: 0, turnContext: '' }; sessionStates.set(id, state); }
   return state;
-};
-const activateSession = (id: string): void => {
-  if (activeSessionId === id) return;
-  if (activeSessionId) {
-    const previous = sessionState(activeSessionId);
-    previous.history = history;
-    previous.lastTurnAt = lastTurnAt;
-    previous.projectTurn = projectTurn;
-    previous.projectContextAt = projectContextAt;
-    previous.turnContext = turnContext;
-  }
-  const next = sessionState(id);
-  activeSessionId = id;
-  history = next.history;
-  lastTurnAt = next.lastTurnAt;
-  projectTurn = next.projectTurn;
-  projectContextAt = next.projectContextAt;
-  turnContext = next.turnContext;
 };
 const IDLE_RESET_MS = 10 * 60 * 1000;
 
@@ -194,10 +171,10 @@ function thinkFilter(out: (d: string) => void): { push: (d: string) => void; flu
 }
 
 /** One streamed completion. Content deltas go to `onDelta`; tool calls are assembled. */
-async function complete(model: string, onDelta: (d: string) => void, signal?: AbortSignal): Promise<Completion> {
+async function complete(model: string, onDelta: (d: string) => void, signal: AbortSignal | undefined, state: SessionExecutionState): Promise<Completion> {
   const res = await send('/chat/completions', 'POST', {
     model,
-    messages: [await systemMessage(), ...history],
+    messages: [await systemMessage(state), ...state.history],
     tools: currentSchemas(),
     tool_choice: 'auto',
     stream: true,
@@ -277,13 +254,13 @@ async function complete(model: string, onDelta: (d: string) => void, signal?: Ab
 }
 
 /** Images are large; keep only the newest. */
-function dropOldImages(): void {
-  history = history.map((m) => (Array.isArray(m.content) ? { ...m, content: '[earlier image omitted]' } : m));
+function dropOldImages(history: Message[]): void {
+  for (let i = 0; i < history.length; i++) if (Array.isArray(history[i].content)) history[i] = { ...history[i], content: '[earlier image omitted]' };
 }
 
 const turnStarts = new WeakSet<Message>();
 
-function turnIndexes(): number[] {
+function turnIndexes(history: Message[]): number[] {
   const idx: number[] = [];
   history.forEach((m, i) => turnStarts.has(m) && idx.push(i));
   return idx;
@@ -293,11 +270,11 @@ function turnIndexes(): number[] {
  * Trim by whole turns (not raw message count, which tool-heavy turns used to blow through).
  * Recent turns keep full tool detail; older turns are compacted to user text + final reply.
  */
-function trimHistory(): void {
-  let starts = turnIndexes();
+function trimHistory(history: Message[]): void {
+  let starts = turnIndexes(history);
   if (starts.length > MAX_TURNS) {
-    history = history.slice(starts[starts.length - MAX_TURNS]);
-    starts = turnIndexes();
+    history.splice(0, starts[starts.length - MAX_TURNS]);
+    starts = turnIndexes(history);
   }
   const cut = starts.length > FULL_TURNS ? starts[starts.length - FULL_TURNS] : 0;
   const out: Message[] = [];
@@ -314,7 +291,7 @@ function trimHistory(): void {
     }
     out.push(m);
   });
-  history = out;
+  history.splice(0, history.length, ...out);
 }
 
 const hint = (n: string): string => {
@@ -330,8 +307,7 @@ function describe(call: ToolCall): string {
 /** Snapshot/restore the canonical transcript for one conversation.
  *  AgentRuntime persists this projection; the provider remains the sole model/tool executor. */
 export function snapshotChatHistory(chatId: string): Message[] {
-  const source = activeSessionId === chatId ? history : sessionState(chatId).history;
-  const snapshot = structuredClone(source);
+  const snapshot = structuredClone(sessionState(chatId).history);
   // Images have already been consumed by the completed turn. Persist the transcript and
   // interpretation, not multi-megabyte base64 payloads that cannot be replayed safely.
   sessionState(chatId).history = snapshot;
@@ -349,7 +325,6 @@ export function restoreChatHistory(chatId: string, messages: readonly Message[])
   const restored = structuredClone(messages) as Message[];
   const state = sessionState(chatId);
   state.history = restored;
-  if (activeSessionId === chatId) history = restored;
 }
 
 let turnAbort: AbortController | null = null;
@@ -461,7 +436,7 @@ const progressNote = (t: string): string => {
  * outgrow the provider's context window mid-loop. Whole assistant/tool groups are removed
  * together so no tool reply is ever left without its call. Recent rounds stay verbatim.
  */
-function compactTurn(turnStart: number): void {
+function compactTurn(history: Message[], turnStart: number): void {
   const groups: Array<{ start: number; end: number }> = [];
   for (let i = turnStart; i < history.length; i++) {
     const m = history[i];
@@ -487,7 +462,12 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   // The chat is fixed when the turn starts: switching chats mid-turn never moves this turn.
   const chatId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
   resetTurnShot();
-  activateSession(chatId);
+  const state = sessionState(chatId);
+  const history = state.history;
+  let lastTurnAt = state.lastTurnAt;
+  let projectTurn = state.projectTurn;
+  let projectContextAt = state.projectContextAt;
+  let turnContext = state.turnContext;
   const model = await getModel();
   if (!model) throw new Error('No model set. Open Settings and choose one.');
   const hookContext = { agentId: chatId, sessionId: chatId, agentName: 'JINI', model };
@@ -508,21 +488,21 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   // A turn interrupted after plan_enter can never call plan_exit: stale plan mode would block
   // every write tool on unrelated later requests, so every turn starts with it off.
   resetPlanMode();
-  if (Date.now() - lastTurnAt > IDLE_RESET_MS) history = [];
+  if (Date.now() - lastTurnAt > IDLE_RESET_MS) history.splice(0, history.length);
   lastTurnAt = Date.now();
+  state.lastTurnAt = lastTurnAt;
   // Persist the user's goal before routing or provider calls, including turns that fail.
   await updateGoalFromUser(chatId, text).catch(() => null);
   const goalContext = await getGoalContext(chatId).catch(() => '');
   schemasFor([goalContext, text].filter(Boolean).join('\n'));
   const explicitProject = PROJECT_RE.test(text);
-  const currentSessionState = sessionState(chatId);
-  const sameProjectThread = currentSessionState.projectTurn && Date.now() - projectContextAt < 30 * 60_000;
+  const sameProjectThread = projectTurn && Date.now() - projectContextAt < 30 * 60_000;
   const shortContinuation = text.trim().length <= 180;
   projectTurn = explicitProject || (sameProjectThread && (shortContinuation || PROJECT_CONTINUATION_RE.test(text.trim())));
   if (projectTurn) projectContextAt = Date.now();
   else projectContextAt = 0;
-  currentSessionState.projectTurn = projectTurn;
-  currentSessionState.projectContextAt = projectContextAt;
+  state.projectTurn = projectTurn;
+  state.projectContextAt = projectContextAt;
   const freshTurn = FRESH_RE.test(text);
   await observeUser(text).catch(() => undefined);
   // ROUND 31 (§3.5): the per-turn context is ASSEMBLED under one budget by the context
@@ -572,11 +552,13 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   ];
   const assembled = assembleTurnContext(rawBlocks, CONTEXT_BUDGET_CHARS);
   turnContext = assembled.text;
+  state.turnContext = turnContext;
   // The date anchor leads the per-turn context: a report dated "1 November 2025" when today
   // is 1 November 2026 sailed through every gate before this line existed. The clock probe
   // is once per process and fail-open; a badly wrong PC clock is warned about, not trusted.
   const clock = clockWarning(await checkClockDrift());
   turnContext = [dateContext(todayParts()), clock ? `[CLOCK WARNING] ${clock}` : '', turnContext].filter(Boolean).join('\n\n');
+  state.turnContext = turnContext;
   const turnStart = history.length;
   const userMsg: Message = images.length
     ? { role: 'user', content: [{ type: 'text', text }, ...images.map((url) => ({ type: 'image_url' as const, image_url: { url } }))] }
@@ -610,7 +592,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       await emitAgentHook(hooks, { type: 'model-start', agentId: chatId, agentName: 'JINI', round });
       const { content, toolCalls } = await withModelFallback(
         chain,
-        (m) => complete(m, () => undefined, signal),
+        (m) => complete(m, () => undefined, signal, state),
         onFallback
       );
       await observeAgentHook(() => hooks?.afterModel?.({ ...hookContext, round, content, toolCalls }));
@@ -667,9 +649,10 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         } else if (projectTurn && reply.trim()) {
           actions.push('quality_gate PASS (code-enforced)');
         }
-        trimHistory();
+        trimHistory(history);
         endTurn();
         lastTurnAt = Date.now();
+        state.lastTurnAt = lastTurnAt;
         void recordTurn({ user: text, actions, reply: final });
         void appendConversationTurn({ user: text, actions, reply: final, chatId });
         void recordGoalOutcome(chatId, final).catch(() => undefined);
@@ -743,7 +726,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       });
       const images = drainImages();
       if (images.length) {
-        dropOldImages();
+        dropOldImages(history);
         history.push({
           role: 'user',
           content: [
@@ -753,7 +736,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         });
       }
       if (turnChars > TURN_CHAR_BUDGET) {
-        compactTurn(turnStart);
+        compactTurn(history, turnStart);
         turnChars = history
           .slice(turnStart)
           .reduce((n, m) => (m.role === 'tool' && typeof m.content === 'string' ? n + m.content.length : n), 0);
@@ -763,7 +746,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       // understate CJK-heavy content and image parts.
       const usage = lastTokenUsage();
       if (usage && usage.promptTokens > PROMPT_TOKEN_PRESSURE && !historyCompacted) {
-        compactTurn(turnStart);
+        compactTurn(history, turnStart);
         historyCompacted = true; // once per turn: compaction is for the OLDEST rounds
       }
       // BOUNDED SELF-CORRECTION (Pillar 7): retryable unresolved failures (timeouts,
@@ -786,7 +769,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       const u: Message = { role: 'user', content: text };
       turnStarts.add(u);
       history.push(u, { role: 'assistant', content: note });
-      trimHistory();
+      trimHistory(history);
       void recordTurn({ user: text, actions, reply: '', error: why });
       void appendConversationTurn({ user: text, actions, reply: '', error: why, chatId });
       endModeTurn({ interrupted: true });
@@ -800,7 +783,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
     const failed: Message = { role: 'user', content: text };
     turnStarts.add(failed);
     history.push(failed, { role: 'assistant', content: `I could not finish that: ${message}` });
-    trimHistory();
+    trimHistory(history);
     void recordFailedTurn(message);
     void recordGoalOutcome(chatId, '', message).catch(() => undefined);
     void recordTurn({ user: text, actions, reply: '', error: message });
