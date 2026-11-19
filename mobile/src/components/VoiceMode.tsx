@@ -66,6 +66,7 @@ export default function VoiceMode({
   const captureId = useRef(0);
   const finishedCapture = useRef(0);
   const finishCapture = useRef<() => void>(() => undefined);
+  const handleRef = useRef<(text: string) => void>(() => undefined);
 
   const speak = useCallback(async (text: string) => {
     if (!alive.current || !text) return;
@@ -96,7 +97,7 @@ export default function VoiceMode({
       if (finishedCapture.current === id) return;
       finishedCapture.current = id;
       listening.current = false;
-      if (alive.current) void handle(partial.current);
+      if (alive.current) handleRef.current(partial.current);
     };
     try {
       await SpeechRecognition.start({
@@ -156,6 +157,8 @@ export default function VoiceMode({
     },
     [kind, listen, onClose, speak],
   );
+
+  handleRef.current = (text) => { void handle(text); };
 
   // Start: permissions, listeners, first listen. Leaving stops everything.
   useEffect(() => {
