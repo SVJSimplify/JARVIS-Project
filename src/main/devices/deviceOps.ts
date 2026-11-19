@@ -22,6 +22,9 @@ import { pendingApprovalViews, respondApprovalFromPairedDevice } from '../approv
 import { listConversations } from '../history';
 import type { DeviceHub, OpHandler } from './deviceHub';
 import { randomB64u } from './link';
+import { agentRuntime } from '../agentEngine/runtime';
+import { agentToolRegistry } from '../agentEngine/toolRegistry';
+import { listPlugins } from '../pluginRuntime';
 
 const MAX_TEXT = 8000;
 
@@ -101,6 +104,14 @@ export function buildDeviceOps(hub: () => DeviceHub): Record<string, OpHandler> 
       const kind = args.kind === 'task' ? 'task' : 'chat';
       return { saved: file, ...runTurn(prompt, { kind, threadId: String(args.threadId ?? ''), chatId: chatId ?? '', from: ctx.deviceName, text: note || name }, chatId, isImage ? [`data:${mime};base64,${data.toString('base64')}`] : []) };
     },
+
+    'agents.sessions': () => agentRuntime.list(),
+    'agents.snapshot': (args) => agentRuntime.snapshot(text(args.id, 'Session id')),
+    'agents.replay': (args) => agentRuntime.replay(text(args.id, 'Session id'), Math.max(0, Number(args.afterSequence) || 0)).then((events) => events.slice(-150)),
+    'agents.abort': (args) => agentRuntime.abort(text(args.id, 'Session id')),
+    'agents.fork': (args) => agentRuntime.fork(text(args.id, 'Session id')),
+    'agents.tools': () => agentToolRegistry.list({ includeDisabled: true }),
+    'agents.plugins': () => listPlugins(),
 
     'tasks.list': () => taskViews(),
     'task.cancel': (args) => ({ ok: cancelTask(text(args.id, 'Task id')) }),

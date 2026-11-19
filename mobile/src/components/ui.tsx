@@ -18,6 +18,7 @@ const ICONS = {
   search: ['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'm21 21-4.3-4.3'],
   scan: ['M3 7V5a2 2 0 0 1 2-2h2', 'M17 3h2a2 2 0 0 1 2 2v2', 'M21 17v2a2 2 0 0 1-2 2h-2', 'M7 21H5a2 2 0 0 1-2-2v-2', 'M7 12h10'],
   monitor: ['M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z', 'M8 20h8', 'M12 16v4'],
+  agents: ['M12 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M5 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M12 9v3', 'M5 15v-2h14v2'],
 } as const;
 
 export type IconName = keyof typeof ICONS;

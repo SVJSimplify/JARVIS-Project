@@ -8,13 +8,15 @@ import TasksScreen from './screens/Tasks';
 import MemoryScreen from './screens/Memory';
 import ApprovalsScreen from './screens/Approvals';
 import SettingsScreen from './screens/Settings';
+import AgentsScreen from './screens/Agents';
 import Onboarding from './screens/Onboarding';
 
-type Tab = 'chat' | 'tasks' | 'memory' | 'approvals' | 'settings';
+type Tab = 'chat' | 'tasks' | 'agents' | 'memory' | 'approvals' | 'settings';
 
 const TABS: Array<{ id: Tab; label: string; icon: IconName }> = [
   { id: 'chat', label: 'Chat', icon: 'chat' },
   { id: 'tasks', label: 'Tasks', icon: 'tasks' },
+  { id: 'agents', label: 'Agents', icon: 'agents' },
   { id: 'memory', label: 'Memory', icon: 'memory' },
   { id: 'approvals', label: 'Approve', icon: 'shield' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
@@ -56,11 +58,12 @@ export default function App() {
       <main className="min-h-0 flex-1 overflow-y-auto px-4">
         {tab === 'chat' && <ChatScreen />}
         {tab === 'tasks' && <TasksScreen />}
+        {tab === 'agents' && <AgentsScreen />}
         {tab === 'memory' && <MemoryScreen />}
         {tab === 'approvals' && <ApprovalsScreen />}
         {tab === 'settings' && <SettingsScreen />}
       </main>
-      <nav className="safe-bottom flex border-t border-hairline bg-oat pt-1.5" aria-label="Sections">
+      <nav className="safe-bottom flex overflow-x-auto border-t border-hairline bg-oat pt-1.5" aria-label="Sections">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
@@ -68,7 +71,7 @@ export default function App() {
               key={t.id}
               onClick={() => setTab(t.id)}
               aria-current={active ? 'page' : undefined}
-              className={`relative flex flex-1 flex-col items-center gap-1 py-1.5 text-[11px] font-medium ${active ? 'text-accent' : 'text-faint'}`}
+              className={`relative flex min-w-[58px] flex-1 flex-col items-center gap-1 py-1.5 text-[10px] font-medium ${active ? 'text-accent' : 'text-faint'}`}
             >
               <Icon name={t.icon} className="h-[22px] w-[22px]" />
               {t.label}
