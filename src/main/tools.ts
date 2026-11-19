@@ -276,7 +276,7 @@ TOOLS.launch_app.run = async (a) => `${await launch(a)} ${await placeApp(String(
 
 const schemaTools = (): Record<string, Tool> => ({
   ...TOOLS,
-  ...agentToolRegistry.toToolMap(() => ({ agentId: callContext().agent, signal: executionSignal() })),
+  ...agentToolRegistry.toToolMap(() => ({ agentId: callContext().agent, signal: executionSignal(), sessionId: executionSessionId() })),
 });
 
 const schemas = (keep: (name: string) => boolean) =>
