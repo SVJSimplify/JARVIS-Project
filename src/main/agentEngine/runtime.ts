@@ -107,7 +107,7 @@ export class AgentRuntime {
     return this.persistChain;
   }
 
-  async createSession(id = randomUUID()): Promise<AgentSessionSnapshot> {
+  async createSession(id: string = randomUUID()): Promise<AgentSessionSnapshot> {
     await this.hydrate();
     if (this.sessions.has(id)) throw new Error(`Agent session "${id}" already exists.`);
     const now = Date.now();
@@ -147,7 +147,7 @@ export class AgentRuntime {
         },
         { chatId: id, source: options.source ?? 'interactive', hooks: options.hooks },
       );
-      session.status = session.status === 'aborting' ? 'aborted' : 'completed';
+      session.status = (session as AgentSessionSnapshot).status === 'aborting' ? 'aborted' : 'completed';
       session.lastOutput = output;
       session.turnCount++;
       session.updatedAt = Date.now();
