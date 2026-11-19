@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { FILES_ROOT } from '../workspace';
 import { atomicWrite, loadJson } from '../store';
 import { chat, cancelChat } from '../provider';
+import type { AgentRuntimeHooks } from '../agentRuntimeHooks';
 
 export type AgentSessionStatus = 'idle' | 'running' | 'aborting' | 'completed' | 'failed' | 'aborted' | 'interrupted';
 export interface AgentSessionSnapshot {
@@ -35,6 +36,7 @@ export interface AgentRunOptions {
   source?: 'interactive' | 'scheduled';
   onDelta?: (delta: string) => void;
   onProgress?: (progress: string) => void;
+  hooks?: AgentRuntimeHooks;
 }
 export interface AgentRuntimeDriver {
   chat: typeof chat;
@@ -143,7 +145,7 @@ export class AgentRuntime {
           options.onProgress?.(progress);
           this.emit({ type: 'progress', sessionId: id, at: Date.now(), status: 'running', text: progress });
         },
-        { chatId: id, source: options.source ?? 'interactive' },
+        { chatId: id, source: options.source ?? 'interactive', hooks: options.hooks },
       );
       session.status = session.status === 'aborting' ? 'aborted' : 'completed';
       session.lastOutput = output;

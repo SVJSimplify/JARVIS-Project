@@ -15,6 +15,7 @@ import { runWithExecutionScope } from './toolResult';
 import { currentSchemas, endTurn, unloadedGroups, routeSummary } from './toolRouter';
 import { resetPlanMode } from './planning';
 import { redactText } from './redact';
+import { assertAgentHookContinues, emitAgentHook, observeAgentHook, type AgentRuntimeHooks } from './agentRuntimeHooks';
 
 
 /** Optional extra request fields as JSON, e.g. JARVIS_EXTRA_BODY={"temperature":0.2}; check your API host's docs for a thinking/reasoning option. */
@@ -342,10 +343,11 @@ export function chat(
   text: string,
   onDelta: (d: string) => void,
   onProgress?: (p: string) => void,
-  opts: string | { source?: 'interactive' | 'scheduled'; chatId?: string; images?: string[] } = {}
+  opts: string | { source?: 'interactive' | 'scheduled'; chatId?: string; images?: string[]; hooks?: AgentRuntimeHooks } = {}
 ): Promise<string> {
   const chatIdOpt = typeof opts === 'object' ? opts.chatId : undefined;
   const imagesOpt = typeof opts === 'object' && Array.isArray(opts.images) ? opts.images.filter((u) => typeof u === 'string' && u.startsWith('data:image/')).slice(0, 4) : [];
+  const hooksOpt = typeof opts === 'object' ? opts.hooks : undefined;
   const source: 'interactive' | 'scheduled' =
     typeof opts === 'object' ? (opts.source ?? 'interactive') : opts === 'scheduled' ? 'scheduled' : 'interactive';
   if (source === 'interactive' && isStopCommand(text)) {
@@ -374,7 +376,7 @@ export function chat(
     turnAbort = ctl;
     turnSource = source;
     setTurnSignal(ctl.signal); // sub-agents check this so Stop also stops them
-    return runTurn(text, onDelta, ctl.signal, onProgress, chatIdOpt, imagesOpt);
+    return runTurn(text, onDelta, ctl.signal, onProgress, chatIdOpt, imagesOpt, hooksOpt);
   });
   turnChain = p
     .catch(() => undefined)
@@ -422,7 +424,7 @@ function compactTurn(turnStart: number): void {
   history.splice(groups[0].start, cutTo - groups[0].start, summary);
 }
 
-async function runTurn(text: string, onDelta: (d: string) => void, signal: AbortSignal, onProgress?: (p: string) => void, chatIdOpt?: string, images: string[] = []): Promise<string> {
+async function runTurn(text: string, onDelta: (d: string) => void, signal: AbortSignal, onProgress?: (p: string) => void, chatIdOpt?: string, images: string[] = [], hooks?: AgentRuntimeHooks): Promise<string> {
   // The chat is fixed when the turn starts: switching chats mid-turn never moves this turn.
   const chatId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
   resetTurnShot();
@@ -435,6 +437,9 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   }
   const model = await getModel();
   if (!model) throw new Error('No model set. Open Settings and choose one.');
+  const hookContext = { agentId: chatId, agentName: 'JINI', model };
+  assertAgentHookContinues(await hooks?.beforeRun?.({ ...hookContext, prompt: text }));
+  await emitAgentHook(hooks, { type: 'run-start', agentId: chatId, agentName: 'JINI' });
   // EVIDENCE-BACKED COMPLETION (Pillar 7): this turn is tracked from here on. Every tool
   // result enters a ledger; the final reply is audited against that ledger, so a false
   // success claim is rewritten before it reaches the user (completion.ts — the engine
@@ -550,11 +555,15 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       // through the progress channel); the LAST round streams its answer token-by-token,
       // Hold all response text until the complete answer can be redacted. This prevents
       // file contents, credentials and tool output from leaking through partial TTS/UI deltas.
+      assertAgentHookContinues(await hooks?.beforeModel?.({ ...hookContext, round, messages: history, tools: currentSchemas() }));
+      await emitAgentHook(hooks, { type: 'model-start', agentId: chatId, agentName: 'JINI', round });
       const { content, toolCalls } = await withModelFallback(
         chain,
         (m) => complete(m, () => undefined, signal),
         onFallback
       );
+      await observeAgentHook(() => hooks?.afterModel?.({ ...hookContext, round, content, toolCalls }));
+      await emitAgentHook(hooks, { type: 'model-end', agentId: chatId, agentName: 'JINI', round });
       if (toolCalls.length) {
         const note = progressNote(content);
         if (note && note !== lastNote) {
@@ -625,6 +634,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         } catch {
           /* the honesty audit is best-effort by design */
         }
+        await observeAgentHook(() => hooks?.afterRun?.({ ...hookContext, status: 'completed', output: final }));
+        await emitAgentHook(hooks, { type: 'run-end', agentId: chatId, agentName: 'JINI', status: 'completed' });
         return final;
       }
       // Round 18 §11 (S1): the turn's AbortSignal now governs the tool dispatch itself —
@@ -632,7 +643,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       // reaches the in-flight tool (cancelled-before-run, mid-run cancellation, web
       // request aborts) instead of only taking effect at the next round boundary.
       const early: ToolResultEnvelope[] | null =
-        toolCalls.length > 1 && toolCalls.every((c) => isParallelSafe(c.function.name))
+        !hooks?.beforeTool && toolCalls.length > 1 && toolCalls.every((c) => isParallelSafe(c.function.name))
           ? await runWithExecutionScope({ signal }, () =>
               Promise.all(toolCalls.map((c) => runToolDetailed(c.function.name, c.function.arguments)))
             )
@@ -647,7 +658,13 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         if (signal.aborted) throw new Error('Interrupted');
         // F-07: structured status decides failure — the text prefixes remain only as the
         // display contract, not as the mechanism.
+        if (!early) {
+          assertAgentHookContinues(await hooks?.beforeTool?.({ ...hookContext, round, call }));
+          await emitAgentHook(hooks, { type: 'tool-start', agentId: chatId, agentName: 'JINI', round, tool: call.function.name });
+        }
         const res = early ? early[i] : await runToolDetailed(call.function.name, call.function.arguments);
+        await observeAgentHook(() => hooks?.afterTool?.({ ...hookContext, round, call, result: res }));
+        await emitAgentHook(hooks, { type: 'tool-end', agentId: chatId, agentName: 'JINI', round, tool: call.function.name, status: res.status });
         const raw = res.text;
         const safeRaw = redactText(raw);
         const failed = res.status !== 'success';
@@ -722,6 +739,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       void recordTurn({ user: text, actions, reply: '', error: why });
       void appendConversationTurn({ user: text, actions, reply: '', error: why, chatId });
       endModeTurn({ interrupted: true });
+      await observeAgentHook(() => hooks?.afterRun?.({ ...hookContext, status: 'aborted', error: why }));
+      await emitAgentHook(hooks, { type: 'run-end', agentId: chatId, agentName: 'JINI', status: 'aborted' });
       return '';
     }
     const message = err instanceof Error ? err.message : String(err);
@@ -737,6 +756,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
     void appendConversationTurn({ user: text, actions, reply: '', error: message, chatId });
     learnFromTurn({ user: text, actions, reply: '', failed: failLog, error: message });
     endModeTurn({ failed: true, error: message });
+    await observeAgentHook(() => hooks?.afterRun?.({ ...hookContext, status: 'failed', error: message }));
+    await emitAgentHook(hooks, { type: 'run-end', agentId: chatId, agentName: 'JINI', status: 'failed' });
     throw err;
   }
 }

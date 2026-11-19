@@ -52,4 +52,11 @@ describe('Cline-compatible JINI agent session runtime', () => {
     expect(restored.status).toBe('interrupted');
     expect((await runtime.list()).map((s) => s.id)).toContain('session-c');
   });
+  it('forwards lifecycle hooks through the runtime to the provider driver', async () => {
+    const { runtime, driver } = setup();
+    const hooks = { beforeRun: vi.fn(), beforeModel: vi.fn(), afterModel: vi.fn(), afterRun: vi.fn() };
+    await runtime.run('hooked prompt', { sessionId: 'hook-session', hooks });
+    expect(driver.chat).toHaveBeenCalledWith('hooked prompt', expect.any(Function), expect.any(Function), expect.objectContaining({ chatId: 'hook-session', hooks }));
+  });
+
 });
