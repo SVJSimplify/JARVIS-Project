@@ -1,15 +1,15 @@
 import { clipboard, desktopCapturer, screen, shell } from 'electron';
-import { execFile } from 'child_process';
+import { runProcessChecked } from './processRunner';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { promisify } from 'util';
 import { findCustomApp } from './extraTools';
 import { setMini } from './hud';
 import type { Tool } from './toolTypes';
 import { FILES_ROOT } from './workspace';
 
-const run = promisify(execFile);
+const run = (file: string, args: string[], options: { windowsHide?: boolean; timeout?: number; maxBuffer?: number; env?: NodeJS.ProcessEnv } = {}) =>
+  runProcessChecked(file, args, { windowsHide: options.windowsHide, timeoutMs: options.timeout, maxBufferBytes: options.maxBuffer, env: options.env });
 const MAX_CLIPBOARD_CHARS = 4000;
 /** Only these programs can be launched. Add entries here to allow more. */
 const APPS: Record<string, string> = {

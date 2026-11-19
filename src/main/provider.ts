@@ -12,7 +12,7 @@ import { beginTask, recordStep, needsRescue, takeRescue, endTask, recordInterrup
 import { isParallelSafe, runToolDetailed, schemasFor, capabilityPrompt } from './tools';
 import type { ToolResultEnvelope } from './toolResult';
 import { runWithExecutionScope } from './toolResult';
-import { currentSchemas, endTurn, unloadedGroups } from './toolRouter';
+import { currentSchemas, endTurn, unloadedGroups, routeSummary } from './toolRouter';
 import { resetPlanMode } from './planning';
 import { redactText } from './redact';
 
@@ -72,7 +72,9 @@ const BASE_PROMPT =
 
 /** Only what the schemas do not already say: groups still to load. */
 const toolCatalog = () =>
-  unloadedGroups() ? `Not loaded: ${unloadedGroups()}. Call load_tools if you need them. Never claim you lack a capability; load it.` : '';
+  [routeSummary(), unloadedGroups() ? `Not loaded: ${unloadedGroups()}. Call load_tools with the smallest relevant family if you need another capability. Never claim you lack a capability without checking.` : 'All capability families are loaded.']
+    .filter(Boolean)
+    .join('\\n');
 
 const PROJECT_RE =
   /\b(research|analy[sz]\w*|compare|comparison|competitors?|audit|investigate|report|plan|strategy|benchmark|build|develop|market|deep dive|in.?depth|find out everything|where (am|do) i|how (am|do) i (do|stack|compare|rank))\b/i;

@@ -1,93 +1,201 @@
 import type { ToolSchema } from './llm';
 
-interface Group {
+type Family = {
   id: string;
   hint: string;
-  re: RegExp;
-  tools: string[];
+  cues: string[];
+  patterns: RegExp[];
+  minScore: number;
+};
+
+export interface IntentRoute {
+  families: string[];
+  scores: Record<string, number>;
+  matchedCues: Record<string, string[]>;
+  confidence: 'high' | 'medium' | 'low';
 }
 
-/** Tools every request gets. Any tool not listed in a group is also always on, so nothing is ever lost. */
-const CORE = [
-  'get_current_time', 'tinyfish_search', 'tinyfish_fetch', 'web_search', 'web_browse', 'fetch_url', 'get_weather', 'calculate', 'remember', 'save_contact', 'find_contact',
-  'list_memories', 'forget', 'tool_log', 'see_screen', 'ask_user', 'batch', 'task', 'research', 'parallel_tasks', 'chain', 'screen_text', 'click_text',
-  'browser_play', 'browser_media', 'find_files', 'open_anything', 'read_document', 'read', 'load_tools', 'show_visual', 'quality_gate', 'decide', 'todo_write', 'write_file',
-  'list_drives', 'bluetooth_scan', 'get_system_info', 'list_processes', 'schedule_task', 'list_scheduled', 'cancel_scheduled',
-  'start_task', 'task_status', 'task_cancel', 'task_resume', 'list_tasks',
-];
+const CORE = new Set([
+  'get_current_time',
+  'calculate',
+  'ask_user',
+  'load_tools',
+  'list_capabilities',
+  'tool_log',
+]);
 
-const GROUPS: Group[] = [
+/**
+ * JINI capability routing.
+ *
+ * The router deliberately uses two stages:
+ * 1. intent classification chooses capability families from the user's actual goal;
+ * 2. the model chooses the concrete operation from only those families' live schemas.
+ *
+ * This is a routing hint, never an authorization boundary. Every call still passes through
+ * runToolDetailed -> argument validation -> risk assessment -> permission gate -> durable
+ * receipt -> execution -> durable outcome. A tool not surfaced here remains discoverable
+ * through load_tools/list_capabilities.
+ */
+const FAMILIES: Family[] = [
+  {
+    id: 'research',
+    hint: 'web research, current information, source comparison, fact checking, weather and public information',
+    cues: ['research', 'look up', 'find out', 'latest', 'current information', 'news', 'compare sources', 'fact check', 'investigate', 'search the web', 'web search', 'prices', 'weather', 'reviews', 'competitors', 'sources'],
+    patterns: [/^(web_search|web_browse|fetch_url|tinyfish_|search_and_read|get_weather|verify_claim|research_web)/],
+    minScore: 2,
+  },
   {
     id: 'browser',
-    hint: 'in-app browser: open, read, click, type, tabs, maps; native browser (your real Chrome/Edge): connect, background tabs, read, act',
-    re: /\b(browse\w*|tabs?|web ?(site|page)|sites?|urls?|links?|open|go ?to|navigate|search|google|you ?tube|play|watch|videos?|maps?|directions?|amazon|reddit|wikipedia|github|spotify|twitter|click|scroll|close|dismiss|hide|http|login|log ?in|sign ?(in|up)|fill|form|submit|checkout|book|order|buy|upload|download|dropdown|select|type|\w+\.(com|org|net|in|io|ai))\b/i,
-    tools: ['open_url', 'open_in_my_browser', 'browser_open', 'browser_search', 'browser_tabs', 'browser_switch_tab', 'browser_close_tab', 'browser_read', 'browser_snapshot', 'browser_click', 'browser_click_text', 'browser_hover', 'browser_type', 'browser_fill_form', 'browser_select', 'browser_check', 'browser_upload', 'browser_wait', 'browser_eval', 'browser_key', 'browser_scroll', 'browser_click_at', 'browser_drag', 'browser_see', 'browser_back', 'browser_forward', 'browser_dialog', 'browser_downloads', 'browser_reload', 'browser_close', 'close_my_browser_tab', 'list_my_browser_tabs', 'native_browser_status', 'native_browser_connect', 'native_browser_disconnect', 'native_browser_tabs', 'native_browser_open', 'native_browser_navigate', 'native_browser_read', 'native_browser_snapshot', 'native_browser_click', 'native_browser_type', 'native_browser_screenshot', 'native_browser_capture', 'native_browser_close_tab', 'native_browser_wait', 'native_browser_reconnect'],
+    hint: 'webpage interaction, tabs, forms, downloads/uploads and the user's connected Chrome or Edge',
+    cues: ['open website', 'open webpage', 'my browser', 'chrome tab', 'edge tab', 'click on website', 'fill form', 'submit form', 'log in', 'sign in', 'download from', 'upload to website', 'navigate to', 'interact with website', 'browser tab'],
+    patterns: [/^(browser_|native_browser_|open_url$|open_in_my_browser$|close_my_browser_tab$|list_my_browser_tabs$)/],
+    minScore: 2,
   },
   {
     id: 'desktop',
-    hint: 'apps, windows, keyboard, mouse, volume, clipboard, processes',
-    re: /\b(app|launch|start|open|windows?|volume|louder|quieter|mute|brightness|lock|clipboard|copy|paste|type|press|click|close|minimi[sz]e|maxim\w+|screenshot|notepad|calculator|chrome|crome|edge|vs ?code|discord|whatsapp|pause|resume|next|previous|skip|song|music|system|cpu|battery|hud|stage|snap|focus|kill|process\w*)\b/i,
-    tools: ['inspect_app', 'click_control', 'set_control_text', 'type_text', 'press_keys', 'click_at', 'close_app', 'launch_app', 'open_app', 'media_control', 'list_windows', 'focus_window', 'window_control', 'set_hud_mode', 'place_window', 'volume_control', 'set_brightness', 'lock_screen', 'clipboard_read', 'clipboard_write', 'take_screenshot', 'get_system_info', 'add_app', 'remove_app', 'list_custom_apps', 'scroll_at', 'drag_at', 'list_processes', 'stop_process'],
+    hint: 'desktop apps, windows, keyboard/mouse actions, clipboard, audio, display and device controls',
+    cues: ['desktop', 'open app', 'launch app', 'close app', 'switch window', 'focus window', 'volume', 'brightness', 'mute', 'keyboard', 'mouse', 'clipboard', 'press key', 'click on screen', 'windows settings', 'play music', 'pause music', 'bluetooth device'],
+    patterns: [/^(inspect_app|click_control|set_control_text|type_text|press_keys|click_at|close_app|launch_app|open_app|media_control|list_windows|focus_window|window_control|set_hud_mode|place_window|volume_control|set_brightness|lock_screen|clipboard_|take_screenshot|add_app|remove_app|list_custom_apps|scroll_at|drag_at)/],
+    minScore: 2,
   },
   {
     id: 'files',
-    hint: 'files, code editing, shell commands, git, GitHub issues/PRs/CI, Vercel deployments, diagnostics',
-    re: /\b(files?|folders?|director(y|ies)|read|write|edit|code|bug|errors?|fix|debug|run|command|script|terminal|powershell|npm|git|github|pull ?request|\bpr\b|issue|ci|pipeline|deploy|deployment|vercel|tests?|build|project|repo|function|class|typescript|python|grep|patch|workspace|document|plan|todo|refactor|implement|install|\w+\.(ts|tsx|js|py|json|md|txt|css|html))\b/i,
-    tools: ['list_files', 'write_file', 'edit_file', 'open_file', 'glob', 'grep', 'multi_edit', 'apply_patch', 'run_command', 'diagnostics', 'code_search', 'skill', 'copy_file', 'make_dir', 'move_file', 'todo_write', 'todo_read', 'plan_enter', 'plan_exit', 'make_document', 'read_document', 'inspect_project', 'project_context', 'analyze_impact', 'github_status', 'github_list_repos', 'github_repo_details', 'github_list_branches', 'github_list_commits', 'github_get_commit', 'github_list_issues', 'github_get_issue', 'github_create_issue', 'github_list_pulls', 'github_get_pull', 'github_create_pull', 'github_list_workflow_runs', 'github_workflow_failures', 'vercel_status', 'vercel_list_projects', 'vercel_project_details', 'vercel_list_deployments', 'vercel_deployment_details', 'vercel_deployment_logs', 'vercel_deploy'],
+    hint: 'local files and folders, read/write/edit, search, move/copy and workspace operations',
+    cues: ['file', 'files', 'folder', 'directory', 'read file', 'write file', 'edit file', 'find file', 'search files', 'move file', 'copy file', 'rename file', 'organize files', 'workspace folder'],
+    patterns: [/^(list_files|write_file|edit_file|open_file|glob$|grep$|multi_edit|apply_patch|copy_file|move_file|make_dir|read$|find_files|open_anything)/],
+    minScore: 2,
+  },
+  {
+    id: 'development',
+    hint: 'software projects, source code, debugging, terminal commands, builds, tests, Git and code analysis',
+    cues: ['code', 'coding', 'program', 'software', 'project', 'repository', 'repo', 'bug', 'fix', 'debug', 'build', 'test suite', 'typescript', 'javascript', 'python', 'terminal', 'shell command', 'powershell', 'git', 'refactor', 'implement', 'compile', 'npm', 'install package', 'code review'],
+    patterns: [/^(run_command|run_python|diagnostics|code_search|inspect_project|project_context|analyze_impact|plan_enter|plan_exit|skill$|todo_write|todo_read)/],
+    minScore: 2,
+  },
+  {
+    id: 'memory',
+    hint: 'personal memory, conversation recall, preferences, people and contacts',
+    cues: ['remember', 'forget', 'memory', 'memories', 'recall', 'what did i tell you', 'what do you know about me', 'my preference', 'previous conversation', 'contact', 'phone number'],
+    patterns: [/^(remember|save_contact|find_contact|list_memories|forget|find_memory|memory_|contact_)/],
+    minScore: 2,
   },
   {
     id: 'productivity',
-    hint: 'timers, reminders, notes, briefing, recurring tasks',
-    re: /\b(timers?|remind\w*|alarm|notes?|jot|briefing|brief me|morning|schedule|recurring|every (day|week|month)|tasks?)\b/i,
-    tools: ['set_timer', 'list_timers', 'cancel_timer', 'add_note', 'read_notes', 'briefing', 'add_recurring_task', 'schedule_task', 'list_scheduled', 'cancel_scheduled'],
+    hint: 'reminders, timers, notes, briefings, recurring schedules and personal task tracking',
+    cues: ['remind me', 'reminder', 'timer', 'alarm', 'schedule', 'calendar', 'recurring', 'every day', 'every week', 'daily', 'weekly', 'note', 'briefing', 'to do', 'task list'],
+    patterns: [/^(set_timer|list_timers|cancel_timer|add_note|read_notes|briefing|add_recurring_task|schedule_task|list_scheduled|cancel_scheduled)/],
+    minScore: 2,
+  },
+  {
+    id: 'orchestration',
+    hint: 'multi-step workflows, delegation, background tasks, parallel work and specialist agents',
+    cues: ['delegate', 'subagent', 'multiple agents', 'parallel tasks', 'break this down', 'multi step', 'long running', 'coordinate', 'workflow', 'run this in background', 'autopilot', 'project plan'],
+    patterns: [/^(batch|task$|parallel_tasks|chain$|start_task|task_status|task_cancel|task_resume|list_tasks|spawn_agent|run_playbook|autopilot_)/],
+    minScore: 2,
+  },
+  {
+    id: 'integrations',
+    hint: 'connected services and APIs including GitHub, Vercel and external integrations',
+    cues: ['github', 'pull request', 'merge request', 'issue tracker', 'vercel', 'deploy', 'deployment', 'connected app', 'integration', 'api connection', 'repository status', 'workflow run', 'ci status'],
+    patterns: [/^(github_|vercel_|integration_|mcp_)/],
+    minScore: 2,
+  },
+  {
+    id: 'system',
+    hint: 'computer health, hardware inventory, running processes, drives and operating-system diagnostics',
+    cues: ['system information', 'computer specs', 'cpu usage', 'memory usage', 'battery', 'hardware', 'device inventory', 'running processes', 'process list', 'stop process', 'drives', 'bluetooth scan'],
+    patterns: [/^(get_system_info|list_processes|stop_process|list_drives|bluetooth_scan|system_)/],
+    minScore: 2,
+  },
+  {
+    id: 'vision',
+    hint: 'screen understanding, screenshots, visual inspection and visual output',
+    cues: ['look at my screen', 'see my screen', 'read my screen', 'what is on screen', 'screenshot', 'screen text', 'inspect this image', 'visualize', 'show me visually'],
+    patterns: [/^(see_screen|screen_text|click_text|show_visual|vision_|visual_)/],
+    minScore: 2,
+  },
+  {
+    id: 'documents',
+    hint: 'create, read and transform documents, PDFs, presentations, spreadsheets and exports',
+    cues: ['document', 'pdf', 'word document', 'docx', 'spreadsheet', 'excel', 'xlsx', 'presentation', 'powerpoint', 'pptx', 'export report', 'create a report', 'make a document'],
+    patterns: [/^(make_document|read_document|artifact_|document_|pdf_|spreadsheet_|presentation_)/],
+    minScore: 2,
   },
 ];
 
-const STICKY_TURNS = 2;
-/** Always loaded so the tool set does not change from turn to turn for web and app control. */
-const ALWAYS_ON = ['browser', 'desktop'];
-const core = new Set(CORE);
-const groupOf = new Map<string, string>();
-GROUPS.forEach((g) => g.tools.forEach((t) => groupOf.set(t, g.id)));
-
+const STICKY_TURNS = 1;
+const familyById = new Map(FAMILIES.map((f) => [f.id, f]));
 let all: ToolSchema[] = [];
+let familyOf = new Map<string, string>();
 let active = new Set<string>();
-const recent: Array<Set<string>> = [];
-let turnGroups = new Set<string>();
-// Groups this turn actually triggered (text match, tool use, explicit load). Only these stay sticky;
-// saving the inherited ones instead made every group ever loaded sticky forever.
+let turnFamilies = new Set<string>();
 let touched = new Set<string>();
+let recent: Array<Set<string>> = [];
+let lastRoute: IntentRoute = { families: [], scores: {}, matchedCues: {}, confidence: 'low' };
 
-export const setAllSchemas = (s: ToolSchema[]): void => {
-  all = s;
+const normalize = (s: string): string =>
+  s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+const familyForTool = (name: string): string => {
+  for (const family of FAMILIES) {
+    if (family.patterns.some((pattern) => pattern.test(name))) return family.id;
+  }
+  return 'advanced';
 };
 
-const grouped = (name: string): boolean => groupOf.has(name);
+export const setAllSchemas = (schemas: ToolSchema[]): void => {
+  all = schemas;
+  familyOf = new Map(schemas.map((schema) => [schema.function.name, familyForTool(schema.function.name)]));
+  rebuild();
+};
 
-/** Pick the tool set for a new turn: core + ungrouped + groups the text names + groups used in the last turns. */
-export function routeTurn(text: string): void {
-  turnGroups = new Set(ALWAYS_ON);
-  touched = new Set();
-  GROUPS.forEach((g) => {
-    if (g.re.test(text)) {
-      turnGroups.add(g.id);
-      touched.add(g.id);
-    }
-  });
-  recent.forEach((r) => r.forEach((id) => turnGroups.add(id)));
+export function classifyIntent(input: string): IntentRoute {
+  const text = normalize(input);
+  const scores: Record<string, number> = {};
+  const matchedCues: Record<string, string[]> = {};
+  for (const family of FAMILIES) {
+    const matched = family.cues.filter((cue) => {
+      const normalizedCue = normalize(cue);
+      return normalizedCue.includes(' ') ? text.includes(normalizedCue) : new RegExp('(^| )' + normalizedCue + '( |$)').test(text);
+    });
+    const score = matched.reduce((sum, cue) => sum + (cue.includes(' ') ? 2.5 : 1.5), 0);
+    scores[family.id] = score;
+    if (matched.length) matchedCues[family.id] = matched;
+  }
+  const families = FAMILIES
+    .filter((family) => scores[family.id] >= family.minScore)
+    .sort((a, b) => scores[b.id] - scores[a.id])
+    .map((family) => family.id);
+  const max = families.length ? scores[families[0]] : 0;
+  return {
+    families,
+    scores,
+    matchedCues,
+    confidence: max >= 5 ? 'high' : max >= 2.5 ? 'medium' : 'low',
+  };
+}
+
+export function routeTurn(input: string): void {
+  lastRoute = classifyIntent(input);
+  turnFamilies = new Set(lastRoute.families);
+  touched = new Set(lastRoute.families);
+  recent.forEach((families) => families.forEach((id) => turnFamilies.add(id)));
   rebuild();
 }
 
 function rebuild(): void {
-  active = new Set(all.map((s) => s.function.name).filter((n) => core.has(n) || !grouped(n) || turnGroups.has(groupOf.get(n) ?? '')));
+  active = new Set(
+    all
+      .map((schema) => schema.function.name)
+      .filter((name) => CORE.has(name) || turnFamilies.has(familyOf.get(name) ?? 'advanced'))
+  );
 }
 
-/** Called after every tool call: a tool outside the active set pulls in its whole group, and the group is remembered. */
 export function noteUsed(name: string): void {
-  const id = groupOf.get(name);
-  if (!id) return;
-  turnGroups.add(id);
-  touched.add(id);
+  const family = familyOf.get(name);
+  if (!family || family === 'advanced') return;
+  turnFamilies.add(family);
+  touched.add(family);
   rebuild();
 }
 
@@ -96,27 +204,54 @@ export function endTurn(): void {
   while (recent.length > STICKY_TURNS) recent.shift();
 }
 
-export const currentSchemas = (): ToolSchema[] => all.filter((s) => active.has(s.function.name));
+export const currentSchemas = (): ToolSchema[] => all.filter((schema) => active.has(schema.function.name));
 
-/** Names of groups not currently loaded, for the prompt and for load_tools. */
 export const unloadedGroups = (): string =>
-  GROUPS.filter((g) => !turnGroups.has(g.id)).map((g) => `${g.id} (${g.hint})`).join('; ');
+  FAMILIES.filter((family) => !turnFamilies.has(family.id)).map((family) => `${family.id} (${family.hint})`).concat(
+    [...familyOf.values()].some((family) => family === 'advanced') && !turnFamilies.has('advanced')
+      ? ['advanced (specialist and less commonly used capabilities)']
+      : []
+  ).join('; ');
 
 export function loadGroups(ids: unknown): string {
-  const want = (Array.isArray(ids) ? ids : [ids]).map((x) => String(x).toLowerCase().trim());
-  const hit = GROUPS.filter((g) => want.includes(g.id) || want.includes('all'));
-  if (!hit.length) return `Unknown group. Available: ${GROUPS.map((g) => g.id).join(', ')}.`;
-  hit.forEach((g) => {
-    turnGroups.add(g.id);
-    touched.add(g.id);
+  const requested = (Array.isArray(ids) ? ids : [ids]).map((value) => String(value).toLowerCase().trim());
+  const loadAll = requested.includes('all');
+  const valid = new Set([...FAMILIES.map((family) => family.id), 'advanced']);
+  const unknown = requested.filter((id) => id !== 'all' && !valid.has(id));
+  if (unknown.length) return `Unknown group(s): ${unknown.join(', ')}. Available: ${[...valid].join(', ')}.`;
+  const hit = loadAll ? [...valid] : requested;
+  hit.forEach((id) => {
+    turnFamilies.add(id);
+    touched.add(id);
   });
   rebuild();
-  return hit.map((g) => `${g.id} loaded: ${g.tools.join(', ')}`).join('\n');
+  return hit.map((id) => {
+    const names = all.filter((schema) => familyOf.get(schema.function.name) === id).map((schema) => schema.function.name);
+    return `${id} loaded (${names.length} tools): ${names.join(', ') || 'no registered tools'}`;
+  }).join('\n');
 }
 
-/** Group definitions for the runtime capability manifest (id, hint, tool names). */
-export const groupInfo = (): Array<{ id: string; hint: string; tools: string[] }> =>
-  GROUPS.map((g) => ({ id: g.id, hint: g.hint, tools: [...g.tools] }));
+export const groupInfo = (): Array<{ id: string; hint: string; tools: string[] }> => [
+  ...FAMILIES.map((family) => ({
+    id: family.id,
+    hint: family.hint,
+    tools: all.filter((schema) => familyOf.get(schema.function.name) === family.id).map((schema) => schema.function.name),
+  })),
+  {
+    id: 'advanced',
+    hint: 'specialist and less commonly used capabilities; load only when needed',
+    tools: all.filter((schema) => familyOf.get(schema.function.name) === 'advanced').map((schema) => schema.function.name),
+  },
+];
 
-/** Core tool names for manifest validation. */
-export const coreToolNames = (): string[] => [...core];
+export const coreToolNames = (): string[] => [...CORE];
+
+export const routeSummary = (): string => {
+  const selected = lastRoute.families.length
+    ? lastRoute.families.map((id) => `${id} (${lastRoute.scores[id].toFixed(1)})`).join(', ')
+    : 'no specialist family confidently matched';
+  const cues = Object.entries(lastRoute.matchedCues)
+    .map(([id, values]) => `${id}: ${values.slice(0, 4).join(', ')}`)
+    .join('; ');
+  return `Intent routing: ${selected}. Confidence: ${lastRoute.confidence}.${cues ? ` Signals: ${cues}.` : ''} The model must still choose the specific tool based on the user's requested outcome; load another family when needed.`;
+};

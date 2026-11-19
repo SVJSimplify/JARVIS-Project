@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { ProcessRunError, runProcess } from './processRunner';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Tool } from './toolTypes';
@@ -115,48 +115,54 @@ const isSandboxLaunchFailure = (err: { code?: string | number | null; killed?: b
   return /^bwrap:\s/.test(firstLine);
 };
 
-const runShell = (
+const runShell = async (
   command: string,
   cwd: string,
   timeout: number,
   argvPrefix: string[] = [],
   envOverlay: Record<string, string | undefined> = {},
   directExec?: { exe: string; args: string[] }
-): Promise<string> =>
-  new Promise((resolve, reject) =>
-    execFile(
-      directExec ? directExec.exe : argvPrefix.length ? argvPrefix[0] : IS_WIN ? 'powershell.exe' : '/bin/sh',
-      directExec
-        ? directExec.args
-        : argvPrefix.length
-          ? [...argvPrefix.slice(1), IS_WIN ? 'powershell.exe' : '/bin/sh', ...(IS_WIN ? ['-NoProfile', '-NonInteractive', '-Command', command] : ['-c', command])]
-          : IS_WIN
-            ? ['-NoProfile', '-NonInteractive', '-Command', command]
-            : ['-c', command],
-      { cwd, timeout, maxBuffer: 8 * 1024 * 1024, windowsHide: true, signal: executionSignal(), env: { ...process.env, ...envOverlay } },
-      (err, stdout, stderr) => {
-        // ROUND 34 §2.3: a failed sandbox launch is an explicit refusal — the command is
-        // NEVER retried outside the sandbox and never switched to unrestricted shell
-        // execution. The started receipt already exists; the outcome is surfaced as an
-        // unknown-outcome refusal in the receipt trail and the Operations Center.
-        if (argvPrefix.length && isSandboxLaunchFailure(err, stderr)) {
-          noteSandboxFailure();
-          const detail = err ? `${err.code ?? err.message}`.slice(0, 160) : 'unknown sandbox error';
-          reject(
-            new Error(
-              `SANDBOX EXECUTION FAILURE: the OS sandbox could not launch this project-bound command (${detail}). ` +
-                `The command was NOT executed — its outcome is UNKNOWN. Per the execution contract there is NO fallback to unrestricted shell execution: ` +
-                `inspect the sandbox health in the Operations Center (bubblewrap installation, user namespaces), repair it, or run this work as non-project work through the existing authorization architecture.`
-            )
-          );
-          return;
-        }
-        const out = `${stdout}${stderr}`.trim();
-        const code = err ? ((err as NodeJS.ErrnoException & { code?: number }).code ?? 1) : 0;
-        resolve(`exit ${code}\n${out.length > TAIL ? '…' + out.slice(-TAIL) : out}`);
-      }
-    )
-  );
+): Promise<string> => {
+  const executable = directExec ? directExec.exe : argvPrefix.length ? argvPrefix[0] : IS_WIN ? 'powershell.exe' : '/bin/sh';
+  const args = directExec
+    ? directExec.args
+    : argvPrefix.length
+      ? [...argvPrefix.slice(1), IS_WIN ? 'powershell.exe' : '/bin/sh', ...(IS_WIN ? ['-NoProfile', '-NonInteractive', '-Command', command] : ['-c', command])]
+      : IS_WIN
+        ? ['-NoProfile', '-NonInteractive', '-Command', command]
+        : ['-c', command];
+  try {
+    const result = await runProcess(executable, args, {
+      cwd,
+      timeoutMs: timeout,
+      maxBufferBytes: 8 * 1024 * 1024,
+      windowsHide: true,
+      signal: executionSignal(),
+      env: { ...process.env, ...envOverlay },
+    });
+    // ROUND 34 §2.3: bubblewrap may start and then fail its own namespace/mount setup.
+    // Never retry that command outside the sandbox.
+    if (argvPrefix.length && isSandboxLaunchFailure(null, result.stderr)) {
+      noteSandboxFailure();
+      throw new Error(
+        'SANDBOX EXECUTION FAILURE: the OS sandbox started but rejected its mount/namespace setup. ' +
+        'The command was NOT executed successfully. There is NO fallback to unrestricted execution; repair sandbox health first.'
+      );
+    }
+    const out = `${result.stdout}${result.stderr}`.trim();
+    const body = out.length > TAIL ? '…' + out.slice(-TAIL) : out;
+    return result.exitCode === 0 ? `exit 0\\n${body}` : `NOT DONE — exit ${result.exitCode}\\n${body}`;
+  } catch (err) {
+    if (argvPrefix.length && err instanceof ProcessRunError && err.kind === 'launch') {
+      noteSandboxFailure();
+      throw new Error(
+        `SANDBOX EXECUTION FAILURE: the OS sandbox could not launch this project-bound command (${err.message.slice(0, 160)}). ` +
+        'The command was NOT executed — its outcome is UNKNOWN. There is NO fallback to unrestricted shell execution.'
+      );
+    }
+    throw err;
+  }
+};
 
 export const devTools: Record<string, Tool> = {
   diagnostics: {

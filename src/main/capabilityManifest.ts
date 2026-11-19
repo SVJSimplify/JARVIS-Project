@@ -28,7 +28,7 @@ import type { TaskSpec } from './taskSpec';
 
 export interface CapabilityTool {
   name: string;
-  /** Router group ('browser' | 'desktop' | 'files' | 'productivity') or 'core' when ungrouped. */
+  /** Intent family (research, browser, desktop, files, development, memory, productivity, orchestration, integrations, system, vision, documents, advanced) or 'core'. */
   group: string;
   /** First sentence of the tool's own description. */
   summary: string;
