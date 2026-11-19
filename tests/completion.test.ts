@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import { runWithExecutionScope } from '../src/main/toolResult';
 import * as os from 'os';
 import * as path from 'path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -33,6 +34,23 @@ const entry = (tool: string, raw: string, args = '{}'): LedgerEntry => ({
 
 beforeEach(() => {
   setStatsFileForTests(path.join(os.tmpdir(), `completion-test-${Date.now()}.json`));
+});
+
+describe('session-scoped completion evidence', () => {
+  it('keeps each session evidence ledger independent', async () => {
+    await runWithExecutionScope({ sessionId: 'completion-session-a' }, async () => {
+      beginTask('write a file');
+      recordStep('write_file', '{}', 'Tool error [write_file]: network timeout');
+      expect(needsRescue()).toBe(true);
+    });
+    await runWithExecutionScope({ sessionId: 'completion-session-b' }, async () => {
+      beginTask('read a file');
+      expect(needsRescue()).toBe(false);
+    });
+    await runWithExecutionScope({ sessionId: 'completion-session-a' }, async () => {
+      expect(needsRescue()).toBe(true);
+    });
+  });
 });
 
 describe('outcome classification is deterministic', () => {

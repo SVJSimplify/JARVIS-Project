@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { atomicWrite, loadJson } from './store';
 import { FILES_ROOT } from './workspace';
+import { executionSessionId } from './toolResult';
 
 /**
  * COMPLETION VERDICT ENGINE — the code-enforced contract that a task is either truly
@@ -371,21 +372,25 @@ interface Task {
   rescueUsed: boolean;
 }
 
-let task: Task | null = null;
+const tasksBySession = new Map<string, Task>();
+const sessionKey = (): string => executionSessionId() ?? '__default__';
+const currentTask = (): Task | undefined => tasksBySession.get(sessionKey());
 
-/** Start tracking a turn as a task. Turns are serialised (turnChain), so one slot is safe. */
+/** Start a separate evidence ledger for the active conversation/session. */
 export const beginTask = (request: string): void => {
-  task = { request: String(request ?? ''), entries: [], rescueUsed: false };
+  tasksBySession.set(sessionKey(), { request: String(request ?? ''), entries: [], rescueUsed: false });
 };
 
 /** Record one tool result into the ledger. Safe no-op outside a tracked turn (sub-agents). */
 export const recordStep = (tool: string, args: string, raw: string): void => {
+  const task = currentTask();
   if (!task) return;
   task.entries.push({ tool, args: String(args ?? ''), outcome: classifyOutcome(raw), raw: String(raw ?? ''), at: Date.now() });
 };
 
 /** Eligibility for the single bounded recovery pass. */
 export const needsRescue = (signal?: { aborted: boolean }, roundsLeft = 99): boolean => {
+  const task = currentTask();
   if (!task || task.rescueUsed || signal?.aborted || roundsLeft <= 2) return false;
   const unresolved = unresolvedFailures(task.entries);
   return unresolved.some((e) => RETRYABLE.has(failureClass(e.raw)));
@@ -394,6 +399,7 @@ export const needsRescue = (signal?: { aborted: boolean }, roundsLeft = 99): boo
 /** Claim the rescue pass; returns the directive to inject as a user message. */
 export const takeRescue = async (): Promise<string> => {
   await loadStats();
+  const task = currentTask();
   const unresolved = task ? unresolvedFailures(task.entries) : [];
   if (task) task.rescueUsed = true;
   stats.rescues++;
@@ -405,8 +411,9 @@ export const takeRescue = async (): Promise<string> => {
  * ledger, record the verdict, and return the enforced reply the user will actually get.
  */
 export async function endTask(modelReply: string): Promise<Audit> {
-  const t = task;
-  task = null;
+  const key = sessionKey();
+  const t = tasksBySession.get(key);
+  tasksBySession.delete(key);
   if (!t) return { reply: String(modelReply ?? ''), verdict: 'no_action', enforcement: [] };
   // Load the persisted counters BEFORE any in-memory increment: loadStats replaces the whole
   // stats object, so counting first would silently wipe the enforcement record.
@@ -424,15 +431,17 @@ export async function endTask(modelReply: string): Promise<Audit> {
 
 /** A turn ended because the user stopped it — recorded, never hidden. */
 export const recordInterrupted = (): Promise<void> => {
-  const t = task;
-  task = null;
+  const key = sessionKey();
+  const t = tasksBySession.get(key);
+  tasksBySession.delete(key);
   return t ? recordOutcome('interrupted', t.entries, []) : Promise.resolve();
 };
 
 /** A turn crashed before a reply — recorded as failed with the error, never hidden. */
 export const recordFailedTurn = (err: string): Promise<void> => {
-  const t = task;
-  task = null;
+  const key = sessionKey();
+  const t = tasksBySession.get(key);
+  tasksBySession.delete(key);
   return t ? recordOutcome('failed', t.entries, [], `turn error: ${clip(err, 120)}`) : Promise.resolve();
 };
 
