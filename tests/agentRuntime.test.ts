@@ -132,6 +132,34 @@ describe('Cline-compatible JINI agent session runtime', () => {
     expect(restored).toContain('restored-session');
   });
 
+  it('allows independent runtime sessions to execute concurrently', async () => {
+    const persistence: AgentRuntimePersistence = { load: async () => [], save: async () => undefined };
+    let starts = 0;
+    let release!: () => void;
+    const bothStarted = new Promise<void>((resolve) => { release = resolve; });
+    const pending = new Map<string, (value: string) => void>();
+    const driver = {
+      chat: vi.fn((prompt: string, _delta: (value: string) => void, _progress: (value: string) => void, options: { chatId?: string }) =>
+        new Promise<string>((resolve) => {
+          pending.set(options.chatId ?? prompt, resolve);
+          starts++;
+          if (starts === 2) release();
+        })),
+      cancelChat: vi.fn(),
+    };
+    const runtime = new AgentRuntime(driver, persistence);
+    const first = runtime.run('first', { sessionId: 'session-one' });
+    const second = runtime.run('second', { sessionId: 'session-two' });
+    await bothStarted;
+    expect(driver.chat).toHaveBeenCalledTimes(2);
+    pending.get('session-one')?.('one complete');
+    pending.get('session-two')?.('two complete');
+    await expect(first).resolves.toBe('one complete');
+    await expect(second).resolves.toBe('two complete');
+    expect((await runtime.snapshot('session-one')).lastOutput).toBe('one complete');
+    expect((await runtime.snapshot('session-two')).lastOutput).toBe('two complete');
+  });
+
   it('replaces only the active run in the same session', async () => {
     let finishFirst: ((value: string) => void) | undefined;
     const persistence: AgentRuntimePersistence = { load: async () => [], save: async () => undefined };
