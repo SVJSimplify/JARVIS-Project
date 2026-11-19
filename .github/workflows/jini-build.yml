@@ -98,8 +98,10 @@ jobs:
         run: npm ci
       - name: Typecheck (main + renderer)
         run: npx tsc -p tsconfig.node.json --noEmit && npx tsc -p tsconfig.app.json --noEmit
-      - name: JINI device-link tests
-        run: npx vitest run tests/jini tests/agentToolRegistry.test.ts tests/pluginRuntime.test.ts
+      - name: Full unit and integration test suite
+        run: npm test
+      - name: Lint
+        run: npm run lint
       - name: Renderer build
         run: npx vite build
 
