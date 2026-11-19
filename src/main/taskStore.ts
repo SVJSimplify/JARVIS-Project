@@ -279,6 +279,9 @@ export const validVerification = (s: TaskStep): StepVerification | undefined => 
 export interface TaskRecord {
   id: string;
   spec: TaskSpec;
+  /** Provider model captured when the task is accepted. Model-picker changes affect new
+   *  work only; a durable task continues with the model that owns its execution contract. */
+  model?: string;
   status: TaskStatus;
   steps: TaskStep[];
   note: string;
@@ -462,12 +465,13 @@ async function pruneOld(): Promise<void> {
 
 // ----------------------------------------------------------------------------- public API
 
-export async function createTask(spec: TaskSpec, note = 'created'): Promise<TaskRecord> {
+export async function createTask(spec: TaskSpec, note = 'created', model?: string): Promise<TaskRecord> {
   await ensureLoaded();
   const now = Date.now();
   const t: TaskRecord = {
     id: newId(),
     spec,
+    ...(model ? { model } : {}),
     status: 'CREATED',
     steps: [],
     note,

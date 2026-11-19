@@ -238,7 +238,7 @@ export function fallbackPlan(spec: TaskSpec): PlanStep[] {
 /** Model-driven plan with the deterministic floor. Exported for tests (inject the planner).
  *  Round 25 §3: `hints` carries the delegation strategy's workstream guidance so the
  *  planner marks genuinely independent streams parallel-eligible instead of guessing. */
-export async function planTask(spec: TaskSpec, planner?: (spec: TaskSpec) => Promise<PlanStep[]>, hints?: string[]): Promise<PlanStep[]> {
+export async function planTask(spec: TaskSpec, planner?: (spec: TaskSpec) => Promise<PlanStep[]>, hints?: string[], modelOverride?: string): Promise<PlanStep[]> {
   if (planner) return planner(spec);
   // Round 26 Phase 1 (1.4): the planner receives ONLY the profile sections relevant to
   // this request — bounded, task-aware, never the whole profile. No profile → no block;
@@ -264,7 +264,7 @@ export async function planTask(spec: TaskSpec, planner?: (spec: TaskSpec) => Pro
   const deliveryChain = spec.complexity === 'development' || spec.complexity === 'integration' || spec.complexity === 'long_running'
     ? 'VERIFIED DELIVERY CHAIN (order the steps to follow it): UNDERSTAND PROJECT → INSPECT ARCHITECTURE (read the conventions) → ANALYZE IMPACT (analyze_impact before significant code changes) → PLAN → IMPLEMENT (inside the project workspace) → VALIDATE (the project\'s OWN existing build/typecheck/test commands — never invent test suites or scripts) → REVIEW (check modified files for unnecessary changes) → VERIFY DELIVERABLES (confirm each requested output exists independently) → UPDATE STATE (milestones only from actual verified results). A successful build alone does not prove the requested product behavior exists.'
     : '';
-  const model = await getModel().catch(() => '');
+  const model = modelOverride || await getModel().catch(() => '');
   if (!model) return fallbackPlan(spec);
   try {
     const r = await completeOnce(
@@ -560,6 +560,7 @@ async function runOneStep(t: TaskRecord, step: TaskStep, deps: CoordinatorDeps, 
           taskId: t.id,
           stepId: step.id,
           runId,
+          model: t.model,
           why: `step "${step.title}" (${kind}) of task ${t.id}${t.delegation ? ` — delegated: ${t.delegation.strategy}` : ''}`,
         });
     return clip(String(report ?? '').trim() || (isRetry ? 'FAILED: empty retry report.' : 'FAILED: empty report.'), 4000);
@@ -754,7 +755,7 @@ async function replanAfterFailure(t: TaskRecord, deps: CoordinatorDeps, signal: 
   if (deps.replanner) {
     plan = await deps.replanner(t, failed).catch(() => null);
   } else {
-    const model = await getModel().catch(() => '');
+    const model = t.model || await getModel().catch(() => '');
     if (!model) return false;
     try {
       const r = await completeOnce(
@@ -963,7 +964,7 @@ async function verifyTask(t: TaskRecord, signal: AbortSignal): Promise<boolean> 
   // Independent reviewer (bounded): a second opinion that can only lower the verdict.
   if (!signal.aborted) {
     try {
-      const model = await getModel();
+      const model = t.model || await getModel();
       if (model) {
         const r = await completeOnce(
           model,
@@ -1029,7 +1030,7 @@ async function drive(t: TaskRecord, deps: CoordinatorDeps, signal: AbortSignal, 
       const steps =
         decision.strategy !== 'coordinated_multi_agent' && decision.kind && !deps.planner
           ? singleSpecialistPlan(t.spec, decision.kind)
-          : await planTask(t.spec, deps.planner, [...decision.reasons, ...(decision.workstreams.length ? [`independent workstreams: ${decision.workstreams.join(' | ')}`] : []), ...(decision.parallelizable ? ['mark the independent read-only streams with dependsOn: [] so they can run as parallel waves'] : [])]);
+          : await planTask(t.spec, deps.planner, [...decision.reasons, ...(decision.workstreams.length ? [`independent workstreams: ${decision.workstreams.join(' | ')}`] : []), ...(decision.parallelizable ? ['mark the independent read-only streams with dependsOn: [] so they can run as parallel waves'] : [])], t.model);
       // Round 19 (CHANGE 3): the plan graph is VALIDATED before execution — missing,
       // self and forward references and declared cycles are repaired by normalization
       // and REPORTED here, never silently swallowed.
@@ -1323,7 +1324,8 @@ async function launchSpec(spec: TaskSpec, deps: CoordinatorDeps, opts: { dedupe:
     if (same) return { ok: false, id: same.id, message: `NOT DONE: task ${same.id} is already running with this request (${same.note}). Check task_status instead of starting a duplicate.` };
   }
   if (active.length >= MAX_CONCURRENT_TASKS) return { ok: false, message: `NOT DONE: ${active.length} tasks are already running. Wait for one to finish or cancel it with task_cancel.` };
-  const t = await createTask(spec, 'queued');
+  const modelAtAcceptance = await getModel().catch(() => '');
+  const t = await createTask(spec, 'queued', modelAtAcceptance || undefined);
   // ROUND 35 (Phase 1): the acceptance criteria are tracked in the task's own persisted
   // delivery block from the moment the task exists — derived ONLY from the spec (nothing
   // invented, nothing dropped; the original request stays verbatim in spec.request).

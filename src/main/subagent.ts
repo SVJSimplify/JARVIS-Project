@@ -130,6 +130,9 @@ export interface SubagentOptions {
   runId?: string;
   /** Round 25: WHY this agent was assigned (delegation rationale shown in the HUD). */
   why?: string;
+  /** Durable coordinator tasks pin their provider model so changing Settings cannot
+   *  silently switch an in-flight task to a different model mid-plan. */
+  model?: string;
 }
 
 /** Isolated tool-using loop: parallel calls, dedupe, compaction, step budget with a forced final report. */
@@ -185,7 +188,7 @@ async function runSubagentBody(
   trackEnd: (status: 'done' | 'failed' | 'cancelled', note: string) => void
 ): Promise<string> {
   try {
-    const model = await getModel();
+    const model = opts.model || await getModel();
     if (!model) throw new Error('No model set. Open Settings and choose one.');
     // A dedicated signal wins; otherwise the running turn's signal stops this agent when the user cancels.
     const parentSignal = opts.signal ?? currentTurnSignal() ?? undefined;
