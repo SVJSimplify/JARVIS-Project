@@ -9,7 +9,6 @@ on:
 
 jobs:
   android-apk:
-    if: github.head_ref != 'jini-mvp-chatgpt' && github.ref_name != 'jini-mvp-chatgpt'
     name: Android APK (debug-signed, installable)
     runs-on: ubuntu-latest
     defaults:
