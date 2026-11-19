@@ -303,7 +303,16 @@ function describe(call: ToolCall): string {
  *  AgentRuntime persists this projection; the provider remains the sole model/tool executor. */
 export function snapshotChatHistory(chatId: string): Message[] {
   const source = historyChat === chatId ? history : chatHistories.get(chatId) ?? [];
-  return structuredClone(source);
+  const snapshot = structuredClone(source);
+  // Images have already been consumed by the completed turn. Persist the transcript and
+  // interpretation, not multi-megabyte base64 payloads that cannot be replayed safely.
+  return snapshot.map((message) => Array.isArray(message.content)
+    ? { ...message, content: message.content.map((part) =>
+        part && typeof part === 'object' && 'type' in part && part.type === 'image_url'
+          ? { type: 'text' as const, text: '[Image attachment processed; original bytes are not stored in session history.]' }
+          : part
+      ) }
+    : message);
 }
 
 export function restoreChatHistory(chatId: string, messages: readonly Message[]): void {
@@ -337,6 +346,7 @@ export const isStopCommand = (t: string): boolean =>
 
 /** "Stop" means everything: the live turn, its subagents (via the turn signal) and every running task. */
 export function stopEverything(): number {
+  for (const controllers of turnControllers.values()) for (const controller of controllers) controller.abort();
   turnAbort?.abort();
   let n = 0;
   try { n = cancelAllTasks(); } catch { /* coordinator not initialised */ }
@@ -371,9 +381,13 @@ export function chat(
     return Promise.resolve(reply);
   }
   if (source === 'interactive') {
-    // The user is talking: an in-flight scheduled turn yields, and so does a previous
-    // interactive turn (the newest user message wins).
-    turnAbort?.abort();
+    // A session-local prompt replaces only that session's active turn. The global fallback
+    // remains for legacy callers that do not provide a chat id.
+    if (chatIdOpt) {
+      for (const controller of turnControllers.get(chatIdOpt) ?? []) controller.abort();
+    } else {
+      turnAbort?.abort();
+    }
   }
   // source === 'scheduled': no abort. The turnChain serializes; a due scheduled task
   // simply waits for the user's turn to finish instead of killing it.

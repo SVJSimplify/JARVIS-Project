@@ -68,6 +68,8 @@ const clone = (s: AgentSessionSnapshot): AgentSessionSnapshot => structuredClone
 
 export class AgentRuntime {
   private readonly sessions = new Map<string, AgentSessionSnapshot>();
+  private readonly activeRuns = new Map<string, Promise<string>>();
+  private readonly cancelRequested = new Set<string>();
   private readonly listeners = new Set<(event: AgentRuntimeEvent) => void>();
   private readonly sessionListeners = new Map<string, Set<(event: AgentRuntimeEvent) => void>>();
   private hydrated: Promise<void> | null = null;
@@ -134,6 +136,28 @@ export class AgentRuntime {
     if (!prompt.trim()) throw new Error('Agent prompt cannot be empty.');
     await this.hydrate();
     const id = options.sessionId ?? randomUUID();
+    // OpenCode-style per-session ownership: a new interactive turn replaces only the
+    // active run in the same session; scheduled work joins/queues behind that session.
+    while (this.activeRuns.has(id)) {
+      const active = this.activeRuns.get(id)!;
+      if (options.source !== 'scheduled') await this.abort(id);
+      await active.catch(() => undefined);
+    }
+    this.cancelRequested.delete(id);
+    const pending = this.runSession(prompt, { ...options, sessionId: id }, id);
+    this.activeRuns.set(id, pending);
+    try {
+      return await pending;
+    } finally {
+      if (this.activeRuns.get(id) === pending) this.activeRuns.delete(id);
+    }
+  }
+
+  private async runSession(prompt: string, options: AgentRunOptions, id: string): Promise<string> {
+    await this.hydrate();
+    let idSession = this.sessions.get(id);
+    if (!idSession) idSession = await this.createSession(id);
+    let session = idSession;
     let session = this.sessions.get(id);
     if (!session) session = await this.createSession(id);
     if (session.status === 'running' || session.status === 'aborting') {
@@ -145,6 +169,14 @@ export class AgentRuntime {
     session.updatedAt = Date.now();
     delete session.lastError;
     await this.save();
+    if (this.cancelRequested.has(id)) {
+      this.cancelRequested.delete(id);
+      session.status = 'aborted';
+      session.updatedAt = Date.now();
+      await this.save();
+      this.emit({ type: 'run-end', sessionId: id, at: session.updatedAt, status: 'aborted' });
+      return '';
+    }
     this.emit({ type: 'run-start', sessionId: id, at: session.updatedAt, status: session.status });
     let output = '';
     try {
@@ -185,7 +217,7 @@ export class AgentRuntime {
         },
         { chatId: id, source: options.source ?? 'interactive', hooks },
       );
-      session.status = (session as AgentSessionSnapshot).status === 'aborting' ? 'aborted' : 'completed';
+      session.status = (session as AgentSessionSnapshot).status === 'aborting' || output === '' ? 'aborted' : 'completed';
       session.lastOutput = output;
       session.messages = this.driver.snapshotHistory?.(id) ?? session.messages ?? [];
       session.pendingToolCalls = [];
@@ -195,13 +227,14 @@ export class AgentRuntime {
       this.emit({ type: 'run-end', sessionId: id, at: session.updatedAt, status: session.status, text: output });
       return output;
     } catch (error) {
-      session.status = 'failed';
+      session.status = this.cancelRequested.has(id) || (session as AgentSessionSnapshot).status === 'aborting' ? 'aborted' : 'failed';
+      this.cancelRequested.delete(id);
       session.lastError = error instanceof Error ? error.message : String(error);
       session.messages = this.driver.snapshotHistory?.(id) ?? session.messages ?? [];
       session.pendingToolCalls = [];
       session.updatedAt = Date.now();
       await this.save().catch(() => undefined);
-      this.emit({ type: 'run-end', sessionId: id, at: session.updatedAt, status: 'failed', error: session.lastError });
+      this.emit({ type: 'run-end', sessionId: id, at: session.updatedAt, status: session.status, error: session.lastError });
       throw error;
     }
   }
@@ -215,10 +248,14 @@ export class AgentRuntime {
   async abort(sessionId: string): Promise<boolean> {
     await this.hydrate();
     const session = this.sessions.get(sessionId);
-    if (!session || (session.status !== 'running' && session.status !== 'aborting')) return false;
-    session.status = 'aborting';
-    session.updatedAt = Date.now();
-    await this.save();
+    const active = this.activeRuns.has(sessionId);
+    if (!active && (!session || (session.status !== 'running' && session.status !== 'aborting'))) return false;
+    this.cancelRequested.add(sessionId);
+    if (session) {
+      session.status = 'aborting';
+      session.updatedAt = Date.now();
+      await this.save();
+    }
     this.driver.cancelChat(sessionId);
     return true;
   }

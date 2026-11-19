@@ -75,4 +75,21 @@ describe('Cline-compatible JINI agent session runtime', () => {
     expect(restored).toContain('restored-session');
   });
 
+  it('replaces only the active run in the same session and queues scheduled turns', async () => {
+    let finishFirst: ((value: string) => void) | undefined;
+    const persistence: AgentRuntimePersistence = { load: async () => [], save: async () => undefined };
+    const driver = {
+      chat: vi.fn((prompt: string) => prompt === 'first' ? new Promise<string>((resolve) => { finishFirst = resolve; }) : Promise.resolve(prompt)),
+      cancelChat: vi.fn(() => finishFirst?.('')),
+    };
+    const runtime = new AgentRuntime(driver, persistence);
+    const first = runtime.run('first', { sessionId: 'same-session' });
+    await Promise.resolve();
+    const second = runtime.run('second', { sessionId: 'same-session' });
+    await expect(first).resolves.toBe('');
+    await expect(second).resolves.toBe('second');
+    expect(driver.cancelChat).toHaveBeenCalledWith('same-session');
+    expect(driver.chat).toHaveBeenCalledTimes(2);
+  });
+
 });

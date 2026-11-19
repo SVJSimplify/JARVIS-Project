@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Notification, safe
 import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chat, listModels, stopEverything } from './provider';
+import { agentRuntime } from './agentEngine/runtime';
 import { getPublicSettings, setSettings } from './settings';
 import { migrateEmbeddingsKeyStorage, setEmbeddingsCipher } from './embeddings';
 import { synthesize } from './tts';
@@ -291,7 +292,7 @@ app.whenReady().then(() => {
   // notification and the session ledger, never by narrating into a window that may be shut.
   // F-13: the source is declared so a due scheduled task NEVER aborts an interactive
   // turn (or another scheduled one) — it queues behind whatever is running.
-  registerScheduledRunner((text, opts) => chat(text, () => undefined, undefined, { source: opts.source }));
+  registerScheduledRunner(async (text, opts) => agentRuntime.run(text, { sessionId: await getActiveChatId(), source: opts.source }));
   startScheduler();
 
   // R27 §1.5: drain any episodic episodes that were durably queued but not yet recorded
@@ -387,16 +388,26 @@ ipcMain.handle('settings-set', (_, patch: { baseUrl?: string; apiKey?: string; g
   setSettings(patch).then(() => (patch.awareness !== undefined ? syncAwareness() : undefined))
 );
 // Streaming to a closed window must never throw: the turn may outlive the window.
-ipcMain.handle('ai-chat', (event, text: string) => {
-  const deliver = (channel: string, payload: string): void => {
+ipcMain.handle('ai-chat', async (event, text: string) => {
+  const deliver = (channel: string, payload: unknown): void => {
     if (!event.sender.isDestroyed()) event.sender.send(channel, payload);
   };
-  // Provider output and tool results are redacted before deltas are emitted.
-  // Keep progressive rendering without forwarding raw, unfiltered model text.
-  return chat(text, (delta) => deliver('ai-delta', delta), (note) => deliver('ai-progress', note));
+  const chatId = await getActiveChatId();
+  // The desktop chat now enters the same persistent Cline-compatible runtime used by
+  // delegated agents. It still delegates model/tool work to JINI's existing guarded engine.
+  const unsubscribe = await agentRuntime.subscribe((runtimeEvent) => deliver('agent-runtime-event', runtimeEvent), chatId);
+  try {
+    return await agentRuntime.run(text, {
+      sessionId: chatId,
+      onDelta: (delta) => deliver('ai-delta', delta),
+      onProgress: (note) => deliver('ai-progress', note),
+    });
+  } finally {
+    unsubscribe();
+  }
 });
 ipcMain.handle('ai-models', () => listModels());
-ipcMain.handle('ai-cancel', () => { stopEverything(); });
+ipcMain.handle('ai-cancel', async () => { const chatId = await getActiveChatId().catch(() => ''); if (chatId) await agentRuntime.abort(chatId); stopEverything(); });
 ipcMain.handle('tts-synthesize', (_, text: string) => {
   const s = typeof text === 'string' ? text : '';
   if (!s.trim()) throw new Error('Nothing to speak.');
