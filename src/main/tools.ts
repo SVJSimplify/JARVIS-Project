@@ -520,10 +520,19 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
       const args = checkArgs(name, parseArgs(rawArgs), tool.parameters);
       lastArgs = args;
       emitTool({ detail: argPreview(args), status: 'busy' });
-      const risk: Risk | null = await assessRisk(name, args);
+      const assessedRisk: Risk | null = await assessRisk(name, args);
+      const declaredPolicy = agentToolRegistry.executionPolicy(name, args);
+      // Custom tools default to config/write-capable classification. A plugin must explicitly
+      // declare read-only behavior; deletion declarations are promoted to the hard block.
+      const risk: Risk | null = declaredPolicy?.action === 'delete' && !assessedRisk?.block
+        ? { title: 'Deletion is disabled.', detail: 'A registered custom tool declared a deletion action.', block: true }
+        : assessedRisk;
       // CENTRALIZED AUTHORIZATION (Module F): every call passes exactly one gate. The model
       // cannot reach tool.run from anywhere else, so it cannot bypass this.
-      const { action, resource } = classifyToolAction(name, args, risk?.block === true);
+      const inferred = classifyToolAction(name, args, risk?.block === true);
+      const { action, resource } = inferred.action === 'delete'
+        ? inferred
+        : declaredPolicy ?? inferred;
       const decision = await authorize({
         tool: name,
         action,

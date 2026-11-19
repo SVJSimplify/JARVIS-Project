@@ -22,6 +22,8 @@ Therefore this first integration extracts the stable public tool contract and re
 
 - Existing built-in JINI tools remain available.
 - Plugins may contribute namespaced tools only when declaring the tools capability.
-- Custom tools are added to model-visible schemas on the next turn.
+- Custom tools default to the conservative config action class (durable side-effect receipt); read-only tools must explicitly declare action: read.
+- Parallel custom tools must explicitly declare action: read.
+- A declared delete action is converted to JINI's hard deletion block.
 - Plugin disposal unregisters its tools.
 - Custom tools cannot shadow built-ins or bypass JINI's execution gate.

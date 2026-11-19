@@ -8,6 +8,7 @@
  * This is a JINI-native adapter, not a vendored copy of either upstream runtime.
  */
 import type { Tool } from '../toolTypes';
+import type { ActionClass } from '../permission';
 
 export interface AgentToolDefinition {
   name: string;
@@ -15,6 +16,10 @@ export interface AgentToolDefinition {
   inputSchema: Record<string, unknown>;
   parallelSafe?: boolean;
   executionMode?: 'sequential' | 'parallel';
+  /** Declares the permission class; omitted means config/write-capable, never read-only. */
+  action?: ActionClass;
+  /** Optional resource label for audit/permission records. */
+  resource?: string | ((input: Record<string, unknown>) => string);
 }
 
 export interface AgentToolContext {
@@ -34,6 +39,7 @@ export interface RegisteredToolInfo {
   pluginId?: string;
   enabled: boolean;
   parallelSafe: boolean;
+  action?: ActionClass;
 }
 
 interface Entry {
@@ -43,6 +49,8 @@ interface Entry {
   pluginId?: string;
   agentTool?: AgentTool;
   enabled: boolean;
+  action?: ActionClass;
+  resource?: AgentTool['resource'];
 }
 
 export interface ToolExecutionContext {
@@ -119,14 +127,21 @@ export class AgentToolRegistry {
       }
       if (typeof definition.execute !== 'function') throw new Error('Tool "' + name + '" needs an execute function.');
       validateSchema(definition.inputSchema, name);
-      const agentTool: AgentTool = { ...definition, name };
+      const action = definition.action ?? 'config';
+      if ((definition.parallelSafe === true || definition.executionMode === 'parallel') && action !== 'read') {
+        throw new Error('Parallel custom tools must explicitly declare action: read.');
+      }
+      if (definition.resource !== undefined && typeof definition.resource !== 'string' && typeof definition.resource !== 'function') {
+        throw new Error('Tool resource must be a string or a function.');
+      }
+      const agentTool: AgentTool = { ...definition, name, action };
       const tool: Tool = {
         description: agentTool.description,
         parameters: agentTool.inputSchema,
         parallelSafe: agentTool.parallelSafe === true || agentTool.executionMode === 'parallel',
         run: async (args) => stringifyOutput(await agentTool.execute(args, { agentId: 'main', pluginId: id })),
       };
-      pending.push({ name, tool, source: 'plugin', pluginId: id, agentTool, enabled: true });
+      pending.push({ name, tool, source: 'plugin', pluginId: id, agentTool, enabled: true, action, resource: agentTool.resource });
     }
 
     // Validate the whole contribution before mutating the registry: no partial installs.
@@ -148,6 +163,19 @@ export class AgentToolRegistry {
     const slug = safeSlug(String(pluginId ?? ''));
     if (!slug) throw new Error('Plugin namespace cannot be empty.');
     return 'plugin_' + slug + '_';
+  }
+
+  executionPolicy(name: string, input: Record<string, unknown>): { action: ActionClass; resource: string } | undefined {
+    const entry = this.entries.get(name);
+    if (!entry?.agentTool) return undefined;
+    let resource = 'tool:' + name;
+    try {
+      const configured = entry.resource;
+      resource = typeof configured === 'function' ? String(configured(input) ?? resource) : (configured ?? resource);
+    } catch {
+      // A broken resource formatter must not prevent the conservative action classification.
+    }
+    return { action: entry.action ?? 'config', resource: resource.slice(0, 256) };
   }
 
   get(name: string): RegisteredToolInfo | undefined {
@@ -219,6 +247,7 @@ export class AgentToolRegistry {
       ...(entry.pluginId ? { pluginId: entry.pluginId } : {}),
       enabled: entry.enabled,
       parallelSafe: entry.tool.parallelSafe === true,
+      ...(entry.action ? { action: entry.action } : {}),
     };
   }
 }

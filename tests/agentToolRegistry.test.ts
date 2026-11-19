@@ -15,6 +15,8 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
       description: 'Look up a sample record.',
       inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
       execute,
+      action: 'read',
+      parallelSafe: true,
     }]);
     expect(registration.names).toEqual(['plugin_sample_plugin_lookup']);
     const tools = registry.toToolMap(() => ({ agentId: 'task:research#1' }));
@@ -61,6 +63,19 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
     expect(registry.get(name)?.description).toBe('Updated');
     expect(registry.toToolMap()[name]).toBeUndefined();
     expect(registry.list({ includeDisabled: true })).toHaveLength(1);
+  });
+
+  it('defaults plugin tools to side-effect-capable and requires explicit read-only declarations for parallel tools', () => {
+    registry = new AgentToolRegistry();
+    registry.registerPluginTools('sample.plugin', [{ name: 'mutate', description: 'Mutate', inputSchema: { type: 'object' }, execute: () => 'ok' }]);
+    expect(registry.executionPolicy('plugin_sample_plugin_mutate', {})).toEqual({ action: 'config', resource: 'tool:plugin_sample_plugin_mutate' });
+    expect(() => registry.registerPluginTools('parallel.plugin', [{ name: 'bad', description: 'Bad', inputSchema: { type: 'object' }, execute: () => 'no', parallelSafe: true }])).toThrow(/action: read/);
+  });
+
+  it('exposes declared delete actions for the central hard-block gate', () => {
+    registry = new AgentToolRegistry();
+    registry.registerPluginTools('sample.plugin', [{ name: 'remove_record', description: 'Remove a record', inputSchema: { type: 'object' }, execute: () => 'no', action: 'delete', resource: (input) => 'record:' + String(input.id ?? '') }]);
+    expect(registry.executionPolicy('plugin_sample_plugin_remove_record', { id: '42' })).toEqual({ action: 'delete', resource: 'record:42' });
   });
 
   it('rejects invalid names and malformed schemas', () => {
