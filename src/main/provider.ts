@@ -333,11 +333,11 @@ const turnControllers = new Map<string, Set<AbortController>>();
 /** F-13: WHERE the current turn came from. Execution sources are isolated: a scheduled
  *  task must never abort an interactive turn (or another scheduled one); a user message
  *  always takes precedence over background work. */
-let turnSource: 'interactive' | 'scheduled' = 'interactive';
+
 // One execution queue per chat. Independent conversations no longer block one another.
 // Provider state is still process-global for legacy helpers; serialize execution until
 // the final per-turn state extraction is complete. Session cancellation remains scoped.
-let turnChain: Promise<unknown> = Promise.resolve();
+const turnChains = new Map<string, Promise<unknown>>();
 
 /** Stop the active turn, or only the turns owned by one chat/session when an id is supplied. */
 export function cancelChat(chatId?: string): void {
@@ -397,30 +397,34 @@ export function chat(
       turnAbort?.abort();
     }
   }
-  // Keep model execution serialized while legacy prompt helpers are migrated to
-  // per-session state. Cancellation remains targeted to the owning session above.
+  // Queue only within the owning conversation. Session-scoped history, routing,
+  // plan mode, completion evidence, mode digest, image queue and cancellation now
+  // prevent cross-session state leakage.
   const ctl = new AbortController();
   const controllerKey = chatIdOpt ?? '__active__';
   const owned = turnControllers.get(controllerKey) ?? new Set<AbortController>();
   owned.add(ctl);
   turnControllers.set(controllerKey, owned);
-  const p = turnChain.catch(() => undefined).then(async () => {
+  let resolvedSessionId = chatIdOpt ?? '';
+  const chain = turnChains.get(controllerKey) ?? Promise.resolve();
+  const p = chain.catch(() => undefined).then(async () => {
     if (ctl.signal.aborted) return '';
-    turnAbort = ctl;
-    turnSource = source;
-    setTurnSignal(ctl.signal);
-    const sessionId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
-    return runWithExecutionScope({ signal: ctl.signal, sessionId }, () =>
-      runTurn(text, onDelta, ctl.signal, onProgress, sessionId, imagesOpt, hooksOpt)
+    resolvedSessionId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
+    if (!chatIdOpt) turnAbort = ctl;
+    setTurnSignal(ctl.signal, resolvedSessionId);
+    return runWithExecutionScope({ signal: ctl.signal, sessionId: resolvedSessionId }, () =>
+      runTurn(text, onDelta, ctl.signal, onProgress, resolvedSessionId, imagesOpt, hooksOpt, source)
     );
   });
-  turnChain = p.catch(() => undefined).then(() => {
-    if (currentTurnSignal() === ctl.signal) setTurnSignal(null);
+  const settled = p.catch(() => undefined).then(() => {
+    if (currentTurnSignal(resolvedSessionId) === ctl.signal) setTurnSignal(null, resolvedSessionId);
     if (turnAbort === ctl) turnAbort = null;
     const remaining = turnControllers.get(controllerKey);
     remaining?.delete(ctl);
     if (remaining?.size === 0) turnControllers.delete(controllerKey);
   });
+  turnChains.set(controllerKey, settled);
+  void settled.then(() => { if (turnChains.get(controllerKey) === settled) turnChains.delete(controllerKey); });
   return p;
 }
 
@@ -458,7 +462,7 @@ function compactTurn(history: Message[], turnStart: number): void {
   history.splice(groups[0].start, cutTo - groups[0].start, summary);
 }
 
-async function runTurn(text: string, onDelta: (d: string) => void, signal: AbortSignal, onProgress?: (p: string) => void, chatIdOpt?: string, images: string[] = [], hooks?: AgentRuntimeHooks): Promise<string> {
+async function runTurn(text: string, onDelta: (d: string) => void, signal: AbortSignal, onProgress?: (p: string) => void, chatIdOpt?: string, images: string[] = [], hooks?: AgentRuntimeHooks, source: 'interactive' | 'scheduled' = 'interactive'): Promise<string> {
   // The chat is fixed when the turn starts: switching chats mid-turn never moves this turn.
   const chatId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
   resetTurnShot();
@@ -761,7 +765,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
     if (signal.aborted) {
       // Interrupted — record WHO pulled the plug (F-13): a user Stop, a newer interactive
       // request, or a cancellation aimed at this source. Already-done work stays in context.
-      const why = turnSource === 'scheduled' ? 'interrupted (scheduled turn cancelled)' : 'interrupted';
+      const why = source === 'scheduled' ? 'interrupted (scheduled turn cancelled)' : 'interrupted';
       void recordInterrupted();
       void recordGoalOutcome(chatId, '', why).catch(() => undefined);
       history.length = turnStart;
