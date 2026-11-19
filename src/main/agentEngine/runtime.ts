@@ -247,6 +247,7 @@ export class AgentRuntime {
     const session = this.sessions.get(sessionId);
     const active = this.activeRuns.has(sessionId);
     if (!active && (!session || (session.status !== 'running' && session.status !== 'aborting'))) return false;
+    if (session && session.status !== 'running' && session.status !== 'aborting' && session.status !== 'idle') return false;
     this.cancelRequested.add(sessionId);
     if (session) {
       session.status = 'aborting';

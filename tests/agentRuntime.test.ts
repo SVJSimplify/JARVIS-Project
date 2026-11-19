@@ -75,7 +75,7 @@ describe('Cline-compatible JINI agent session runtime', () => {
     expect(restored).toContain('restored-session');
   });
 
-  it('replaces only the active run in the same session and queues scheduled turns', async () => {
+  it('replaces only the active run in the same session', async () => {
     let finishFirst: ((value: string) => void) | undefined;
     const persistence: AgentRuntimePersistence = { load: async () => [], save: async () => undefined };
     const driver = {
@@ -83,8 +83,14 @@ describe('Cline-compatible JINI agent session runtime', () => {
       cancelChat: vi.fn(() => finishFirst?.('')),
     };
     const runtime = new AgentRuntime(driver, persistence);
+    let started!: () => void;
+    const firstStarted = new Promise<void>((resolve) => { started = resolve; });
+    driver.chat.mockImplementation((prompt: string) => {
+      if (prompt === 'first') return new Promise<string>((resolve) => { finishFirst = resolve; started(); });
+      return Promise.resolve(prompt);
+    });
     const first = runtime.run('first', { sessionId: 'same-session' });
-    await Promise.resolve();
+    await firstStarted;
     const second = runtime.run('second', { sessionId: 'same-session' });
     await expect(first).resolves.toBe('');
     await expect(second).resolves.toBe('second');
