@@ -33,9 +33,14 @@ const friendlyLabel = (raw: string): string => {
     verify: 'Checking the result',
   };
   if (known[value]) return known[value];
-  const cleaned = value.replace(/^native_browser_/, '').replace(/^browser_/, '').replace(/[_:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const cleaned = value.replace(/^native_browser_/, '').replace(/^browser_/, '').replace(/^desktop_/, '').replace(/^system_/, '').replace(/^file_/, '').replace(/^dev_/, '').replace(/[_:]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (!cleaned) return 'Making progress';
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  const words = cleaned.split(' ');
+  const verbs: Record<string, string> = { open: 'Opening', navigate: 'Opening', read: 'Reading', snapshot: 'Understanding', click: 'Interacting with', search: 'Searching', list: 'Reviewing', find: 'Finding', write: 'Creating', edit: 'Updating', run: 'Running', execute: 'Running', verify: 'Checking', inspect: 'Reviewing', connect: 'Connecting', download: 'Downloading', upload: 'Uploading', create: 'Creating', update: 'Updating', delete: 'Removing', close: 'Closing', launch: 'Opening', focus: 'Switching to', scroll: 'Moving through', type: 'Entering', press: 'Using' };
+  const first = words[0].toLowerCase();
+  if (verbs[first]) words[0] = verbs[first];
+  else words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1);
+  return words.join(' ');
 };
 
 const friendlyStatus = (status: string): string => {
@@ -110,9 +115,8 @@ function Bar({ done, total, failed = 0 }: { done: number; total: number; failed?
       <div className="h-[3px] flex-1 overflow-hidden bg-line/40">
         <div className={`h-full transition-all duration-500 ${failed > 0 ? 'bg-hot' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="shrink-0 font-mono text-[12px] tabular-nums text-steel">
-        {done}/{total}
-        {failed > 0 && <span className="text-hot"> ✗{failed}</span>}
+      <span className="shrink-0 text-[11px] font-medium text-steel">
+        {done >= total && total > 0 ? 'All steps complete' : `${done} of ${total} steps`}
       </span>
     </div>
   );
@@ -131,12 +135,12 @@ function NowLine({ snap, nowMs }: { snap: ProgressSnapshot; nowMs: number }) {
   if (!snap.now) return null;
   const busy = snap.now.status === 'running';
   return (
-    <div className="flex items-baseline gap-2">
-      <span className={`font-mono text-[12px] leading-none ${busy ? 'animate-pulse text-accent' : 'text-steel'}`}>{busy ? '▶' : '·'}</span>
-      <span className="truncate text-[13px] leading-snug text-hot" title={snap.now.detail || snap.now.label}>
+    <div className="flex items-center gap-2 rounded-lg bg-surface-2/70 px-3 py-2">
+      <span className={`h-2 w-2 shrink-0 rounded-full ${busy ? 'animate-pulse bg-accent' : 'bg-steel/50'}`} />
+      <span className="truncate text-[13px] font-medium leading-snug text-hot" title={snap.now.detail || snap.now.label}>
         {friendlyLabel(snap.now.label)}
       </span>
-      {busy && <span className="ml-auto shrink-0 font-mono text-[12px] tabular-nums text-steel">{elapsed(snap.now.since, nowMs)}</span>}
+      {busy && <span className="ml-auto shrink-0 text-[11px] tabular-nums text-steel">{elapsed(snap.now.since, nowMs)}</span>}
     </div>
   );
 }
@@ -149,14 +153,14 @@ function TurnSection({ turn, nowMs, stepLimit }: { turn: TurnProgress; nowMs: nu
     <div className="space-y-1.5">
       <SectionTitle
         right={
-          <span className={`font-mono text-[12px]   ${outcome === 'running' ? 'animate-pulse text-accent' : outcome === 'fail' || outcome === 'interrupted' ? 'text-hot' : 'text-steel'}`}>
-            {outcome === 'running' ? elapsed(turn.startedAt, nowMs) : outcome === 'ok' ? 'Complete' : outcome === 'fail' ? 'Could not finish' : 'Paused'}
+          <span className={`text-[11px] font-medium ${outcome === 'running' ? 'text-accent' : outcome === 'fail' || outcome === 'interrupted' ? 'text-hot' : 'text-steel'}`}>
+            {outcome === 'running' ? `Working · ${elapsed(turn.startedAt, nowMs)}` : outcome === 'ok' ? 'Finished' : outcome === 'fail' ? 'Needs another try' : 'Paused'}
           </span>
         }
       >
-        Working on
+        Your request
       </SectionTitle>
-      <p className="truncate text-[13px] leading-snug text-hot" title={turn.task}>
+      <p className="truncate text-[14px] font-medium leading-snug text-hot" title={turn.task}>
         {turn.task}
       </p>
       {turn.steps.length > 0 && (
@@ -194,9 +198,9 @@ function TaskSection({ t, compact }: { t: TaskProgressView; compact?: boolean })
           </span>
         }
       >
-        {'In the background'}
+        {'Continuing in the background'}
       </SectionTitle>
-      <p className="truncate text-[12px] leading-snug text-hot/90" title={t.objective}>
+      <p className="truncate text-[13px] leading-snug text-hot/90" title={t.objective}>
         {t.objective}
       </p>
       <Bar done={t.done} total={t.total} />
@@ -217,7 +221,7 @@ function TaskSection({ t, compact }: { t: TaskProgressView; compact?: boolean })
           })}
         </ol>
       )}
-      {!compact && t.note && <p className="truncate font-mono text-[12px] text-steel/80" title={t.note}>{t.note}</p>}
+      {!compact && t.note && <p className="truncate text-[12px] leading-relaxed text-steel" title={t.note}>{t.note}</p>}
     </div>
   );
 }
@@ -300,11 +304,11 @@ export default function TaskProgress({ mini = false }: { mini?: boolean }) {
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}
-        className="no-drag pointer-events-none max-w-[94vw] truncate rounded-full border border-accent/40 bg-[#FBF8F2d9] px-4 py-1 font-mono text-[12px] text-accent"
+        className="no-drag pointer-events-none max-w-[94vw] truncate rounded-full border border-line bg-surface px-4 py-1.5 text-[12px] font-medium text-hot shadow-sm"
       >
-        <span className="mr-2 animate-pulse">▶</span>
+        <span className="mr-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent align-middle" />
         {snap?.now?.label ? friendlyLabel(snap.now.label) : 'Making progress'}
-        {task && <span className="text-steel">{` · ${task.done}/${task.total}`}</span>}
+        {task && <span className="ml-1 text-steel">{`· ${task.done} of ${task.total} steps`}</span>}
       </motion.div>
     );
   }
@@ -317,13 +321,21 @@ export default function TaskProgress({ mini = false }: { mini?: boolean }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.985 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="holo-panel no-drag relative z-10 w-full max-w-[560px] overflow-hidden rounded-md"
+            className="holo-panel no-drag relative z-10 w-full max-w-[560px] overflow-hidden rounded-2xl shadow-[0_12px_40px_rgba(56,42,26,0.12)]"
           >
             <div className="relative z-[3] max-h-[46vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-accent/20 px-4 pb-1.5 pt-2.5">
-                <h2 className="font-display text-[12px] font-bold text-accent/90">Jini is working</h2>
-                <span className="font-mono text-[12px] text-steel">
-                  {snap.busy ? <span className="animate-pulse text-accent">In progress</span> : 'Just finished'}
+              <div className="flex items-center justify-between border-b border-line/80 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${snap.busy ? 'bg-accent/10 text-accent' : 'bg-surface-2 text-steel'}`}>
+                    <span className={`h-2 w-2 rounded-full ${snap.busy ? 'animate-pulse bg-accent' : 'bg-steel/50'}`} />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="text-[13px] font-semibold tracking-[-0.01em] text-hot">{snap.busy ? 'Jini is on it' : 'A little update'}</h2>
+                    <p className="text-[11px] text-steel">{snap.mode === 'background' ? 'You can keep doing your thing' : 'Here’s where things stand'}</p>
+                  </div>
+                </div>
+                <span className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${snap.busy ? 'bg-accent/10 text-accent' : 'bg-surface-2 text-steel'}`}>
+                  {snap.busy ? 'Working' : 'Finished'}
                 </span>
               </div>
               <TaskProgressBody snap={snap} nowMs={now.getTime()} overlay />
