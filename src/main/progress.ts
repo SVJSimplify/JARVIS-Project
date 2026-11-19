@@ -1,3 +1,4 @@
+import { runtimeEvents } from './runtimeEvents';
 import type {
   AgentProgressView,
   ProgressSnapshot,
@@ -172,6 +173,7 @@ function push(): void {
     updatedAt = Date.now();
     const snap = getProgressSnapshot();
     sink('jarvis-progress', snap);
+    runtimeEvents.emit('progress.updated', { updatedAt: snap.updatedAt, busy: snap.busy });
     for (const fn of listeners) {
       try {
         fn(snap);
@@ -230,6 +232,7 @@ export function noteTurnStart(task: string): void {
     turnStepStats.clear();
     boardEpoch = now;
   }
+  runtimeEvents.emit('turn.started', { task: clip(task, 160), at: now });
   push();
 }
 
@@ -238,6 +241,7 @@ export function noteTurnEnd(res: { failed?: boolean; interrupted?: boolean } = {
   if (!turn || turn.endedAt) return; // a turn ends once; late double-calls are ignored
   turn.endedAt = Date.now();
   turn.outcome = res.interrupted ? 'interrupted' : res.failed ? 'fail' : 'ok';
+  runtimeEvents.emit('turn.ended', { outcome: turn.outcome, at: turn.endedAt });
   push();
 }
 
