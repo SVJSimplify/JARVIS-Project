@@ -8,7 +8,7 @@ import {
   loadGroups,
   noteUsed,
   routeSummary,
-  routeTurn,
+  routeTurn,\n  resolveIntent,
   setAllSchemas,
   unloadedGroups,
 } from '../src/main/toolRouter';
@@ -153,6 +153,11 @@ describe('JINI intent-aware capability router', () => {
     expect(route.families).toContain('browser');
     expect(route.confidence).not.toBe('low');
     expect(route.matchedCues.browser).toContain('my browser');
+  });
+
+  it('uses persistent project context to route a terse follow-up without losing development tools', () => {
+    const route = resolveIntent('unofficial fan site', 'Objective: create a website for SpaceX');
+    expect(route.families).toContain('development');
   });
 
   it('generates manifest groups from the live registry, including every tool exactly once', () => {

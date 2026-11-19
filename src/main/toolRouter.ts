@@ -175,6 +175,21 @@ export function classifyIntent(input: string): IntentRoute {
   };
 }
 
+/** Merge current utterance with durable goal context before lexical routing. The model then performs semantic operation selection from these bounded schemas. */
+export function resolveIntent(input: string, goalContext = ''): IntentRoute {
+  const route = classifyIntent(input);
+  const contextRoute = goalContext ? classifyIntent(goalContext) : { families: [], scores: {}, matchedCues: {}, confidence: 'low' as const };
+  const scores: Record<string, number> = { ...route.scores };
+  const matchedCues: Record<string, string[]> = { ...route.matchedCues };
+  for (const [family, score] of Object.entries(contextRoute.scores)) {
+    if (score > 0 && !route.families.includes(family)) scores[family] = Math.max(scores[family] ?? 0, Math.min(3, score));
+    if (contextRoute.matchedCues[family]) matchedCues[family] = [...new Set([...(matchedCues[family] ?? []), ...contextRoute.matchedCues[family]])];
+  }
+  const families = FAMILIES.filter((f) => (scores[f.id] ?? 0) >= f.minScore).sort((a,b) => (scores[b.id] ?? 0) - (scores[a.id] ?? 0)).map((f) => f.id);
+  const top = families.length ? scores[families[0]] : 0;
+  return { families, scores, matchedCues, confidence: top >= 5 ? 'high' : top >= 2.5 ? 'medium' : 'low' };
+}
+
 export function routeTurn(input: string): void {
   lastRoute = classifyIntent(input);
   turnFamilies = new Set(lastRoute.families);
