@@ -1,4 +1,5 @@
-import { runtimeEvents } from './runtimeEvents';\nimport { shell } from 'electron';
+import { runtimeEvents } from './runtimeEvents';
+import { shell } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { appControlTools } from './appControl';
@@ -412,7 +413,8 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
   // (undefined for conversational turns — the invocation ledger scopes those by turn).
   const emitTool = (e: Omit<ActivityEvent, 'id' | 't' | 'kind' | 'cid' | 'label' | 'taskId'> & { label?: string }) =>
     emitActivity({ kind: 'tool', cid, label: name, taskId: who.taskId, ...e, ...(e.label ? { label: e.label } : {}) });
-  emitTool({ status: 'busy' });\n  runtimeEvents.emit('tool.started', { id: cid, name, agent: who.agent, taskId: who.taskId, at: t0 });
+  emitTool({ status: 'busy' });
+  runtimeEvents.emit('tool.started', { id: cid, name, agent: who.agent, taskId: who.taskId, at: t0 });
   let retries = 0;
   let lastArgs: Record<string, unknown> | null = null;
   let lastAuth: AuthDecision = 'allowed'; // authorization is recorded per decision below; failures before the gate keep this default
@@ -458,7 +460,8 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
           'The result above is real and preserved in memory; the ledger will be reconciled. Do not repeat the action to fix this.]';
     // receiptPending: the EXACT outcome is not what's on disk (an unknown-marker landed,
     // or nothing did) — consumers must treat this call as requiring reconciliation.
-    runtimeEvents.emit('tool.finished', { id: cid, name, agent: who.agent, taskId: who.taskId, status, durationMs: Date.now() - t0, at: Date.now() });\n    return { text, status: envelopeStatusOf(status, errorKind), errorKind, soft, auth, receiptPending: outcome.durableStatus !== status };
+    runtimeEvents.emit('tool.finished', { id: cid, name, agent: who.agent, taskId: who.taskId, status, durationMs: Date.now() - t0, at: Date.now() });
+    return { text, status: envelopeStatusOf(status, errorKind), errorKind, soft, auth, receiptPending: outcome.durableStatus !== status };
   };
   // Round 18 (§4.1): DURABLE receipts. The outcome record is awaited before the envelope
   // returns, so a crash can never leave "reported but not recorded" — and the STARTED
