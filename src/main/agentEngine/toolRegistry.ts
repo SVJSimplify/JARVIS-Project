@@ -204,6 +204,9 @@ export class AgentToolRegistry {
       entry.tool.parameters = patch.parameters;
       if (entry.agentTool) entry.agentTool.inputSchema = patch.parameters;
     }
+    if (patch.parallelSafe === true && entry.source === 'plugin' && entry.action !== 'read') {
+      throw new Error('Parallel custom tools must explicitly declare action: read.');
+    }
     if (patch.parallelSafe !== undefined) {
       entry.tool.parallelSafe = patch.parallelSafe;
       if (entry.agentTool) entry.agentTool.parallelSafe = patch.parallelSafe;

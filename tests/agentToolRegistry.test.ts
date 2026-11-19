@@ -69,6 +69,7 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
     registry = new AgentToolRegistry();
     registry.registerPluginTools('sample.plugin', [{ name: 'mutate', description: 'Mutate', inputSchema: { type: 'object' }, execute: () => 'ok' }]);
     expect(registry.executionPolicy('plugin_sample_plugin_mutate', {})).toEqual({ action: 'config', resource: 'tool:plugin_sample_plugin_mutate' });
+    expect(() => registry.update('plugin_sample_plugin_mutate', { parallelSafe: true })).toThrow(/action: read/);
     expect(() => registry.registerPluginTools('parallel.plugin', [{ name: 'bad', description: 'Bad', inputSchema: { type: 'object' }, execute: () => 'no', parallelSafe: true }])).toThrow(/action: read/);
   });
 
