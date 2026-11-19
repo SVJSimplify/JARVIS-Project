@@ -49,7 +49,7 @@ describe('session-scoped turn digests', () => {
       b.push(result?.body ?? '');
     });
     await runWithExecutionScope({ sessionId: 'mode-session-a' }, async () => {
-      const result = endTurn({ reply: 'Research incomplete.', failed: true });
+      const result = endTurn({ reply: 'Research incomplete.' });
       a.push(result?.body ?? '');
     });
     expect(a[0]).toContain('1 of 1 step failed');
