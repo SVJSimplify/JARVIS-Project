@@ -2286,7 +2286,6 @@ export const nativeBrowserTools: Record<string, Tool> = {
     description: 'Navigate a NATIVE browser tab (tabId from native_browser_tabs, default the newest) to a URL in the background. Requires an explicitly connected session; never launch or reconnect a browser implicitly. Returns the reached title/URL — a navigation is not yet an outcome.',
     parameters: { type: 'object', properties: { url: { type: 'string' }, tabId: { type: 'string' } }, required: ['url'] },
     run: async (args) => {
-      await ensureNativeForDefault();
       const res = await navigateNativeTab(String(args.url ?? ''), typeof args.tabId === 'string' ? args.tabId : undefined);
       return `Navigated to "${res.title.slice(0, 80)}" (${res.url})${res.ok ? '' : ' [the page did not settle — treat as unverified]'}\n${sessionTag()}`;
     },
