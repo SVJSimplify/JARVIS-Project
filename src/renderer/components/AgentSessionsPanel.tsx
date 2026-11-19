@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { popModal, pushModal } from '../lib/modalState';
-import type { AgentRuntimeEvent, AgentSessionSnapshot } from '../../../main/agentEngine/runtime';
+import type { AgentRuntimeEvent, AgentSessionSnapshot } from '../../main/agentEngine/runtime';
 
 interface Props {
   open: boolean;
@@ -119,7 +119,13 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
     try {
       const child = await window.electronAPI.agent.fork(snapshot.id);
       setSelectedId(child.id);
-      await refresh();
+      const [list, replay] = await Promise.all([
+        window.electronAPI.agent.sessions(),
+        window.electronAPI.agent.replay(child.id, 0),
+      ]);
+      setSessions([...list].sort((a, b) => b.updatedAt - a.updatedAt));
+      setSnapshot(child);
+      setEvents(replay.slice(-100).reverse());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not fork this session.');
     } finally {
