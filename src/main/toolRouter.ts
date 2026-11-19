@@ -46,8 +46,8 @@ const FAMILIES: Family[] = [
   },
   {
     id: 'browser',
-    hint: "webpage interaction, tabs, forms, downloads/uploads and the user's connected Chrome or Edge",
-    cues: ['open website', 'open webpage', 'my browser', 'chrome tab', 'edge tab', 'click on website', 'fill form', 'submit form', 'log in', 'sign in', 'download from', 'upload to website', 'navigate to', 'interact with website', 'browser tab'],
+    hint: "webpage interaction, personal accounts, authenticated sessions, tabs, forms and the user's connected Chrome or Edge",
+    cues: ['open website', 'open webpage', 'my browser', 'my email', 'my inbox', 'my gmail', 'my outlook', 'check my email', 'open email', 'email account', 'logged in', 'already signed in', 'personal account', 'chrome tab', 'edge tab', 'click on website', 'fill form', 'submit form', 'log in', 'sign in', 'download from', 'upload to website', 'navigate to', 'interact with website', 'browser tab'],
     patterns: [/^(browser_|native_browser_|open_url$|open_in_my_browser$|close_my_browser_tab$|list_my_browser_tabs$)/],
     minScore: 2,
   },

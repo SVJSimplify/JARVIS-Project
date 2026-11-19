@@ -120,8 +120,11 @@ export function route(
   const online = paired && s.connection === "online";
   const isStopText = STOP_RE.test(text);
   if (online && isStopText) return "desktop"; // "stop" always reaches the desktop
-  if (kind === "chat" && providerReady()) return "phone";
+  // A paired, online desktop is the execution authority. Prefer it even when the
+  // phone has a standalone provider, so requests can use desktop apps, browser sessions,
+  // files and the same agent runtime.
   if (online) return "desktop";
+  if (kind === "chat" && providerReady()) return "phone";
   if (paired && kind === "task") return "queue";
   return "none";
 }

@@ -73,6 +73,15 @@ describe('JINI intent-aware capability router', () => {
     expect(currentSchemas().map((item) => item.function.name)).not.toContain('launch_app');
   });
 
+  it('routes personal account and inbox requests to browser capabilities', () => {
+    const route = classifyIntent('Open my email inbox so I can check messages.');
+    expect(route.families).toContain('browser');
+    expect(route.matchedCues.browser).toContain('my email');
+    routeTurn('Open my email inbox so I can check messages.');
+    expect(currentSchemas().map((item) => item.function.name)).toContain('browser_open');
+    expect(currentSchemas().map((item) => item.function.name)).toContain('native_browser_tabs');
+  });
+
   it('supports multi-intent requests by loading multiple relevant families', () => {
     routeTurn('Research three clinics, compare their reviews, then create a summary document.');
     const names = currentSchemas().map((item) => item.function.name);

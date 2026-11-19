@@ -72,12 +72,12 @@ const TOOLS: Record<string, Tool> = {
   },
   open_url: {
     description:
-      'ONLY when the user explicitly asks for their own / default / external browser (or names Chrome, Edge or Firefox). For every other web request use browser_open or browser_search. Requires external=true.',
+      'Use the user's default external browser for personal/account-based destinations (email, inboxes, portals, services where their sign-in matters), or when they explicitly ask for their own browser. Use browser_open for public pages intended to stay inside JINI. Set external=true for the default-browser path.',
     parameters: {
       type: 'object',
       properties: {
         url: { type: 'string', description: 'Full URL including https://' },
-        external: { type: 'boolean', description: 'Set true only if the user explicitly asked for their own external browser.' },
+        external: { type: 'boolean', description: 'Set true for personal/account-based destinations or when the user explicitly requests their own/default browser.' },
       },
       required: ['url'],
     },

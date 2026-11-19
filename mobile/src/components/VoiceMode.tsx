@@ -63,6 +63,9 @@ export default function VoiceMode({
   const turn = useRef(0); // bumping it abandons whatever the current exchange was waiting on
   const partial = useRef("");
   const listening = useRef(false); // one recognizer session at a time
+  const captureId = useRef(0);
+  const finishedCapture = useRef(0);
+  const finishCapture = useRef<() => void>(() => undefined);
 
   const speak = useCallback(async (text: string) => {
     if (!alive.current || !text) return;
@@ -85,12 +88,19 @@ export default function VoiceMode({
   const listen = useCallback(async () => {
     if (!alive.current || listening.current) return;
     listening.current = true;
+    const id = ++captureId.current;
     partial.current = "";
     setHeard("");
     setPhase("listening");
+    finishCapture.current = () => {
+      if (finishedCapture.current === id) return;
+      finishedCapture.current = id;
+      listening.current = false;
+      if (alive.current) void handle(partial.current);
+    };
     try {
       await SpeechRecognition.start({
-        language: "en-US",
+        language: "en-IN",
         partialResults: true,
         popup: false,
         maxResults: 1,
@@ -100,8 +110,8 @@ export default function VoiceMode({
       listening.current = false;
       const msg = e instanceof Error ? e.message : String(e);
       if (!alive.current) return;
-      if (/no match|didn'?t understand|timeout|no speech/i.test(msg))
-        return void setTimeout(() => void listen(), 250);
+      if (/no match|didn'?t understand|timeout|no speech|recognizer busy|already listening/i.test(msg))
+        return void setTimeout(() => void listen(), 450);
       setError(msg);
       setPhase("error");
     }
@@ -161,19 +171,20 @@ export default function VoiceMode({
         const perm = await SpeechRecognition.requestPermissions();
         if (perm.speechRecognition !== "granted")
           throw new Error("Microphone permission is needed for voice mode.");
-        subs.push(
-          SpeechRecognition.addListener("partialResults", (d) => {
-            partial.current = d.matches?.[0] ?? partial.current;
-            setHeard(partial.current);
-          }),
-        );
-        subs.push(
-          SpeechRecognition.addListener("listeningState", (d) => {
-            if (d.status !== "stopped") return;
-            listening.current = false;
-            if (alive.current) void handle(partial.current);
-          }),
-        );
+        // Capacitor listener registration is asynchronous. Await both listeners before
+        // starting recognition or the first stopped/final event can be lost.
+        const partialListener = await SpeechRecognition.addListener("partialResults", (d) => {
+          const next = d.matches?.[0]?.trim();
+          if (next) {
+            partial.current = next;
+            setHeard(next);
+          }
+        });
+        subs.push(Promise.resolve(partialListener));
+        const stateListener = await SpeechRecognition.addListener("listeningState", (d) => {
+          if (d.status === "stopped" && alive.current) finishCapture.current();
+        });
+        subs.push(Promise.resolve(stateListener));
         void listen();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -184,6 +195,7 @@ export default function VoiceMode({
     return () => {
       alive.current = false;
       turnRef.current++;
+      listening.current = false;
       void SpeechRecognition.stop().catch(() => undefined);
       void TextToSpeech.stop().catch(() => undefined);
       void Promise.all(subs).then((h) => h.forEach((x) => void x.remove()));

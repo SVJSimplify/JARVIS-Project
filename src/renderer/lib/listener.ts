@@ -2,10 +2,10 @@ const RATE = 16000;
 const FRAME = 1024;
 const FRAME_MS = (FRAME / RATE) * 1000;
 const PRE_FRAMES = 5;
-const END_QUIET_MS = 850;
-const MIN_VOICE_MS = 400;
-const MAX_MS = 20000;
-const MIN_THRESHOLD = 0.02;
+const END_QUIET_MS = 1250;
+const MIN_VOICE_MS = 280;
+const MAX_MS = 30000;
+const MIN_THRESHOLD = 0.007;
 
 /** 'barge': JARVIS is talking, so demand louder/longer speech. 'deaf': ignore the mic. */
 export type ListenGate = 'normal' | 'barge' | 'deaf';
@@ -39,7 +39,7 @@ export async function startListener(o: ListenerOptions): Promise<{ stop: () => v
   let barge = false;
   let loud = 0;
   let quiet = 0;
-  let floor = 0.01;
+  let floor = 0.003;
 
   proc.onaudioprocess = (e) => {
     const f = new Float32Array(e.inputBuffer.getChannelData(0));
@@ -49,10 +49,11 @@ export async function startListener(o: ListenerOptions): Promise<{ stop: () => v
     o.onLevel(Math.min(1, rms * 6));
 
     const gate = o.gate();
-    // While JARVIS talks, a barge capture must be deliberate: a higher threshold and
-    // ~250 ms of sustained voice (vs 96 ms otherwise) reject speaker echo, clicks and
-    // door slams instead of letting them start an interrupt capture mid-sentence.
-    const voiced = rms > Math.max(MIN_THRESHOLD, floor * 3) * (gate === 'barge' ? 2.4 : 1);
+    // Track room noise slowly and use a lower adaptive threshold than the old fixed
+    // 0.02 RMS gate, which discarded quiet voices before Whisper ever saw them.
+    // Barge-in stays stricter to reject JINI's own speaker output.
+    const threshold = Math.max(MIN_THRESHOLD, floor * 2.2);
+    const voiced = rms > threshold * (gate === 'barge' ? 1.9 : 1);
 
     if (!inSpeech) {
       if (gate === 'deaf') {
@@ -64,10 +65,10 @@ export async function startListener(o: ListenerOptions): Promise<{ stop: () => v
       if (pre.length > PRE_FRAMES) pre.shift();
       if (!voiced) {
         loud = 0;
-        floor = floor * 0.95 + rms * 0.05;
+        floor = Math.min(0.025, floor * 0.985 + rms * 0.015);
         return;
       }
-      if (++loud >= (gate === 'barge' ? 8 : 3)) {
+      if (++loud >= (gate === 'barge' ? 6 : 3)) {
         inSpeech = true;
         barge = gate === 'barge';
         seg = [...pre];
