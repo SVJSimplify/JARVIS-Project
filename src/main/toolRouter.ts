@@ -247,6 +247,7 @@ export const unloadedGroups = (): string => {
       ? ['advanced (specialist and less commonly used capabilities)']
       : []
   ).join('; ');
+};
 
 export function loadGroups(ids: unknown): string {
   const requested = (Array.isArray(ids) ? ids : [ids]).map((value) => String(value).toLowerCase().trim());
