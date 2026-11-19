@@ -72,12 +72,12 @@ const TOOLS: Record<string, Tool> = {
   },
   open_url: {
     description:
-      'Use the user's default external browser for personal/account-based destinations (email, inboxes, portals, services where their sign-in matters), or when they explicitly ask for their own browser. Use browser_open for public pages intended to stay inside JINI. Set external=true for the default-browser path.',
+      'Use the default external browser for personal/account-based destinations (email, inboxes, portals, services where sign-in matters), or when the user explicitly asks for their own browser. Use browser_open for public pages intended to stay inside JINI. Set external=true for the default-browser path.',
     parameters: {
       type: 'object',
       properties: {
         url: { type: 'string', description: 'Full URL including https://' },
-        external: { type: 'boolean', description: 'Set true for personal/account-based destinations or when the user explicitly requests their own/default browser.' },
+        external: { type: 'boolean', description: 'Set true for personal/account-based destinations or when the user explicitly requests the default browser.' },
       },
       required: ['url'],
     },
