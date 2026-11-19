@@ -10,7 +10,7 @@ export interface VoicePrefs {
 export type ToggleKey = 'interrupt' | 'greeting' | 'voiceLock';
 
 const KEY = 'jarvis.voice2';
-const DEFAULTS: VoicePrefs = { interrupt: true, greeting: true, voiceLock: true, lockStrictness: 2.0 };
+const DEFAULTS: VoicePrefs = { interrupt: true, greeting: true, voiceLock: false, lockStrictness: 2.0 };
 
 function load(): VoicePrefs {
   try {

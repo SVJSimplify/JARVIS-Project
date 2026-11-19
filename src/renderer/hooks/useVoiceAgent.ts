@@ -125,9 +125,12 @@ export function useVoiceAgent(o: Options) {
     const t = setTimeout(() => {
       if (greeted.current) return;
       greeted.current = true;
-      if (!hasPrint()) {
+      // Speaker verification is optional. The old default forced five enrolment clips
+      // before the first command and enabled a lightweight MFCC gate that rejected valid
+      // voices. Only enrol when the user explicitly enables Voice Lock.
+      if (!hasPrint() && latest.current.prefs.voiceLock) {
         startEnrol();
-        latest.current.o.speak('Sir, say five sentences so I learn your voice.');
+        latest.current.o.speak('Voice Lock is enabled. Say five full sentences to set up your voice profile.');
       } else if (latest.current.prefs.greeting) latest.current.o.speak(greeting());
     }, 900);
     return () => clearTimeout(t);

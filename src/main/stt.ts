@@ -14,7 +14,7 @@ const MODEL = 'ggml-small.en-q5_1.bin'; // swap for ggml-base.en-q5_1.bin if you
 const MODEL_URL = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL}`;
 const GROQ_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_MODEL = 'whisper-large-v3-turbo';
-const PROMPT = 'Jarvis. Hey Jarvis, what time is it? Open the browser. Search the web.';
+const PROMPT = 'JINI. Hey JINI, open my email. Open my browser. What time is it? Search the web. Open Chrome. Open Edge. Start a task.';
 
 let ready: Promise<void> | undefined;
 let proc: ChildProcess | undefined;
