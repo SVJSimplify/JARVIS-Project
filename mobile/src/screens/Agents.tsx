@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Empty, ScreenHeader, ago } from '../components/ui';
 import { rpc } from '../lib/linkClient';
+import { useAppState } from '../lib/store';
 
 type Status = 'idle' | 'running' | 'aborting' | 'completed' | 'failed' | 'aborted' | 'interrupted';
 interface Session {
@@ -46,6 +47,7 @@ const statusClass = (status: string) => {
 };
 
 export default function AgentsScreen() {
+  const online = useAppState((state) => state.connection === 'online');
   const [view, setView] = useState<'sessions' | 'tools' | 'plugins'>('sessions');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selected, setSelected] = useState('');
@@ -96,11 +98,11 @@ export default function AgentsScreen() {
   }, [selected]);
 
   useEffect(() => {
-    if (view !== 'sessions' && view !== 'tools' && view !== 'plugins') return;
+    if (!online) return;
     void refresh();
     const timer = window.setInterval(() => { void refresh(); }, 5000);
     return () => window.clearInterval(timer);
-  }, [refresh, view]);
+  }, [refresh, view, online]);
 
   const selectSession = async (id: string) => {
     setSelected(id);
@@ -155,13 +157,14 @@ export default function AgentsScreen() {
 
   return (
     <div className="pb-8">
-      <ScreenHeader title="Agent runtime" action={<button className="btn-text pb-1 text-[13px]" disabled={busy || !navigator.onLine} onClick={() => void refresh()}>{busy ? 'Loading…' : 'Refresh'}</button>} />
+      <ScreenHeader title="Agent runtime" action={<button className="btn-text pb-1 text-[13px]" disabled={busy || !online} onClick={() => void refresh()}>{busy ? 'Loading…' : online ? 'Refresh' : 'Offline'}</button>} />
       <p className="px-1 text-meta text-faint">Cline + OpenCode architecture · live from your desktop</p>
       <div className="mt-4 flex gap-1 rounded-xl bg-oat p-1">
         {(['sessions', 'tools', 'plugins'] as const).map((item) => (
           <button key={item} onClick={() => setView(item)} className={'flex-1 rounded-lg px-2 py-2 text-[12px] font-medium capitalize ' + (view === item ? 'bg-surface text-text shadow-sm' : 'text-faint')}>{item}</button>
         ))}
       </div>
+      {!online && <p className="mt-3 rounded-xl bg-oat p-3 text-[11px] text-muted">Connect to your desktop to inspect live agent sessions, tools and plugins. Cached data remains on screen.</p>}
       {error && <p role="alert" className="mt-3 rounded-xl border border-[#E7C7BD] bg-[#FBF0ED] p-3 text-[12px] text-[#9A4D3D]">{error}</p>}
 
       {view === 'sessions' && (
