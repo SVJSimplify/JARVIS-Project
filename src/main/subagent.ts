@@ -1,4 +1,4 @@
-import { completeOnce, type Message, type ToolSchema } from './llm';
+import { compactToolMessages } from './contextCompaction';\nimport { completeOnce, type Message, type ToolSchema } from './llm';
 import { getModel } from './settings';
 import { currentTurnSignal } from './turnSignal';
 import { resolveAgent, agentAllows, agentPrompt, type AgentDef } from './agentRegistry';
@@ -114,11 +114,7 @@ const isFailure = (s: string): boolean => /^(Tool error|Unknown tool|BLOCKED|CAN
 
 /** Shrink old tool outputs so a long run does not drown the model in stale pages. */
 function compact(messages: Message[]): void {
-  const idx = messages.map((m, i) => (m.role === 'tool' ? i : -1)).filter((i) => i >= 0);
-  idx.slice(0, Math.max(0, idx.length - KEEP_FULL)).forEach((i) => {
-    const m = messages[i];
-    if (typeof m.content === 'string' && m.content.length > OLD_TOOL_CHARS) m.content = clip(m.content, OLD_TOOL_CHARS);
-  });
+  compactToolMessages(messages, { keepNewest: KEEP_FULL, maxChars: OLD_TOOL_CHARS });
 }
 
 export interface SubagentOptions {
