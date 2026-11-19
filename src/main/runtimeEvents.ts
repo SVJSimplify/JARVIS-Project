@@ -8,7 +8,9 @@
 export interface JiniRuntimeEvents {
   'turn.started': { task: string; at: number };
   'turn.ended': { outcome: 'ok' | 'fail' | 'interrupted'; at: number };
-  'progress.updated': { updatedAt: number; busy: boolean };\n  'tool.started': { id: string; name: string; agent: string; taskId?: string; at: number };\n  'tool.finished': { id: string; name: string; agent: string; taskId?: string; status: string; durationMs: number; at: number };
+  'progress.updated': { updatedAt: number; busy: boolean };
+  'tool.started': { id: string; name: string; agent: string; taskId?: string; at: number };
+  'tool.finished': { id: string; name: string; agent: string; taskId?: string; status: string; durationMs: number; at: number };
 }
 export type RuntimeEventName<E> = Extract<keyof E, string>;
 export type RuntimeListener<T> = (payload: T) => void;

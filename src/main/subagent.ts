@@ -1,4 +1,5 @@
-import { compactToolMessages } from './contextCompaction';\nimport { completeOnce, type Message, type ToolSchema } from './llm';
+import { compactToolMessages } from './contextCompaction';
+import { completeOnce, type Message, type ToolSchema } from './llm';
 import { getModel } from './settings';
 import { currentTurnSignal } from './turnSignal';
 import { resolveAgent, agentAllows, agentPrompt, type AgentDef } from './agentRegistry';
