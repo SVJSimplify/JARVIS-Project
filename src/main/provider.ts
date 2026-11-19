@@ -299,6 +299,20 @@ function describe(call: ToolCall): string {
   return `${call.function.name}(${args})`;
 }
 
+/** Snapshot/restore the canonical transcript for one conversation.
+ *  AgentRuntime persists this projection; the provider remains the sole model/tool executor. */
+export function snapshotChatHistory(chatId: string): Message[] {
+  const source = historyChat === chatId ? history : chatHistories.get(chatId) ?? [];
+  return structuredClone(source);
+}
+
+export function restoreChatHistory(chatId: string, messages: readonly Message[]): void {
+  if (!chatId || !Array.isArray(messages)) throw new Error('Invalid chat history restore request.');
+  const restored = structuredClone(messages) as Message[];
+  if (historyChat === chatId) history = restored;
+  else chatHistories.set(chatId, restored);
+}
+
 let turnAbort: AbortController | null = null;
 /** Chat-scoped controllers let restored/multi-session callers cancel only their own turn. */
 const turnControllers = new Map<string, Set<AbortController>>();
