@@ -439,7 +439,10 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   resetPlanMode();
   if (Date.now() - lastTurnAt > IDLE_RESET_MS) history = [];
   lastTurnAt = Date.now();
-  // Durable goal state is updated before routing/provider calls, so even a failed model turn cannot erase the user's intent.\n  await updateGoalFromUser(chatId, text).catch(() => null);\n  const goalContext = await getGoalContext(chatId).catch(() => '');\n  schemasFor([goalContext, text].filter(Boolean).join('\\n'));
+  // Persist the user's goal before routing or provider calls, including turns that fail.
+  await updateGoalFromUser(chatId, text).catch(() => null);
+  const goalContext = await getGoalContext(chatId).catch(() => '');
+  schemasFor([goalContext, text].filter(Boolean).join('\n'));
   const explicitProject = PROJECT_RE.test(text);
   const sameProjectThread = projectContextChat === chatId && Date.now() - projectContextAt < 30 * 60_000;
   const shortContinuation = text.trim().length <= 180;
