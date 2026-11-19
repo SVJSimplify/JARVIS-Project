@@ -299,14 +299,20 @@ function describe(call: ToolCall): string {
 }
 
 let turnAbort: AbortController | null = null;
+/** Chat-scoped controllers let restored/multi-session callers cancel only their own turn. */
+const turnControllers = new Map<string, Set<AbortController>>();
 /** F-13: WHERE the current turn came from. Execution sources are isolated: a scheduled
  *  task must never abort an interactive turn (or another scheduled one); a user message
  *  always takes precedence over background work. */
 let turnSource: 'interactive' | 'scheduled' = 'interactive';
 let turnChain: Promise<unknown> = Promise.resolve();
 
-/** Stop whatever JINI is doing right now (the turn resolves with an empty reply). */
-export function cancelChat(): void {
+/** Stop the active turn, or only the turns owned by one chat/session when an id is supplied. */
+export function cancelChat(chatId?: string): void {
+  if (chatId) {
+    for (const controller of turnControllers.get(chatId) ?? []) controller.abort();
+    return;
+  }
   turnAbort?.abort();
 }
 
@@ -356,6 +362,10 @@ export function chat(
   // source === 'scheduled': no abort. The turnChain serializes; a due scheduled task
   // simply waits for the user's turn to finish instead of killing it.
   const ctl = new AbortController();
+  const controllerKey = chatIdOpt ?? '__active__';
+  const owned = turnControllers.get(controllerKey) ?? new Set<AbortController>();
+  owned.add(ctl);
+  turnControllers.set(controllerKey, owned);
   // Ownership (turnAbort/turnSource/turnSignal) transfers only when this turn ACTUALLY
   // starts running — a queued scheduled turn must never steal the running turn's signal
   // while it waits (Stop must keep stopping the turn that is really executing).
@@ -371,6 +381,9 @@ export function chat(
     .then(() => {
       if (currentTurnSignal() === ctl.signal) setTurnSignal(null);
       if (turnAbort === ctl) turnAbort = null;
+      const remaining = turnControllers.get(controllerKey);
+      remaining?.delete(ctl);
+      if (remaining?.size === 0) turnControllers.delete(controllerKey);
     });
   return p;
 }
