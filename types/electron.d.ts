@@ -2,6 +2,7 @@
  * Electron type definitions
  */
 import type { ActivityEvent, ModeInfo, NotifyPayload, HistoryTurn } from '../src/main/protocol';
+import type { AgentRuntimeEvent, AgentSessionSnapshot } from '../src/main/agentEngine/runtime';
 import type { ProgressSnapshot } from '../src/main/progressTypes';
 import type { ActivityScopeInfo, InvocationQuery, InvocationSummary } from '../src/main/invocations';
 
@@ -75,9 +76,16 @@ declare global {
         transcribe: (audio: Float32Array) => Promise<string>;
       };
       ai: {
-        chat: (text: string, onDelta: (delta: string) => void, onProgress?: (note: string) => void) => Promise<string>;
+        chat: (text: string, onDelta: (delta: string) => void, onProgress?: (note: string) => void, onRuntimeEvent?: (event: AgentRuntimeEvent) => void) => Promise<string>;
         models: () => Promise<string[]>;
         cancel: () => Promise<void>;
+      };
+      agent: {
+        sessions: () => Promise<AgentSessionSnapshot[]>;
+        snapshot: (sessionId: string) => Promise<AgentSessionSnapshot>;
+        replay: (sessionId: string, afterSequence?: number) => Promise<AgentRuntimeEvent[]>;
+        fork: (sessionId: string, newSessionId?: string) => Promise<AgentSessionSnapshot>;
+        abort: (sessionId: string) => Promise<boolean>;
       };
       modes: {
         get: () => Promise<ModeInfo>;

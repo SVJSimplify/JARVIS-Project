@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Notification, safeStorage, shell } from 'electron';
 import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { listModels, stopEverything } from './provider';
+import { listModels } from './provider';
 import { agentRuntime } from './agentEngine/runtime';
 import { getPublicSettings, setSettings } from './settings';
 import { migrateEmbeddingsKeyStorage, setEmbeddingsCipher } from './embeddings';
@@ -56,6 +56,8 @@ process.on('uncaughtException', (err) => console.error('[uncaughtException]', er
 app.setPath('userData', path.join(app.getPath('appData'), 'JARVIS'));
 
 let mainWindow: BrowserWindow | null = null;
+/** Active chat runs owned by each renderer; cancellation must never spill into another window/session. */
+const activeChatRuns = new Map<number, Set<string>>();
 
 function createWindow() {
   const rendererFile = path.resolve(__dirname, '../../dist/renderer/index.html');
@@ -393,6 +395,10 @@ ipcMain.handle('ai-chat', async (event, text: string) => {
     if (!event.sender.isDestroyed()) event.sender.send(channel, payload);
   };
   const chatId = await getActiveChatId();
+  const senderId = event.sender.id;
+  const ownedRuns = activeChatRuns.get(senderId) ?? new Set<string>();
+  ownedRuns.add(chatId);
+  activeChatRuns.set(senderId, ownedRuns);
   // The desktop chat now enters the same persistent Cline-compatible runtime used by
   // delegated agents. It still delegates model/tool work to JINI's existing guarded engine.
   const unsubscribe = await agentRuntime.subscribe((runtimeEvent) => deliver('agent-runtime-event', runtimeEvent), chatId);
@@ -404,10 +410,36 @@ ipcMain.handle('ai-chat', async (event, text: string) => {
     });
   } finally {
     unsubscribe();
+    const active = activeChatRuns.get(senderId);
+    active?.delete(chatId);
+    if (active?.size === 0) activeChatRuns.delete(senderId);
   }
 });
 ipcMain.handle('ai-models', () => listModels());
-ipcMain.handle('ai-cancel', async () => { const chatId = await getActiveChatId().catch(() => ''); if (chatId) await agentRuntime.abort(chatId); stopEverything(); });
+ipcMain.handle('ai-cancel', async (event) => {
+  const owned = [...(activeChatRuns.get(event.sender.id) ?? [])];
+  const targets = owned.length ? owned : [await getActiveChatId().catch(() => '')].filter(Boolean);
+  await Promise.all(targets.map((id) => agentRuntime.abort(id)));
+});
+ipcMain.handle('agent-sessions-list', () => agentRuntime.list());
+ipcMain.handle('agent-session-snapshot', (_, sessionId: string) => {
+  if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 160) throw new Error('Invalid agent session id.');
+  return agentRuntime.snapshot(sessionId);
+});
+ipcMain.handle('agent-session-replay', (_, sessionId: string, afterSequence = 0) => {
+  if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 160) throw new Error('Invalid agent session id.');
+  if (!Number.isSafeInteger(afterSequence) || afterSequence < 0) throw new Error('Invalid event sequence cursor.');
+  return agentRuntime.replay(sessionId, afterSequence);
+});
+ipcMain.handle('agent-session-fork', (_, sessionId: string, newSessionId?: string) => {
+  if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 160) throw new Error('Invalid agent session id.');
+  if (newSessionId !== undefined && (typeof newSessionId !== 'string' || !newSessionId.trim() || newSessionId.length > 160)) throw new Error('Invalid new session id.');
+  return agentRuntime.fork(sessionId, newSessionId);
+});
+ipcMain.handle('agent-session-abort', (_, sessionId: string) => {
+  if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 160) throw new Error('Invalid agent session id.');
+  return agentRuntime.abort(sessionId);
+});
 ipcMain.handle('tts-synthesize', (_, text: string) => {
   const s = typeof text === 'string' ? text : '';
   if (!s.trim()) throw new Error('Nothing to speak.');

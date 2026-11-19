@@ -54,18 +54,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
     transcribe: (audio: Float32Array): Promise<string> => ipcRenderer.invoke('stt-transcribe', audio)
   },
   ai: {
-    chat: (text: string, onDelta: (delta: string) => void, onProgress?: (note: string) => void): Promise<string> => {
+    chat: (text: string, onDelta: (delta: string) => void, onProgress?: (note: string) => void, onRuntimeEvent?: (event: unknown) => void): Promise<string> => {
       const handler = (_event: unknown, delta: string) => onDelta(delta);
       const progress = (_event: unknown, note: string) => onProgress?.(note);
+      const runtimeEvent = (_event: unknown, value: unknown) => onRuntimeEvent?.(value);
       ipcRenderer.on('ai-delta', handler);
       ipcRenderer.on('ai-progress', progress);
+      ipcRenderer.on('agent-runtime-event', runtimeEvent);
       return ipcRenderer.invoke('ai-chat', text).finally(() => {
         ipcRenderer.removeListener('ai-delta', handler);
         ipcRenderer.removeListener('ai-progress', progress);
+        ipcRenderer.removeListener('agent-runtime-event', runtimeEvent);
       });
     },
     models: () => ipcRenderer.invoke('ai-models'),
     cancel: (): Promise<void> => ipcRenderer.invoke('ai-cancel')
+  },
+  /** Cline/OpenCode-style session management and durable event replay. */
+  agent: {
+    sessions: (): Promise<unknown[]> => ipcRenderer.invoke('agent-sessions-list'),
+    snapshot: (sessionId: string): Promise<unknown> => ipcRenderer.invoke('agent-session-snapshot', sessionId),
+    replay: (sessionId: string, afterSequence = 0): Promise<unknown[]> => ipcRenderer.invoke('agent-session-replay', sessionId, afterSequence),
+    fork: (sessionId: string, newSessionId?: string): Promise<unknown> => ipcRenderer.invoke('agent-session-fork', sessionId, newSessionId),
+    abort: (sessionId: string): Promise<boolean> => ipcRenderer.invoke('agent-session-abort', sessionId)
   },
   modes: {
     get: () => ipcRenderer.invoke('mode-get'),
