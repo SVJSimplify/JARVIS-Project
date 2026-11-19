@@ -465,7 +465,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   const allowedProjectScopes = await projectScopesForRequest(text).catch(() => new Set<string>());
   // ROUND 32 (§5.5): standing instructions are their own priority-0 block — BINDING
   // context survives any budget pressure (the budget trims low priorities first).
-  const rawBlocks: ContextBlock[] = [\n    { id: 'persistent-goal', priority: 0, text: goalContext },
+  const rawBlocks: ContextBlock[] = [
+    { id: 'persistent-goal', priority: 0, text: goalContext },
     { id: 'task-state', priority: 0, text: await getTaskPrompt().catch(() => '') },
     { id: 'standing-instructions', priority: 0, text: await getStandingInstructionsPrompt().catch(() => '') },
     { id: 'awareness', priority: 1, text: getAwarenessPrompt() },
@@ -594,7 +595,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
         endTurn();
         lastTurnAt = Date.now();
         void recordTurn({ user: text, actions, reply: final });
-        void appendConversationTurn({ user: text, actions, reply: final, chatId });\n        void recordGoalOutcome(chatId, final).catch(() => undefined);
+        void appendConversationTurn({ user: text, actions, reply: final, chatId });
+        void recordGoalOutcome(chatId, final).catch(() => undefined);
         learnFromTurn({ user: text, actions, reply: final, failed: failLog });
         void observeTurn(text, used).catch(() => undefined);
         endModeTurn({ reply: final, failed: failures >= actions.length && actions.length > 0 });
@@ -693,7 +695,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
       // Interrupted — record WHO pulled the plug (F-13): a user Stop, a newer interactive
       // request, or a cancellation aimed at this source. Already-done work stays in context.
       const why = turnSource === 'scheduled' ? 'interrupted (scheduled turn cancelled)' : 'interrupted';
-      void recordInterrupted();\n      void recordGoalOutcome(chatId, '', why).catch(() => undefined);
+      void recordInterrupted();
+      void recordGoalOutcome(chatId, '', why).catch(() => undefined);
       history.length = turnStart;
       const note = actions.length ? `Interrupted. Already done: ${actions.join('; ')}.` : 'Interrupted before I did anything.';
       const u: Message = { role: 'user', content: text };
@@ -712,7 +715,8 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
     turnStarts.add(failed);
     history.push(failed, { role: 'assistant', content: `I could not finish that: ${message}` });
     trimHistory();
-    void recordFailedTurn(message);\n    void recordGoalOutcome(chatId, '', message).catch(() => undefined);
+    void recordFailedTurn(message);
+    void recordGoalOutcome(chatId, '', message).catch(() => undefined);
     void recordTurn({ user: text, actions, reply: '', error: message });
     void appendConversationTurn({ user: text, actions, reply: '', error: message, chatId });
     learnFromTurn({ user: text, actions, reply: '', failed: failLog, error: message });
