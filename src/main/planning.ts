@@ -3,6 +3,7 @@ import { atomicWrite } from './store';
 import * as path from 'path';
 import type { Tool } from './toolTypes';
 import { FILES_ROOT } from './workspace';
+import { executionSessionId } from './toolResult';
 
 const TODO_FILE = path.join(FILES_ROOT, 'todos.json');
 const PLAN_DIR = path.join(FILES_ROOT, 'plans');
@@ -14,7 +15,9 @@ interface Todo {
   status: (typeof STATUSES)[number];
 }
 
-let planning = false;
+const planningBySession = new Map<string, boolean>();
+const sessionKey = (): string => executionSessionId() ?? '__default__';
+const isPlanning = (): boolean => planningBySession.get(sessionKey()) === true;
 
 /** Tools that cannot change anything; the only ones allowed while planning. */
 const READ_ONLY = new Set([
@@ -27,7 +30,7 @@ const READ_ONLY = new Set([
 
 /** Returns a refusal message if `tool` is not allowed right now, else null. */
 export function planGuard(tool: string): string | null {
-  return planning && !READ_ONLY.has(tool)
+  return isPlanning() && !READ_ONLY.has(tool)
     ? `Blocked: plan mode is read-only. Call plan_exit with the plan, then run ${tool} — execution follows the plan automatically.`
     : null;
 }
@@ -38,7 +41,7 @@ export function planGuard(tool: string): string | null {
  * unrelated later requests. Each new turn therefore starts with plan mode off.
  */
 export function resetPlanMode(): void {
-  planning = false;
+  planningBySession.set(sessionKey(), false);
 }
 
 const loadTodos = async (): Promise<Todo[]> => {
@@ -91,7 +94,7 @@ export const planningTools: Record<string, Tool> = {
       'Enter read-only plan mode for a large or risky task: research with read-only tools, then call plan_exit with the plan. Nothing can be modified until you exit.',
     parameters: { type: 'object', properties: {} },
     run: () => {
-      planning = true;
+      planningBySession.set(sessionKey(), true);
       return 'Plan mode on. Only read-only tools are available. Investigate, then call plan_exit with the plan.';
     },
   },
@@ -103,7 +106,7 @@ export const planningTools: Record<string, Tool> = {
       required: ['plan'],
     },
     run: async (args) => {
-      planning = false;
+      planningBySession.set(sessionKey(), false);
       const file = path.join(PLAN_DIR, `${new Date().toISOString().replace(/[:.]/g, '-')}.md`);
       await fs.mkdir(PLAN_DIR, { recursive: true });
       await atomicWrite(file, String(args.plan ?? ''));

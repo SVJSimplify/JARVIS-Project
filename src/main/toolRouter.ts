@@ -1,4 +1,5 @@
 import type { ToolSchema } from './llm';
+import { executionSessionId } from './toolResult';
 
 type Family = {
   id: string;
@@ -127,11 +128,23 @@ const STICKY_TURNS = 6;
 const familyById = new Map(FAMILIES.map((f) => [f.id, f]));
 let all: ToolSchema[] = [];
 let familyOf = new Map<string, string>();
-let active = new Set<string>();
-let turnFamilies = new Set<string>();
-let touched = new Set<string>();
-let recent: Array<Set<string>> = [];
-let lastRoute: IntentRoute = { families: [], scores: {}, matchedCues: {}, confidence: 'low' };
+interface RouteSessionState {
+  active: Set<string>;
+  turnFamilies: Set<string>;
+  touched: Set<string>;
+  recent: Array<Set<string>>;
+  lastRoute: IntentRoute;
+}
+const routeStates = new Map<string, RouteSessionState>();
+const routeState = (): RouteSessionState => {
+  const id = executionSessionId() ?? '__default__';
+  let state = routeStates.get(id);
+  if (!state) {
+    state = { active: new Set<string>(), turnFamilies: new Set<string>(), touched: new Set<string>(), recent: [], lastRoute: { families: [], scores: {}, matchedCues: {}, confidence: 'low' } };
+    routeStates.set(id, state);
+  }
+  return state;
+};
 
 const normalize = (s: string): string =>
   s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -146,7 +159,7 @@ const familyForTool = (name: string): string => {
 export const setAllSchemas = (schemas: ToolSchema[]): void => {
   all = schemas;
   familyOf = new Map(schemas.map((schema) => [schema.function.name, familyForTool(schema.function.name)]));
-  rebuild();
+  for (const state of routeStates.values()) rebuild(state);
 };
 
 export function classifyIntent(input: string): IntentRoute {
@@ -191,39 +204,46 @@ export function resolveIntent(input: string, goalContext = ''): IntentRoute {
 }
 
 export function routeTurn(input: string): void {
-  lastRoute = classifyIntent(input);
-  turnFamilies = new Set(lastRoute.families);
-  touched = new Set(lastRoute.families);
-  recent.forEach((families) => families.forEach((id) => turnFamilies.add(id)));
-  rebuild();
+  const state = routeState();
+  state.lastRoute = classifyIntent(input);
+  state.turnFamilies = new Set(state.lastRoute.families);
+  state.touched = new Set(state.lastRoute.families);
+  state.recent.forEach((families) => families.forEach((id) => state.turnFamilies.add(id)));
+  rebuild(state);
 }
 
-function rebuild(): void {
-  active = new Set(
+function rebuild(state: RouteSessionState): void {
+  state.active = new Set(
     all
       .map((schema) => schema.function.name)
-      .filter((name) => CORE.has(name) || turnFamilies.has(familyOf.get(name) ?? 'advanced'))
+      .filter((name) => CORE.has(name) || state.turnFamilies.has(familyOf.get(name) ?? 'advanced'))
   );
 }
 
 export function noteUsed(name: string): void {
+  const state = routeState();
   const family = familyOf.get(name);
   if (!family || family === 'advanced') return;
-  turnFamilies.add(family);
-  touched.add(family);
-  rebuild();
+  state.turnFamilies.add(family);
+  state.touched.add(family);
+  rebuild(state);
 }
 
 export function endTurn(): void {
-  recent.push(new Set(touched));
-  while (recent.length > STICKY_TURNS) recent.shift();
+  const state = routeState();
+  state.recent.push(new Set(state.touched));
+  while (state.recent.length > STICKY_TURNS) state.recent.shift();
 }
 
-export const currentSchemas = (): ToolSchema[] => all.filter((schema) => active.has(schema.function.name));
+export const currentSchemas = (): ToolSchema[] => {
+  const state = routeState();
+  return all.filter((schema) => state.active.has(schema.function.name));
+};
 
-export const unloadedGroups = (): string =>
-  FAMILIES.filter((family) => !turnFamilies.has(family.id)).map((family) => `${family.id} (${family.hint})`).concat(
-    [...familyOf.values()].some((family) => family === 'advanced') && !turnFamilies.has('advanced')
+export const unloadedGroups = (): string => {
+  const state = routeState();
+  return FAMILIES.filter((family) => !state.turnFamilies.has(family.id)).map((family) => `${family.id} (${family.hint})`).concat(
+    [...familyOf.values()].some((family) => family === 'advanced') && !state.turnFamilies.has('advanced')
       ? ['advanced (specialist and less commonly used capabilities)']
       : []
   ).join('; ');
@@ -236,10 +256,11 @@ export function loadGroups(ids: unknown): string {
   if (unknown.length) return `Unknown group(s): ${unknown.join(', ')}. Available: ${[...valid].join(', ')}.`;
   const hit = loadAll ? [...valid] : requested;
   hit.forEach((id) => {
-    turnFamilies.add(id);
-    touched.add(id);
+    const state = routeState();
+    state.turnFamilies.add(id);
+    state.touched.add(id);
   });
-  rebuild();
+  rebuild(routeState());
   return hit.map((id) => {
     const names = all.filter((schema) => familyOf.get(schema.function.name) === id).map((schema) => schema.function.name);
     return `${id} loaded (${names.length} tools): ${names.join(', ') || 'no registered tools'}`;
@@ -262,6 +283,7 @@ export const groupInfo = (): Array<{ id: string; hint: string; tools: string[] }
 export const coreToolNames = (): string[] => [...CORE];
 
 export const routeSummary = (): string => {
+  const lastRoute = routeState().lastRoute;
   const selected = lastRoute.families.length
     ? lastRoute.families.map((id) => `${id} (${lastRoute.scores[id].toFixed(1)})`).join(', ')
     : 'no specialist family confidently matched';

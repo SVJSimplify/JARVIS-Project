@@ -13,6 +13,7 @@ import {
   unloadedGroups,
 } from '../src/main/toolRouter';
 import type { ToolSchema } from '../src/main/llm';
+import { runWithExecutionScope } from '../src/main/toolResult';
 
 const schema = (name: string): ToolSchema => ({
   type: 'function',
@@ -40,6 +41,24 @@ describe('JINI intent-aware capability router', () => {
   beforeEach(() => {
     setAllSchemas(ALL);
     routeTurn('hello there');
+  });
+
+  it('isolates capability routing state between independent sessions', async () => {
+    await runWithExecutionScope({ sessionId: 'route-session-research' }, async () => {
+      routeTurn('Research current battery technology evidence.');
+      expect(currentSchemas().map((item) => item.function.name)).toContain('web_search');
+      expect(currentSchemas().map((item) => item.function.name)).not.toContain('browser_open');
+    });
+    await runWithExecutionScope({ sessionId: 'route-session-browser' }, async () => {
+      routeTurn('Open my email inbox and check messages.');
+      expect(currentSchemas().map((item) => item.function.name)).toContain('browser_open');
+      expect(currentSchemas().map((item) => item.function.name)).not.toContain('web_search');
+      expect(routeSummary()).toContain('browser');
+    });
+    await runWithExecutionScope({ sessionId: 'route-session-research' }, async () => {
+      expect(currentSchemas().map((item) => item.function.name)).toContain('web_search');
+      expect(currentSchemas().map((item) => item.function.name)).not.toContain('browser_open');
+    });
   });
 
   it('keeps the always-available core intentionally small', () => {
