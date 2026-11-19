@@ -8,6 +8,7 @@ import type { ToolResultEnvelope } from './toolResult';
  */
 export interface AgentRuntimeContext {
   agentId: string;
+  sessionId?: string;
   agentName: string;
   taskId?: string;
   model: string;

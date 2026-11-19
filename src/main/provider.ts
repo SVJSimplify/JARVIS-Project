@@ -469,7 +469,7 @@ async function runTurn(text: string, onDelta: (d: string) => void, signal: Abort
   }
   const model = await getModel();
   if (!model) throw new Error('No model set. Open Settings and choose one.');
-  const hookContext = { agentId: chatId, agentName: 'JINI', model };
+  const hookContext = { agentId: chatId, sessionId: chatId, agentName: 'JINI', model };
   assertAgentHookContinues(await hooks?.beforeRun?.({ ...hookContext, prompt: text }));
   await emitAgentHook(hooks, { type: 'run-start', agentId: chatId, agentName: 'JINI' });
   // EVIDENCE-BACKED COMPLETION (Pillar 7): this turn is tracked from here on. Every tool

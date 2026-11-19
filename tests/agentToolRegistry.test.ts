@@ -23,6 +23,8 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
     const tools = registry.toToolMap(() => ({ agentId: 'task:research#1', signal: controller.signal, sessionId: 'session:research' }));
     expect(await tools.plugin_sample_plugin_lookup.run({ id: '42' })).toBe('{"ok":true,"agent":"task:research#1","plugin":"sample.plugin","aborted":false,"session":"session:research"}');
     expect(execute).toHaveBeenCalledOnce();
+    expect(execute.mock.calls[0][1].signal).toBe(controller.signal);
+    expect(execute.mock.calls[0][1].sessionId).toBe('session:research');
     registration.dispose();
     expect(registry.get('plugin_sample_plugin_lookup')).toBeUndefined();
   });
