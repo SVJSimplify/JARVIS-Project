@@ -1,27 +1,56 @@
-/** JINI plugin contract. Plugins observe lifecycle facts; they cannot replace tools, mutate arguments or bypass authorization. */
+/**
+ * JINI plugin contract. Plugins can observe lifecycle facts and contribute namespaced tools.
+ * Tool execution still passes through tools.ts: schema validation, risk classification,
+ * authorization, durable started/outcome receipts, cancellation and audit cannot be bypassed.
+ */
 import { runtimeEvents, type JiniRuntimeEvents, type RuntimeEventName } from './runtimeEvents';
+import { agentToolRegistry, type AgentTool } from './agentEngine/toolRegistry';
+
 export interface JiniPlugin {
   id: string;
   version: string;
   description?: string;
+  manifest?: { capabilities?: readonly string[] };
+  tools?: readonly AgentTool[];
   events: Partial<{ [K in RuntimeEventName<JiniRuntimeEvents>]: (payload: JiniRuntimeEvents[K]) => void }>;
 }
 export interface PluginRegistration { id: string; dispose: () => void; }
 const installed = new Map<string, PluginRegistration>();
+
 export function registerPlugin(plugin: JiniPlugin): PluginRegistration {
   const id = String(plugin.id ?? '').trim();
   if (!/^[a-z0-9][a-z0-9._-]{1,63}$/i.test(id)) throw new Error('Plugin id must be 2–64 safe characters.');
   if (installed.has(id)) throw new Error('Plugin "' + id + '" is already registered.');
   if (!plugin.version || plugin.version.length > 40) throw new Error('Plugin version is required and must be at most 40 characters.');
-  const disposers: Array<() => void> = [];
-  for (const [event, handler] of Object.entries(plugin.events ?? {})) {
-    if (typeof handler === 'function') disposers.push(runtimeEvents.on(event as RuntimeEventName<JiniRuntimeEvents>, handler as (payload: any) => void));
+
+  const contributedTools = plugin.tools ?? [];
+  if (contributedTools.length && !plugin.manifest?.capabilities?.includes('tools')) {
+    throw new Error('Plugin "' + id + '" must declare the "tools" capability before registering tools.');
   }
-  const registration: PluginRegistration = { id, dispose: () => {
-    if (installed.get(id) !== registration) return;
-    installed.delete(id);
+
+  const toolRegistration = contributedTools.length
+    ? agentToolRegistry.registerPluginTools(id, contributedTools)
+    : undefined;
+  const disposers: Array<() => void> = [];
+  try {
+    for (const [event, handler] of Object.entries(plugin.events ?? {})) {
+      if (typeof handler === 'function') disposers.push(runtimeEvents.on(event as RuntimeEventName<JiniRuntimeEvents>, handler as (payload: any) => void));
+    }
+  } catch (error) {
+    toolRegistration?.dispose();
     for (const dispose of disposers.splice(0)) dispose();
-  }};
+    throw error;
+  }
+
+  const registration: PluginRegistration = {
+    id,
+    dispose: () => {
+      if (installed.get(id) !== registration) return;
+      installed.delete(id);
+      for (const dispose of disposers.splice(0)) dispose();
+      toolRegistration?.dispose();
+    },
+  };
   installed.set(id, registration);
   return registration;
 }

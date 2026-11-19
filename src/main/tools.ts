@@ -29,6 +29,7 @@ import { withWriteLock } from './writeCoord';
 import { devTools } from './devTools';
 import { placeApp, stageTools } from './stage';
 import type { Tool } from './toolTypes';
+import { agentToolRegistry } from './agentEngine/toolRegistry';
 import { visionTools } from './vision';
 import { webTools } from './webTools';
 import { headlessTools } from './headless';
@@ -273,8 +274,13 @@ TOOLS.launch_app.parameters = {
 };
 TOOLS.launch_app.run = async (a) => `${await launch(a)} ${await placeApp(String(a.name ?? ''), typeof a.side === 'string' ? a.side : undefined)}`.trim();
 
+const schemaTools = (): Record<string, Tool> => ({
+  ...TOOLS,
+  ...agentToolRegistry.toToolMap(() => ({ agentId: callContext().agent, signal: executionSignal() })),
+});
+
 const schemas = (keep: (name: string) => boolean) =>
-  Object.entries(TOOLS)
+  Object.entries(schemaTools())
     .filter(([name]) => keep(name))
     .map(([name, t]) => ({
       type: 'function' as const,
@@ -314,14 +320,27 @@ Object.assign(TOOLS, playbookTools(runDetailed));
 // Skills are lightweight, on-demand instruction packs; they never bypass the shared tool policy.
 Object.assign(TOOLS, skillTools);
 
-export const toolRegistry = (): Record<string, Tool> => TOOLS;
+let builtinsRegistered = false;
+const ensureBuiltinsRegistered = (): void => {
+  if (builtinsRegistered) return;
+  for (const [name, tool] of Object.entries(TOOLS)) agentToolRegistry.registerBuiltin(name, tool);
+  builtinsRegistered = true;
+};
+
+/** One registry for built-in and plugin tools; custom tools are namespaced and remain policy-gated. */
+export const toolRegistry = (): Record<string, Tool> => {
+  ensureBuiltinsRegistered();
+  return agentToolRegistry.toToolMap(() => ({ agentId: callContext().agent, signal: executionSignal() }));
+};
 
 /** Runtime-generated capability context for the system prompt (see capabilityManifest.ts). */
-export const capabilityPrompt = (): string => manifestForPrompt(buildCapabilityManifest(TOOLS, TOOL_SCHEMAS));
+export const capabilityPrompt = (): string => manifestForPrompt(buildCapabilityManifest(toolRegistry(), TOOL_SCHEMAS));
 
 export { POLICY_STATEMENT };
 
 export function schemasFor(text: string): typeof TOOL_SCHEMAS {
+  // Refresh the model-visible snapshot so tools registered by plugins between turns are available.
+  setAllSchemas(schemas(() => true));
   routeTurn(text);
   return currentSchemas();
 }
@@ -372,7 +391,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Read-only tools: when the model asks for several at once they can run in parallel.
  *  NOT inferred from names: every parallel-safe tool declares `parallelSafe: true` on its
  *  definition, is listed in capabilityManifest.TESTED_PARALLEL, and both facts are tested. */
-export const isParallelSafe = (name: string): boolean => TOOLS[name]?.parallelSafe === true;
+export const isParallelSafe = (name: string): boolean => toolRegistry()[name]?.parallelSafe === true;
 
 // FULL AUTONOMY, SINGLE MODE: authorization still runs through the permission service
 // (permission.ts) at every call, but the three-level selector is gone — everything not
@@ -405,7 +424,8 @@ export async function runToolDetailed(requested: string, rawArgs: string): Promi
 
 async function runToolInner(requested: string, rawArgs: string): Promise<ToolResultEnvelope> {
   const t0 = Date.now();
-  const name = resolveTool(requested, TOOLS, (n) => isParallelSafe(n) || SAFE_RETRY.test(n)) ?? requested;
+  const registry = toolRegistry();
+  const name = resolveTool(requested, registry, (n) => isParallelSafe(n) || SAFE_RETRY.test(n)) ?? requested;
   const who = callContext();
   // One correlation id per call: the feed's busy line is replaced in place by the result.
   const cid = `t${t0.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -479,8 +499,8 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
     }
     // F-10: an unresolvable tool name is a structured error, never a substitution and
     // never a bare exception.
-    if (!TOOLS[name]) {
-      const near = Object.keys(TOOLS).filter((n) => n.includes(requested.split('_')[0]) || requested.includes(n)).slice(0, 6);
+    if (!registry[name]) {
+      const near = Object.keys(registry).filter((n) => n.includes(requested.split('_')[0]) || requested.includes(n)).slice(0, 6);
       recordTool(name, Date.now() - t0, `unknown tool "${requested}"`);
       emitTool({ label: requested, detail: 'unknown tool', status: 'fail', ms: Date.now() - t0 });
       return await finish(
@@ -491,7 +511,7 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
       );
     }
     try {
-      const tool = TOOLS[name];
+      const tool = registry[name];
       const blocked = planGuard(name);
       if (blocked) {
         emitTool({ detail: 'plan mode', status: 'fail', ms: Date.now() - t0 });
@@ -632,7 +652,7 @@ export async function runTool(requested: string, rawArgs: string): Promise<strin
 // Built LAST, after every tool (including load_tools, tool_log and list_capabilities) is in
 // the registry: a schema list captured mid-module used to hide those three from the model —
 // the manifest integrity test caught it, and this ordering makes that drift impossible.
-export const TOOL_SCHEMAS = schemas(() => true);
+export const TOOL_SCHEMAS = (() => { toolRegistry(); return schemas(() => true); })();
 
 setAllSchemas(TOOL_SCHEMAS);
 
