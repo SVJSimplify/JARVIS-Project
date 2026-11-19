@@ -164,7 +164,7 @@ export default function AgentsScreen() {
           <button key={item} onClick={() => setView(item)} className={'flex-1 rounded-lg px-2 py-2 text-[12px] font-medium capitalize ' + (view === item ? 'bg-surface text-text shadow-sm' : 'text-faint')}>{item}</button>
         ))}
       </div>
-      {!online && <p className="mt-3 rounded-xl bg-oat p-3 text-[11px] text-muted">Connect to your desktop to inspect live agent sessions, tools and plugins. Cached data remains on screen.</p>}
+      {!online && <p className="mt-3 rounded-xl bg-oat p-3 text-[11px] text-muted">Connect to your desktop to inspect live agent sessions, tools and plugins.</p>}
       {error && <p role="alert" className="mt-3 rounded-xl border border-[#E7C7BD] bg-[#FBF0ED] p-3 text-[12px] text-[#9A4D3D]">{error}</p>}
 
       {view === 'sessions' && (
