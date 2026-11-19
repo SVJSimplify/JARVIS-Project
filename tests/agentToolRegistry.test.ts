@@ -54,7 +54,7 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
     registry = new AgentToolRegistry();
     registry.registerPluginTools('sample.plugin', [{
       name: 'lookup', description: 'Lookup', inputSchema: { type: 'object' }, execute: () => 'ok',
-      executionMode: 'parallel',
+      action: 'read', executionMode: 'parallel',
     }]);
     const name = 'plugin_sample_plugin_lookup';
     expect(registry.namespace('sample.plugin')).toBe('plugin_sample_plugin_');
