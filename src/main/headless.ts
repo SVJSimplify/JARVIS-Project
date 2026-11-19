@@ -84,7 +84,8 @@ const closeHeadless = (): void => {
   if (win && !win.isDestroyed()) win.destroy();
   win = null;
 };
-app.on('will-quit', closeHeadless);
+// Importing the tool module in headless/unit-test contexts must not require a live Electron app.
+if (app && typeof app.on === 'function') app.on('will-quit', closeHeadless);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
