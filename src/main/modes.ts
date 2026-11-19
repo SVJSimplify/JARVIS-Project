@@ -74,7 +74,14 @@ let notify: ModesConfig['notify'];
 let onEventHook: ModesConfig['onEvent'];
 let onTurnHook: ModesConfig['onTurn'];
 let seq = 0;
-let digest = freshDigest();
+const digests = new Map<string, Digest>();
+const sessionKey = (): string => executionSessionId() ?? '__default__';
+const currentDigest = (): Digest => {
+  const id = sessionKey();
+  let value = digests.get(id);
+  if (!value) { value = freshDigest(); digests.set(id, value); }
+  return value;
+};
 const ring: ActivityEvent[] = [];
 let switchChain: Promise<unknown> = Promise.resolve();
 
@@ -100,7 +107,7 @@ export function initModes(cfg: ModesConfig = {}): Promise<void> {
   onEventHook = cfg.onEvent;
   onTurnHook = cfg.onTurn;
   mode = 'interactive';
-  digest = freshDigest();
+  digests.clear();
   ring.length = 0;
   if (!file) return Promise.resolve();
   return loadJson<{ mode?: string }>(file, {})
@@ -167,6 +174,7 @@ export function emitActivity(e: Omit<ActivityEvent, 'id' | 't'>): ActivityEvent 
   } catch {
     /* a broken mirror must not break the tool being reported */
   }
+  const digest = currentDigest();
   if (digest.open && e.kind !== 'mode') {
     digest.steps++;
     if (e.status === 'fail') digest.failures++;
@@ -189,7 +197,8 @@ export function holdSpeech(text: string): boolean {
 
 /** Open the per-turn digest. Called once per conversational turn, before any tool runs. */
 export function beginTurn(task: string): void {
-  digest = { ...freshDigest(), open: true, task: clip(oneLine(task), TASK_CAP), startedAt: Date.now(), background: isBackground() };
+  const digest = { ...freshDigest(), open: true, task: clip(oneLine(task), TASK_CAP), startedAt: Date.now(), background: isBackground() };
+  digests.set(sessionKey(), digest);
   try {
     onTurnHook?.('start', digest.task);
   } catch {
@@ -206,7 +215,7 @@ export function endTurn(res: { reply?: string; failed?: boolean; interrupted?: b
   try {
     if (!digest.open) return null;
     const d = digest;
-    digest = freshDigest();
+    digests.clear();
     // The progress tracker learns the outcome in BOTH modes (before the background
     // early-return below): a finished silent turn must still freeze its checklist.
     try {

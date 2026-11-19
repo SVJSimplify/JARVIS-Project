@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { runWithExecutionScope } from '../src/main/toolResult';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -30,6 +31,33 @@ function boot(opts: { file?: string } = {}) {
   });
   return { pushes, notes, channels: () => pushes.map((p) => p.channel) };
 }
+
+describe('session-scoped turn digests', () => {
+  it('keeps progress counters and end-of-turn summaries independent', async () => {
+    await initModes();
+    await setMode('background');
+    const a: string[] = [];
+    const b: string[] = [];
+    await runWithExecutionScope({ sessionId: 'mode-session-a' }, async () => {
+      beginTurn('research task');
+      emitActivity({ kind: 'tool', label: 'web_search', status: 'fail' });
+    });
+    await runWithExecutionScope({ sessionId: 'mode-session-b' }, async () => {
+      beginTurn('writing task');
+      emitActivity({ kind: 'tool', label: 'write_file', status: 'ok' });
+      const result = endTurn({ reply: 'Written.' });
+      b.push(result?.body ?? '');
+    });
+    await runWithExecutionScope({ sessionId: 'mode-session-a' }, async () => {
+      const result = endTurn({ reply: 'Research incomplete.', failed: true });
+      a.push(result?.body ?? '');
+    });
+    expect(a[0]).toContain('research task');
+    expect(a[0]).toContain('1 steps failed');
+    expect(b[0]).toContain('Written.');
+    expect(b[0]).not.toContain('research task');
+  });
+});
 
 describe('mode state and persistence', () => {
   it('defaults to interactive and offers both modes', () => {
