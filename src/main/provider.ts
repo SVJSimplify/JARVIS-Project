@@ -105,6 +105,8 @@ const sessionStates = new Map<string, SessionExecutionState>();
 let activeSessionId = '';
 let history: Message[] = [];
 let lastTurnAt = 0;
+let projectTurn = false;
+let projectContextAt = 0;
 const sessionState = (id: string): SessionExecutionState => {
   let state = sessionStates.get(id);
   if (!state) { state = { history: [], lastTurnAt: 0, projectTurn: false, projectContextAt: 0, turnContext: '' }; sessionStates.set(id, state); }
@@ -358,8 +360,9 @@ const turnControllers = new Map<string, Set<AbortController>>();
  *  always takes precedence over background work. */
 let turnSource: 'interactive' | 'scheduled' = 'interactive';
 // One execution queue per chat. Independent conversations no longer block one another.
-const turnChains = new Map<string, Promise<unknown>>();
-let legacyTurnChain: Promise<unknown> = Promise.resolve();
+// Provider state is still process-global for legacy helpers; serialize execution until
+// the final per-turn state extraction is complete. Session cancellation remains scoped.
+let turnChain: Promise<unknown> = Promise.resolve();
 
 /** Stop the active turn, or only the turns owned by one chat/session when an id is supplied. */
 export function cancelChat(chatId?: string): void {
@@ -419,15 +422,14 @@ export function chat(
       turnAbort?.abort();
     }
   }
-  // Scheduled turns serialize behind work in their own session. Interactive turns
-  // interrupt only that session's current turn; other sessions execute independently.
+  // Keep model execution serialized while legacy prompt helpers are migrated to
+  // per-session state. Cancellation remains targeted to the owning session above.
   const ctl = new AbortController();
   const controllerKey = chatIdOpt ?? '__active__';
   const owned = turnControllers.get(controllerKey) ?? new Set<AbortController>();
   owned.add(ctl);
   turnControllers.set(controllerKey, owned);
-  const chain = chatIdOpt ? (turnChains.get(chatIdOpt) ?? Promise.resolve()) : legacyTurnChain;
-  const p = chain.catch(() => undefined).then(async () => {
+  const p = turnChain.catch(() => undefined).then(async () => {
     if (ctl.signal.aborted) return '';
     turnAbort = ctl;
     turnSource = source;
@@ -437,19 +439,13 @@ export function chat(
       runTurn(text, onDelta, ctl.signal, onProgress, sessionId, imagesOpt, hooksOpt)
     );
   });
-  const settled = p.catch(() => undefined).then(() => {
+  turnChain = p.catch(() => undefined).then(() => {
     if (currentTurnSignal() === ctl.signal) setTurnSignal(null);
     if (turnAbort === ctl) turnAbort = null;
     const remaining = turnControllers.get(controllerKey);
     remaining?.delete(ctl);
     if (remaining?.size === 0) turnControllers.delete(controllerKey);
   });
-  if (chatIdOpt) {
-    turnChains.set(chatIdOpt, settled);
-    void settled.then(() => { if (turnChains.get(chatIdOpt) === settled) turnChains.delete(chatIdOpt); });
-  } else {
-    legacyTurnChain = settled;
-  }
   return p;
 }
 
