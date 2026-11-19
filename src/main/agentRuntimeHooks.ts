@@ -29,3 +29,14 @@ export async function emitAgentHook(
 ): Promise<void> {
   try { await hooks?.onEvent?.(event); } catch (error) { console.warn('[agent-hooks] event observer failed', error); }
 }
+
+/** A policy hook that requests a stop must be honored by the execution loop. */
+export function assertAgentHookContinues(decision: void | { stop: true; reason: string }): void {
+  if (decision?.stop) throw new Error(`Agent run stopped by lifecycle hook: ${decision.reason || 'no reason supplied'}`);
+}
+
+/** Lifecycle observers are non-authoritative and must never rewrite task outcomes. */
+export async function observeAgentHook<T>(callback: (() => Promise<T> | T) | undefined): Promise<void> {
+  if (!callback) return;
+  try { await callback(); } catch (error) { console.warn('[agent-hooks] lifecycle observer failed', error); }
+}

@@ -7,7 +7,7 @@ import { runWithCallContext } from './toolRecord';
 import { runWithExecutionScope, asEnvelope, type ToolResultEnvelope } from './toolResult';
 import { agentBegin, agentWaiting, agentResume, agentEnd, agentNote } from './agentTracker';
 import { emitActivity } from './modes';
-import { emitAgentHook, type AgentRuntimeHooks, type AgentRuntimeContext } from './agentRuntimeHooks';
+import { emitAgentHook, assertAgentHookContinues, observeAgentHook, type AgentRuntimeHooks, type AgentRuntimeContext } from './agentRuntimeHooks';
 
 /** A runner returns the structured envelope (F-07); legacy text runners are normalized
  *  with the documented prefix contract as the fallback. */
@@ -203,7 +203,7 @@ async function runSubagentBody(
     const hardMs = Math.max((def?.maxMs ?? 10 * 60_000) * 2, 120_000);
     const signal = parentSignal ? AbortSignal.any([parentSignal, AbortSignal.timeout(hardMs)]) : AbortSignal.timeout(hardMs);
     const hookContext: AgentRuntimeContext = { agentId: childId, agentName, taskId: opts.taskId, model };
-    await opts.hooks?.beforeRun?.({ ...hookContext, prompt });
+    assertAgentHookContinues(await opts.hooks?.beforeRun?.({ ...hookContext, prompt }));
     await emitAgentHook(opts.hooks, { type: 'run-start', agentId: childId, agentName });
     const today = new Date().toLocaleDateString('en-GB', { dateStyle: 'full' });
     const started = Date.now();
@@ -226,17 +226,17 @@ async function runSubagentBody(
         messages.push({ role: 'user', content: 'Budget nearly spent. Write your FINAL REPORT now from what you have; do not call more tools. State honestly what is unfinished.' });
       }
       const wrapping = left <= wrapAt || fails >= MAX_FAILS || overTime;
-      await opts.hooks?.beforeModel?.({ ...hookContext, round, messages, tools: wrapping ? [] : tools });
+      assertAgentHookContinues(await opts.hooks?.beforeModel?.({ ...hookContext, round, messages, tools: wrapping ? [] : tools }));
       await emitAgentHook(opts.hooks, { type: 'model-start', agentId: childId, agentName, round });
       const { content, toolCalls } = await completeOnce(model, messages, wrapping ? [] : tools, signal);
-      await opts.hooks?.afterModel?.({ ...hookContext, round, content, toolCalls });
+      await observeAgentHook(() => opts.hooks?.afterModel?.({ ...hookContext, round, content, toolCalls }));
       await emitAgentHook(opts.hooks, { type: 'model-end', agentId: childId, agentName, round });
       messages.push({ role: 'assistant', content: content || null, tool_calls: toolCalls.length && !wrapping ? toolCalls : undefined });
       if (wrapping || !toolCalls.length) {
         const report = content.trim() || 'Sub-agent finished without a report.';
         agentNote(childId, clipWhy(report));
         trackEnd('done', clipWhy(report));
-        await opts.hooks?.afterRun?.({ ...hookContext, status: 'completed', output: report });
+        await observeAgentHook(() => opts.hooks?.afterRun?.({ ...hookContext, status: 'completed', output: report }));
         await emitAgentHook(opts.hooks, { type: 'run-end', agentId: childId, agentName, status: 'completed' });
         // ROUND 31 (§4.3): agent outputs are ATTRIBUTABLE — the report carries the agent
         // identity and run id at the end (a suffix, so report-shape contracts like the
@@ -251,7 +251,7 @@ async function runSubagentBody(
           if (def && !agentAllows(def, call.function.name)) {
             return { text: `BLOCKED: ${call.function.name} is not available to the ${def.name} agent. Use only your own tools.`, status: 'error', errorKind: 'blocked' };
           }
-          await opts.hooks?.beforeTool?.({ ...hookContext, round, call });
+          assertAgentHookContinues(await opts.hooks?.beforeTool?.({ ...hookContext, round, call }));
           await emitAgentHook(opts.hooks, { type: 'tool-start', agentId: childId, agentName, round, tool: call.function.name });
           const key = `${call.function.name}:${call.function.arguments}`;
           const prior = seen.get(key);
@@ -260,7 +260,7 @@ async function runSubagentBody(
           // otherwise) governs every tool it dispatches.
           const res = normalize(await runWithExecutionScope({ signal }, () => run(call.function.name, call.function.arguments)));
           seen.set(key, res.text);
-          await opts.hooks?.afterTool?.({ ...hookContext, round, call, result: res });
+          await observeAgentHook(() => opts.hooks?.afterTool?.({ ...hookContext, round, call, result: res }));
           await emitAgentHook(opts.hooks, { type: 'tool-end', agentId: childId, agentName, round, tool: call.function.name, status: res.status });
           return res;
         })
@@ -289,7 +289,7 @@ async function runSubagentBody(
     const msg = e instanceof Error ? e.message : String(e);
     const cancelled = msg === 'Interrupted' || (opts.signal?.aborted ?? false);
     trackEnd(cancelled ? 'cancelled' : 'failed', clipWhy(msg));
-    await opts.hooks?.afterRun?.({ agentId: childId, agentName, taskId: opts.taskId, model: opts.model ?? '', status: cancelled ? 'aborted' : 'failed', error: msg }).catch((hookError) => console.warn('[agent-hooks] afterRun failed', hookError));
+    await observeAgentHook(() => opts.hooks?.afterRun?.({ agentId: childId, agentName, taskId: opts.taskId, model: opts.model ?? '', status: cancelled ? 'aborted' : 'failed', error: msg }));
     await emitAgentHook(opts.hooks, { type: 'run-end', agentId: childId, agentName, status: cancelled ? 'aborted' : 'failed' });
     throw e;
   }
