@@ -1,45 +1,28 @@
 /**
- * CONTEXT BUDGETING (Round 31 §3.5) — how JARVIS assembles the per-turn context blocks
- * that accompany the system prompt.
+ * CONTEXT BUDGETING (Round 31 §3.5) — assemble per-turn context under a hard ceiling.
  *
- * Rules enforced here, in one place:
- *  - PRIORITY: critical blocks survive budget pressure before disposable context.
- *  - DEDUPLICATION: higher-priority blocks own duplicate lines, regardless of input order.
- *  - BOUNDED: the FINAL output, including omission notices, never exceeds the budget.
- *  - HONESTY: omitted or trimmed context is disclosed within the same hard budget.
- *
+ * Priority determines ownership and allocation; caller order determines display order.
+ * The final text, including any omission notice, never exceeds the supplied budget.
  * Pure module: no fs, no electron, no model calls.
  */
-
 export interface ContextBlock {
-  /** Stable id for diagnostics ('memory', 'learning', 'user-model', ...). */
   id: string;
-  /** The block body ('' blocks are skipped entirely — no padding). */
   text: string;
-  /** Higher priority survives budget pressure first (0 = critical, 5 = disposable). */
+  /** 0 = critical, larger values = increasingly disposable. */
   priority: number;
 }
-
 export interface AssembledContext {
   text: string;
-  /** Blocks that were included, in assembly order. */
   included: string[];
-  /** Blocks dropped entirely or trimmed, with the reason. */
   dropped: Array<{ id: string; reason: string }>;
-  /** Lines removed because an earlier, higher-priority block already carried them. */
   dedupedLines: number;
   totalChars: number;
 }
+const normLine = (line: string): string =>
+  line.replace(/[*_#>]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+const joinParts = (parts: Array<string | undefined>): string =>
+  parts.filter((part): part is string => Boolean(part)).join('\n\n');
 
-/** Strip markdown decoration for comparison; keeps identifiers intact. */
-const normLine = (line: string): string => line.replace(/[*_`#>]/g, '').replace(/\\s+/g, ' ').trim().toLowerCase();
-
-const joinParts = (parts: Array<string | undefined>): string => parts.filter((part): part is string => Boolean(part)).join('\\n\\n');
-
-/**
- * Assemble context under a strict character ceiling. Dedupe ownership is decided in
- * priority order, while the final display order remains the caller's original order.
- */
 export function assembleTurnContext(blocks: ContextBlock[], budgetChars: number): AssembledContext {
   const budget = Number.isFinite(budgetChars) ? Math.max(0, Math.floor(budgetChars)) : 0;
   const usable = blocks
@@ -50,13 +33,13 @@ export function assembleTurnContext(blocks: ContextBlock[], budgetChars: number)
   const dropped: AssembledContext['dropped'] = [];
   let dedupedLines = 0;
 
-  // The highest-priority occurrence owns a line even when its block appears later.
-  const ownershipOrder = [...usable].sort(
+  // Deduplicate in priority order so low-priority context cannot shadow a critical fact.
+  const priorityOrder = [...usable].sort(
     (a, b) => a.block.priority - b.block.priority || a.index - b.index,
   );
-  for (const { block, index } of ownershipOrder) {
+  for (const { block, index } of priorityOrder) {
     const fresh: string[] = [];
-    for (const line of block.text.split('\\n')) {
+    for (const line of block.text.split('\n')) {
       const key = normLine(line);
       if (key.length > 3 && seen.has(key)) {
         dedupedLines++;
@@ -65,21 +48,23 @@ export function assembleTurnContext(blocks: ContextBlock[], budgetChars: number)
       if (key.length > 3) seen.add(key);
       fresh.push(line);
     }
-    dedupedText.set(index, fresh.join('\\n').trim());
+    dedupedText.set(index, fresh.join('\n').trim());
   }
 
+  const totalDedupedChars = [...dedupedText.values()].reduce((sum, value) => sum + value.length, 0)
+    + Math.max(0, [...dedupedText.values()].filter(Boolean).length - 1) * 2;
+  const notice = '[CONTEXT BUDGET] Some context was omitted or deduplicated; use only the retained information.';
+  const needsNotice = totalDedupedChars > budget || dedupedLines > 0;
+  const contentBudget = needsNotice ? Math.max(0, budget - notice.length - 2) : budget;
   const parts: Array<string | undefined> = [];
   const includedSet = new Set<string>();
   let used = 0;
-  const allocationOrder = [...usable].sort(
-    (a, b) => a.block.priority - b.block.priority || a.index - b.index,
-  );
 
-  for (const { block, index } of allocationOrder) {
+  for (const { block, index } of priorityOrder) {
     const value = dedupedText.get(index) ?? '';
     if (!value) continue;
     const separator = used > 0 ? 2 : 0;
-    const remaining = Math.max(0, budget - used - separator);
+    const remaining = Math.max(0, contentBudget - used - separator);
     if (value.length <= remaining) {
       parts[index] = value;
       includedSet.add(block.id);
@@ -87,89 +72,42 @@ export function assembleTurnContext(blocks: ContextBlock[], budgetChars: number)
       continue;
     }
 
-    // Core blocks may be clipped on line boundaries; lower-priority blocks are dropped.
-    if (block.priority <= 2 && remaining > 120) {
-      const lines = value.split('\\n');
+    if (block.priority <= 2 && remaining > 0) {
+      const lines = value.split('\n');
       const kept: string[] = [];
       let chars = 0;
       for (const line of lines) {
         const next = chars + (kept.length ? 1 : 0) + line.length;
-        if (next > remaining - 80) break;
+        if (next > remaining) break;
         kept.push(line);
         chars = next;
       }
       if (kept.length) {
-        parts[index] = kept.join('\\n');
+        parts[index] = kept.join('\n');
         includedSet.add(block.id);
         used += separator + parts[index]!.length;
-        dropped.push({ id: block.id, reason: `trimmed to fit budget (${lines.length - kept.length} line(s) omitted)` });
+        dropped.push({
+          id: block.id,
+          reason: 'trimmed to fit the context budget (' + (lines.length - kept.length) + ' line(s) omitted)',
+        });
         continue;
       }
     }
     dropped.push({ id: block.id, reason: 'context budget exhausted' });
   }
 
-  const hasNotice = dropped.length > 0 || dedupedLines > 0;
-  let notice = hasNotice
-    ? `[CONTEXT BUDGET]${dedupedLines > 0 ? ` ${dedupedLines} duplicated line(s) removed (owned by higher-priority context)` : ''}${dropped.length ? ` · omitted for space: ${dropped.map((d) => `${d.id} (${d.reason})`).join(', ')}` : ''}. What you see here is everything that survived.`
-    : '';
+  const body = joinParts(parts);
+  const showNotice = needsNotice || dropped.length > 0;
+  let text = showNotice ? [body, notice].filter(Boolean).join('\n\n') : body;
 
-  // Reserve room for the disclosure and reclaim the excess from the lowest-priority
-  // included blocks first. This closes the old edge case where the notice pushed the
-  // final prompt over budget even though the blocks themselves fit.
-  if (notice.length > budget) notice = notice.slice(0, budget);
-  const contentBudget = Math.max(0, budget - notice.length - (notice ? 2 : 0));
-  let body = joinParts(parts);
-  if (body.length > contentBudget) {
-    const trimOrder = [...usable].sort(
-      (a, b) => b.block.priority - a.block.priority || b.index - a.index,
-    );
-    for (const { block, index } of trimOrder) {
-      if (body.length <= contentBudget) break;
-      const current = parts[index];
-      if (!current) continue;
-      const excess = body.length - contentBudget;
-      const target = Math.max(0, current.length - excess);
-      if (target === 0) {
-        parts[index] = undefined;
-        includedSet.delete(block.id);
-        if (!dropped.some((item) => item.id === block.id)) {
-          dropped.push({ id: block.id, reason: 'trimmed to make room for the context notice' });
-        }
-      } else {
-        const prefix = current.slice(0, target);
-        const lineBoundary = prefix.lastIndexOf('\\n');
-        const kept = lineBoundary > 0 ? prefix.slice(0, lineBoundary) : '';
-        parts[index] = kept || undefined;
-        if (!kept) includedSet.delete(block.id);
-        if (!dropped.some((item) => item.id === block.id)) {
-          dropped.push({ id: block.id, reason: 'trimmed to make room for the context notice' });
-        }
-      }
-      body = joinParts(parts);
-    }
-  }
-
-  // Rebuild the notice after final trimming, then enforce the hard limit as a last guard.
-  if (dropped.length || dedupedLines > 0) {
-    notice = `[CONTEXT BUDGET]${dedupedLines > 0 ? ` ${dedupedLines} duplicated line(s) removed (owned by higher-priority context)` : ''}${dropped.length ? ` · omitted for space: ${dropped.map((d) => `${d.id} (${d.reason})`).join(', ')}` : ''}. What you see here is everything that survived.`;
-  }
-  let text = [body, notice].filter(Boolean).join('\\n\\n');
+  // Defensive final guard for tiny budgets and unexpected separator/accounting changes.
   if (text.length > budget) {
-    // Extremely small budgets cannot carry a complete notice; keep the notice honest
-    // and bounded rather than allowing prompt construction to exceed its contract.
-    text = notice ? notice.slice(0, budget) : body.slice(0, budget);
+    text = showNotice ? notice.slice(0, budget) : body.slice(0, budget);
   }
 
   const included = usable
     .filter(({ index }) => includedSet.has(blocks[index].id) && Boolean(parts[index]))
     .map(({ block }) => block.id);
 
-  return {
-    text,
-    included,
-    dropped,
-    dedupedLines,
-    totalChars: text.length,
-  };
+  return { text, included, dropped, dedupedLines, totalChars: text.length };
 }
