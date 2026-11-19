@@ -399,12 +399,16 @@ export function chat(
   // Ownership (turnAbort/turnSource/turnSignal) transfers only when this turn ACTUALLY
   // starts running — a queued scheduled turn must never steal the running turn's signal
   // while it waits (Stop must keep stopping the turn that is really executing).
-  const p = turnChain.then(() => {
+  const p = turnChain.then(async () => {
     if (ctl.signal.aborted) return '';
     turnAbort = ctl;
     turnSource = source;
     setTurnSignal(ctl.signal); // sub-agents check this so Stop also stops them
-    return runTurn(text, onDelta, ctl.signal, onProgress, chatIdOpt, imagesOpt, hooksOpt);
+    const sessionId = chatIdOpt ?? (await getActiveChatId().catch(() => 'default'));
+    // Nested tool scopes inherit the owning session alongside the cancellation signal.
+    return runWithExecutionScope({ signal: ctl.signal, sessionId }, () =>
+      runTurn(text, onDelta, ctl.signal, onProgress, sessionId, imagesOpt, hooksOpt)
+    );
   });
   turnChain = p
     .catch(() => undefined)

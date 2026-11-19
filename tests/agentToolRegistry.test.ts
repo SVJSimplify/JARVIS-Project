@@ -7,8 +7,8 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
 
   it('registers namespaced plugin tools and passes execution context', async () => {
     registry = new AgentToolRegistry();
-    const execute = vi.fn(async (_input: Record<string, unknown>, context: { agentId: string; pluginId?: string; signal?: AbortSignal }) => ({
-      ok: true, agent: context.agentId, plugin: context.pluginId, aborted: context.signal?.aborted ?? false,
+    const execute = vi.fn(async (_input: Record<string, unknown>, context: { agentId: string; pluginId?: string; signal?: AbortSignal; sessionId?: string }) => ({
+      ok: true, agent: context.agentId, plugin: context.pluginId, aborted: context.signal?.aborted ?? false, session: context.sessionId,
     }));
     const registration = registry.registerPluginTools('sample.plugin', [{
       name: 'lookup',
@@ -20,8 +20,8 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
     }]);
     expect(registration.names).toEqual(['plugin_sample_plugin_lookup']);
     const controller = new AbortController();
-    const tools = registry.toToolMap(() => ({ agentId: 'task:research#1', signal: controller.signal }));
-    expect(await tools.plugin_sample_plugin_lookup.run({ id: '42' })).toBe('{"ok":true,"agent":"task:research#1","plugin":"sample.plugin","aborted":false}');
+    const tools = registry.toToolMap(() => ({ agentId: 'task:research#1', signal: controller.signal, sessionId: 'session:research' }));
+    expect(await tools.plugin_sample_plugin_lookup.run({ id: '42' })).toBe('{"ok":true,"agent":"task:research#1","plugin":"sample.plugin","aborted":false,"session":"session:research"}');
     expect(execute).toHaveBeenCalledOnce();
     registration.dispose();
     expect(registry.get('plugin_sample_plugin_lookup')).toBeUndefined();

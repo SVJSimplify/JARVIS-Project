@@ -47,13 +47,14 @@ interface ScopeState {
   errorKind?: string;
   soft?: boolean;
   signal?: AbortSignal;
+  sessionId?: string;
 }
 const als = new AsyncLocalStorage<ScopeState>();
 
 /** Run `fn` inside a fresh result/signal scope (innermost scope wins for signals). */
-export async function runWithExecutionScope<T>(scope: { signal?: AbortSignal }, fn: () => Promise<T>): Promise<T> {
+export async function runWithExecutionScope<T>(scope: { signal?: AbortSignal; sessionId?: string }, fn: () => Promise<T>): Promise<T> {
   const parent = als.getStore();
-  return als.run({ status: 'success', signal: scope.signal ?? parent?.signal }, fn);
+  return als.run({ status: 'success', signal: scope.signal ?? parent?.signal, sessionId: scope.sessionId ?? parent?.sessionId }, fn);
 }
 
 /** Tools may narrow the status of their own call mid-run (e.g. conflict detection). */
@@ -74,6 +75,9 @@ export const currentToolStatus = (): { status: ToolStatus; errorKind?: string; s
 
 /** The cancellation signal governing the work running in this scope, if any. */
 export const executionSignal = (): AbortSignal | undefined => als.getStore()?.signal;
+
+/** The durable conversation/session owning the current tool call, when present. */
+export const executionSessionId = (): string | undefined => als.getStore()?.sessionId;
 
 /** Combine the scope signal with any extra signals (timeouts) into one, without denying plain timeouts when no scope exists. */
 export const withTimeout = (ms: number, extra?: AbortSignal[]): AbortSignal =>

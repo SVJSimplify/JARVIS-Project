@@ -9,7 +9,7 @@
  */
 import type { Tool } from '../toolTypes';
 import type { ActionClass } from '../permission';
-import { executionSignal } from '../toolResult';
+import { executionSignal, executionSessionId } from '../toolResult';
 
 export interface AgentToolDefinition {
   name: string;
@@ -27,6 +27,7 @@ export interface AgentToolContext {
   agentId: string;
   pluginId?: string;
   signal?: AbortSignal;
+  sessionId?: string;
 }
 
 export interface AgentTool extends AgentToolDefinition {
@@ -57,6 +58,7 @@ interface Entry {
 export interface ToolExecutionContext {
   agentId: string;
   signal?: AbortSignal;
+  sessionId?: string;
 }
 
 const NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
@@ -140,7 +142,7 @@ export class AgentToolRegistry {
         description: agentTool.description,
         parameters: agentTool.inputSchema,
         parallelSafe: agentTool.parallelSafe === true || agentTool.executionMode === 'parallel',
-        run: async (args) => stringifyOutput(await agentTool.execute(args, { agentId: 'main', pluginId: id, signal: executionSignal() })),
+        run: async (args) => stringifyOutput(await agentTool.execute(args, { agentId: 'main', pluginId: id, signal: executionSignal(), sessionId: executionSessionId() })),
       };
       pending.push({ name, tool, source: 'plugin', pluginId: id, agentTool, enabled: true, action, resource: agentTool.resource });
     }
@@ -237,6 +239,7 @@ export class AgentToolRegistry {
         run: async (args) => stringifyOutput(await agentTool.execute(args, {
           ...contextProvider(),
           pluginId: entry.pluginId,
+          sessionId: executionSessionId(),
         })),
       };
     }

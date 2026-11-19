@@ -330,7 +330,7 @@ const ensureBuiltinsRegistered = (): void => {
 /** One registry for built-in and plugin tools; custom tools are namespaced and remain policy-gated. */
 export const toolRegistry = (): Record<string, Tool> => {
   ensureBuiltinsRegistered();
-  return agentToolRegistry.toToolMap(() => ({ agentId: callContext().agent, signal: executionSignal() }));
+  return agentToolRegistry.toToolMap(() => ({ agentId: callContext().agent, signal: executionSignal(), sessionId: executionSessionId() }));
 };
 
 /** Runtime-generated capability context for the system prompt (see capabilityManifest.ts). */
