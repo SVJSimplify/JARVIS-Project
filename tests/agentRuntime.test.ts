@@ -140,6 +140,8 @@ describe('Cline-compatible JINI agent session runtime', () => {
       cancelChat: vi.fn(() => finishFirst?.('')),
     };
     const runtime = new AgentRuntime(driver, persistence);
+    const events: string[] = [];
+    await runtime.subscribe((event) => events.push(event.type), 'same-session');
     let started!: () => void;
     const firstStarted = new Promise<void>((resolve) => { started = resolve; });
     driver.chat.mockImplementation((prompt: string) => {
@@ -152,6 +154,7 @@ describe('Cline-compatible JINI agent session runtime', () => {
     await expect(first).resolves.toBe('');
     await expect(second).resolves.toBe('second');
     expect(driver.cancelChat).toHaveBeenCalledWith('same-session');
+    expect(events).toContain('abort-requested');
     expect(driver.chat).toHaveBeenCalledTimes(2);
   });
 

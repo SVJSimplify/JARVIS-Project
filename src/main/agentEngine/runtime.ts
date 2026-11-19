@@ -32,7 +32,7 @@ export interface AgentSessionSnapshot {
 export interface AgentRuntimeEvent {
   eventId: string;
   sequence: number;
-  type: 'session-created' | 'run-start' | 'model-start' | 'model-end' | 'tool-start' | 'tool-end' | 'delta' | 'progress' | 'run-end' | 'session-restored';
+  type: 'session-created' | 'abort-requested' | 'run-start' | 'model-start' | 'model-end' | 'tool-start' | 'tool-end' | 'delta' | 'progress' | 'run-end' | 'session-restored';
   sessionId: string;
   at: number;
   status: AgentSessionStatus;
@@ -108,7 +108,7 @@ export class AgentRuntime {
             if (!item || typeof item !== 'object') continue;
             const event = item as Partial<AgentRuntimeEvent>;
             if (typeof event.eventId !== 'string' || !event.eventId || !Number.isSafeInteger(event.sequence) || !Number.isFinite(event.at) || typeof event.sessionId !== 'string' || !validStatus(event.status)) continue;
-            if (!['session-created', 'run-start', 'model-start', 'model-end', 'tool-start', 'tool-end', 'delta', 'progress', 'run-end', 'session-restored'].includes(String(event.type))) continue;
+            if (!['session-created', 'abort-requested', 'run-start', 'model-start', 'model-end', 'tool-start', 'tool-end', 'delta', 'progress', 'run-end', 'session-restored'].includes(String(event.type))) continue;
             this.eventLog.push(event as AgentRuntimeEvent);
             this.eventSequence = Math.max(this.eventSequence, Number(event.sequence));
           }
@@ -306,6 +306,8 @@ export class AgentRuntime {
       session.updatedAt = Date.now();
       await this.save();
     }
+    this.emit({ type: 'abort-requested', sessionId, at: Date.now(), status: session?.status ?? 'aborting' });
+    await this.save();
     this.driver.cancelChat(sessionId);
     return true;
   }
