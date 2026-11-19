@@ -624,7 +624,7 @@ async function runOneStep(t: TaskRecord, step: TaskStep, deps: CoordinatorDeps, 
           const toolsForChild = deps.schemas('general').filter((schema) => agentAllows(def, schema.function.name));
           const out = deps.subtaskRunner
             ? await deps.subtaskRunner(def.name, st.instructions, signal)
-            : await runSubagent(st.instructions, toolsForChild, deps.run, { agent: def.name, signal, taskId: t.id, stepId: step.id, runId: `subtask:${t.id}:${step.id}:${def.name}`, why: `subtask proposed by step "${step.title}": ${clip(st.purpose, 100)}` });
+            : await runSubagent(st.instructions, toolsForChild, deps.run, { agent: def.name, signal, taskId: t.id, stepId: step.id, model: t.model, runId: `subtask:${t.id}:${step.id}:${def.name}`, why: `subtask proposed by step "${step.title}": ${clip(st.purpose, 100)}` });
           results.push(`SUBTASK ${def.name} (${clip(st.purpose, 120)}) →\n${clip(String(out ?? '').trim() || '(no report)', 1200)}`);
         } catch (e) {
           results.push(`SUBTASK ${st.name} REFUSED/FAILED: ${e instanceof Error ? e.message : String(e)}`);
