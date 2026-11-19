@@ -607,3 +607,37 @@ select {
 .task-progress-surface { background: rgb(var(--surface)); border: 1px solid rgb(var(--line)); box-shadow: 0 12px 40px rgba(56, 42, 26, .12); }
 .task-progress-track { height: 4px; overflow: hidden; border-radius: 999px; background: rgb(var(--surface-2)); }
 .task-progress-fill { height: 100%; border-radius: inherit; background: rgb(var(--accent)); transition: width .45s cubic-bezier(.2,.7,.2,1); }
+
+
+/* Reliable viewport + input dock: keep visuals above the bottom edge and the composer
+   in a real, clickable Electron surface (never inside a draggable region). */
+.jini-composer-dock {
+  scrollbar-gutter: stable;
+  -webkit-app-region: no-drag;
+}
+.jini-composer,
+.jini-composer * {
+  -webkit-app-region: no-drag;
+}
+.jini-composer {
+  position: relative;
+  isolation: isolate;
+  pointer-events: auto;
+  user-select: text;
+}
+.jini-composer-input {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  pointer-events: auto;
+  user-select: text;
+  cursor: text;
+  -webkit-user-select: text;
+  -webkit-app-region: no-drag;
+  touch-action: manipulation;
+}
+.jini-composer-input:focus {
+  outline: none;
+}

@@ -115,8 +115,8 @@ export default function VisualCard() {
       {visual && (
         <motion.section
           key={visual.id}
-          className="holo-panel no-drag fixed inset-x-0 bottom-28 top-14 z-30 mx-auto flex flex-col overflow-hidden"
-          style={{ width: 'min(1100px, calc(100% - 48px))' }}
+          className="holo-panel no-drag fixed inset-x-3 top-14 bottom-3 z-30 mx-auto flex min-h-0 flex-col overflow-hidden"
+          style={{ width: 'min(1100px, calc(100% - 24px))', maxHeight: 'calc(100dvh - 68px - max(env(safe-area-inset-bottom), 12px))' }}
           initial={{ opacity: 0, scaleY: 0.04, scaleX: 0.97 }}
           animate={{ opacity: 1, scaleY: 1, scaleX: 1 }}
           exit={{ opacity: 0, scaleY: 0.04 }}
@@ -140,7 +140,7 @@ export default function VisualCard() {
             </button>
           </header>
           <div className="holo-rule" />
-          <iframe title={visual.title} sandbox="" srcDoc={doc} className="relative z-[1] min-h-0 w-full flex-1 border-0" />
+          <iframe title={visual.title} sandbox="" srcDoc={doc} className="relative z-[1] block min-h-0 w-full flex-1 border-0" />
           <div className="holo-sweep" />
           <div className="holo-flash" />
         </motion.section>

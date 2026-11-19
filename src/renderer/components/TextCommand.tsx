@@ -75,7 +75,7 @@ export default function TextCommand({ onSubmit, disabled, busy, compact, leading
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full rounded-[22px] border border-hairline bg-surface shadow-[0_1px_2px_rgba(60,42,20,0.05),0_10px_30px_rgba(60,42,20,0.07)] transition-[border-color,box-shadow] focus-within:border-sand focus-within:shadow-[0_1px_2px_rgba(60,42,20,0.06),0_14px_36px_rgba(60,42,20,0.1)]"
+      className="jini-composer no-drag relative z-30 w-full rounded-[22px] border border-hairline bg-surface shadow-[0_1px_2px_rgba(60,42,20,0.05),0_10px_30px_rgba(60,42,20,0.07)] transition-[border-color,box-shadow] focus-within:border-sand focus-within:shadow-[0_1px_2px_rgba(60,42,20,0.06),0_14px_36px_rgba(60,42,20,0.1)]"
     >
       <textarea
         rows={1}
@@ -87,7 +87,7 @@ export default function TextCommand({ onSubmit, disabled, busy, compact, leading
         aria-label="Message JINI"
         autoComplete="off"
         spellCheck={false}
-        className="block max-h-48 min-h-[56px] w-full resize-none bg-transparent px-5 pb-1 pt-4 text-[15px] leading-6 text-text outline-none placeholder:text-faint [field-sizing:content]"
+        className="jini-composer-input block max-h-48 min-h-[56px] w-full resize-none bg-transparent px-5 pb-1 pt-4 text-[15px] leading-6 text-text outline-none placeholder:text-faint [field-sizing:content]"
       />
       <div className="flex items-center gap-2 px-3 pb-3 pt-1">
         {leading}

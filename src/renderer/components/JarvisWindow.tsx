@@ -289,7 +289,7 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
             ) : (
               <Thread log={log} caption={caption} mode={mode} levelRef={levelRef} />
             )}
-            <footer className="relative z-20 shrink-0 px-8 pb-6 pt-2">
+            <footer className="jini-composer-dock relative z-20 max-h-[min(42vh,380px)] shrink-0 overflow-y-auto overscroll-contain px-8 pb-[max(12px,env(safe-area-inset-bottom))] pt-2">
               <div className="mx-auto w-full max-w-[720px]">{children}</div>
             </footer>
           </section>
