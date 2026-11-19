@@ -90,6 +90,7 @@ const FRESH_RE = /\b(right now|currently|as of (?:today|now)|today'?s|in stock|s
 let projectTurn = false;
 let projectContextAt = 0;
 let turnContext = '';
+let turnContext = '';
 
 /** Static prefix first (provider prompt caching), turn-dependent parts last; memory and session are read once per turn, not per round. */
 async function systemMessage(): Promise<Message> {
@@ -101,6 +102,7 @@ interface SessionExecutionState {
   lastTurnAt: number;
   projectTurn: boolean;
   projectContextAt: number;
+  turnContext: string;
 }
 const sessionStates = new Map<string, SessionExecutionState>();
 let activeSessionId = '';
@@ -110,7 +112,7 @@ let projectTurn = false;
 let projectContextAt = 0;
 const sessionState = (id: string): SessionExecutionState => {
   let state = sessionStates.get(id);
-  if (!state) { state = { history: [], lastTurnAt: 0, projectTurn: false, projectContextAt: 0 }; sessionStates.set(id, state); }
+  if (!state) { state = { history: [], lastTurnAt: 0, projectTurn: false, projectContextAt: 0, turnContext: '' }; sessionStates.set(id, state); }
   return state;
 };
 const activateSession = (id: string): void => {
@@ -121,6 +123,7 @@ const activateSession = (id: string): void => {
     previous.lastTurnAt = lastTurnAt;
     previous.projectTurn = projectTurn;
     previous.projectContextAt = projectContextAt;
+    previous.turnContext = turnContext;
   }
   const next = sessionState(id);
   activeSessionId = id;
@@ -128,8 +131,8 @@ const activateSession = (id: string): void => {
   lastTurnAt = next.lastTurnAt;
   projectTurn = next.projectTurn;
   projectContextAt = next.projectContextAt;
+  turnContext = next.turnContext;
 };
-let lastTurnAt = 0;
 const IDLE_RESET_MS = 10 * 60 * 1000;
 
 interface Completion {
