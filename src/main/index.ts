@@ -3,6 +3,8 @@ import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listModels } from './provider';
 import { agentRuntime } from './agentEngine/runtime';
+import { agentToolRegistry } from './agentEngine/toolRegistry';
+import { listPlugins } from './pluginRuntime';
 import { getPublicSettings, setSettings } from './settings';
 import { migrateEmbeddingsKeyStorage, setEmbeddingsCipher } from './embeddings';
 import { synthesize } from './tts';
@@ -425,6 +427,8 @@ ipcMain.handle('ai-cancel', async (event) => {
   await Promise.all(targets.map((id) => agentRuntime.abort(id)));
 });
 ipcMain.handle('agent-sessions-list', () => agentRuntime.list());
+ipcMain.handle('agent-tools-list', () => agentToolRegistry.list({ includeDisabled: true }));
+ipcMain.handle('agent-plugins-list', () => listPlugins());
 ipcMain.handle('agent-session-snapshot', (_, sessionId: string) => {
   if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 160) throw new Error('Invalid agent session id.');
   return agentRuntime.snapshot(sessionId);

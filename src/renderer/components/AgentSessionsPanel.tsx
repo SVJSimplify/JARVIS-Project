@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { popModal, pushModal } from '../lib/modalState';
 import type { AgentRuntimeEvent, AgentSessionSnapshot } from '../../main/agentEngine/runtime';
+import type { RegisteredToolInfo } from '../../main/agentEngine/toolRegistry';
 
 interface Props {
   open: boolean;
@@ -46,6 +47,10 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
   const [selectedId, setSelectedId] = useState('');
   const [snapshot, setSnapshot] = useState<AgentSessionSnapshot | null>(null);
   const [events, setEvents] = useState<AgentRuntimeEvent[]>([]);
+  const [tools, setTools] = useState<RegisteredToolInfo[]>([]);
+  const [plugins, setPlugins] = useState<Array<{ id: string }>>([]);
+  const [view, setView] = useState<'sessions' | 'tools' | 'plugins'>('sessions');
+  const [toolFilter, setToolFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState('');
   const [error, setError] = useState('');
@@ -54,9 +59,15 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
 
   const refresh = useCallback(async () => {
     try {
-      const list = await window.electronAPI.agent.sessions();
+      const [list, toolList, pluginList] = await Promise.all([
+        window.electronAPI.agent.sessions(),
+        window.electronAPI.agent.tools.list(),
+        window.electronAPI.agent.plugins.list(),
+      ]);
       const ordered = [...list].sort((a, b) => b.updatedAt - a.updatedAt);
       setSessions(ordered);
+      setTools(toolList);
+      setPlugins(pluginList);
       const id = selectedId && ordered.some((item) => item.id === selectedId) ? selectedId : ordered[0]?.id ?? '';
       if (!id) {
         setSelectedId('');
@@ -163,6 +174,13 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
           <button type="button" onClick={onClose} aria-label="Close agent runtime" className="holo-close grid h-8 w-8 place-items-center">×</button>
         </header>
 
+        <nav className="flex shrink-0 gap-1 border-b border-hairline px-5 py-2" aria-label="Agent runtime views">
+          {(['sessions', 'tools', 'plugins'] as const).map((item) => (
+            <button key={item} type="button" onClick={() => setView(item)} aria-current={view === item ? 'page' : undefined} className={`rounded-lg px-3 py-2 text-[11.5px] font-medium capitalize transition-colors ${view === item ? 'bg-paper text-ink' : 'text-faint hover:bg-paper/70 hover:text-body'}`}>
+              {item}{item === 'tools' ? ` · ${tools.length}` : item === 'plugins' ? ` · ${plugins.length}` : ` · ${sessions.length}`}
+            </button>
+          ))}
+        </nav>
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="min-h-0 overflow-y-auto border-b border-hairline bg-paper/70 p-4 md:border-b-0 md:border-r">
             <div className="mb-3 flex items-center justify-between">
@@ -192,7 +210,7 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
 
           <main className="min-h-0 overflow-y-auto p-5 md:p-6">
             {error && <p role="alert" className="mb-4 rounded-lg border border-[#E7C7BD] bg-[#FBF0ED] px-3 py-2 text-[12px] text-[#9A4D3D]">{error}</p>}
-            {!active ? (
+            {view === 'sessions' ? (!active ? (
               <div className="grid min-h-[300px] place-items-center text-center">
                 <div><p className="text-[14px] font-medium text-ink">{loading ? 'Loading runtime…' : 'Select a session'}</p><p className="mt-1 text-[12px] text-faint">The selected session snapshot and event history appear here.</p></div>
               </div>
@@ -239,6 +257,44 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
                   )}
                 </section>
               </div>
+            )) : view === 'tools' ? (
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div><h3 className="text-[15px] font-semibold text-ink">Registered tools</h3><p className="mt-1 text-[12px] text-muted">The live registry used by JINI’s guarded tool dispatcher.</p></div>
+                  <span className="font-mono text-[11px] text-faint">{tools.filter((tool) => tool.enabled).length} enabled / {tools.length} total</span>
+                </div>
+                <input value={toolFilter} onChange={(event) => setToolFilter(event.target.value)} placeholder="Filter tools by name, description, plugin…" aria-label="Filter registered tools" className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-[12px] text-ink outline-none focus:border-sand" />
+                <div className="overflow-hidden rounded-xl border border-line">
+                  <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_80px_70px] gap-3 border-b border-line bg-paper px-3 py-2 text-[9.5px] font-semibold uppercase tracking-wide text-faint">
+                    <span>Tool</span><span>Description</span><span>Policy</span><span>Source</span>
+                  </div>
+                  <div className="max-h-[52vh] overflow-y-auto">
+                    {tools.filter((tool) => `${tool.name} ${tool.description} ${tool.pluginId ?? ''}`.toLowerCase().includes(toolFilter.trim().toLowerCase())).map((tool) => (
+                      <div key={tool.name} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_80px_70px] gap-3 border-b border-line/50 px-3 py-2.5 last:border-0">
+                        <div className="min-w-0"><p className="break-all font-mono text-[10.5px] text-ink">{tool.name}</p><p className={`mt-1 text-[9.5px] ${tool.enabled ? 'text-[#55734F]' : 'text-[#9A4D3D]'}`}>{tool.enabled ? 'Enabled' : 'Disabled'}</p></div>
+                        <p className="line-clamp-2 text-[10.5px] leading-relaxed text-muted">{tool.description}</p>
+                        <div className="space-y-1"><span className="inline-block rounded-md bg-paper px-1.5 py-0.5 text-[9.5px] text-body">{tool.action ?? 'policy gate'}</span>{tool.parallelSafe && <p className="text-[9px] text-faint">Parallel-safe</p>}</div>
+                        <div><span className="text-[10px] capitalize text-muted">{tool.source}</span>{tool.pluginId && <p className="mt-1 break-all text-[9px] text-faint">{tool.pluginId}</p>}</div>
+                      </div>
+                    ))}
+                    {tools.filter((tool) => `${tool.name} ${tool.description} ${tool.pluginId ?? ''}`.toLowerCase().includes(toolFilter.trim().toLowerCase())).length === 0 && <p className="p-6 text-center text-[12px] text-faint">No tools match this filter.</p>}
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="space-y-4">
+                <div><h3 className="text-[15px] font-semibold text-ink">Installed plugins</h3><p className="mt-1 text-[12px] text-muted">Plugin registrations and the tools contributed to the shared runtime registry.</p></div>
+                {plugins.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-line p-7 text-center"><p className="text-[13px] font-medium text-ink">No plugins registered</p><p className="mt-1 text-[11.5px] text-faint">Built-in tools remain available independently of plugins.</p></div>
+                ) : (
+                  <div className="space-y-2">
+                    {plugins.map((plugin) => {
+                      const contributed = tools.filter((tool) => tool.pluginId === plugin.id);
+                      return <article key={plugin.id} className="rounded-xl border border-line bg-surface p-4"><div className="flex items-center justify-between gap-3"><h4 className="font-mono text-[12px] font-semibold text-ink">{plugin.id}</h4><span className="rounded-full bg-[#E8F0E5] px-2 py-1 text-[9.5px] font-semibold text-[#496746]">Registered</span></div><p className="mt-1 text-[11px] text-muted">{contributed.length} contributed tool{contributed.length === 1 ? '' : 's'}</p>{contributed.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{contributed.map((tool) => <span key={tool.name} className="rounded-md bg-paper px-2 py-1 font-mono text-[10px] text-body">{tool.name}</span>)}</div>}</article>;
+                    })}
+                  </div>
+                )}
+              </section>
             )}
           </main>
         </div>

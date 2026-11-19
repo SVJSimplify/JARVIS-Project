@@ -3,6 +3,7 @@
  */
 import type { ActivityEvent, ModeInfo, NotifyPayload, HistoryTurn } from '../src/main/protocol';
 import type { AgentRuntimeEvent, AgentSessionSnapshot } from '../src/main/agentEngine/runtime';
+import type { RegisteredToolInfo } from '../src/main/agentEngine/toolRegistry';
 import type { ProgressSnapshot } from '../src/main/progressTypes';
 import type { ActivityScopeInfo, InvocationQuery, InvocationSummary } from '../src/main/invocations';
 
@@ -86,6 +87,8 @@ declare global {
         replay: (sessionId: string, afterSequence?: number) => Promise<AgentRuntimeEvent[]>;
         fork: (sessionId: string, newSessionId?: string) => Promise<AgentSessionSnapshot>;
         abort: (sessionId: string) => Promise<boolean>;
+        tools: { list: () => Promise<RegisteredToolInfo[]> };
+        plugins: { list: () => Promise<Array<{ id: string }>> };
       };
       modes: {
         get: () => Promise<ModeInfo>;
