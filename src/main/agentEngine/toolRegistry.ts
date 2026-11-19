@@ -239,7 +239,6 @@ export class AgentToolRegistry {
         run: async (args) => stringifyOutput(await agentTool.execute(args, {
           ...contextProvider(),
           pluginId: entry.pluginId,
-          sessionId: executionSessionId(),
         })),
       };
     }
