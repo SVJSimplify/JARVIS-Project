@@ -21,7 +21,7 @@
     "lint": "eslint src",
     "pretypecheck": "node scripts/cleanStale.mjs",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.app.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "prepare:local-ai": "node scripts/prepareLocalAi.mjs"
   },
   "build": {

@@ -32,6 +32,8 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - name: Install
         run: npm ci
+      - name: Mobile typecheck
+        run: npm run typecheck
       - name: Typecheck + build web bundle (fails the job on any error)
         run: npm run build
       - name: Sync native project

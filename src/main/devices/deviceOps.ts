@@ -105,11 +105,17 @@ export function buildDeviceOps(hub: () => DeviceHub): Record<string, OpHandler> 
       return { saved: file, ...runTurn(prompt, { kind, threadId: String(args.threadId ?? ''), chatId: chatId ?? '', from: ctx.deviceName, text: note || name }, chatId, isImage ? [`data:${mime};base64,${data.toString('base64')}`] : []) };
     },
 
-    'agents.sessions': () => agentRuntime.list(),
-    'agents.snapshot': (args) => agentRuntime.snapshot(text(args.id, 'Session id')),
+    'agents.sessions': async () => (await agentRuntime.list()).map(({ messages: _messages, ...session }) => session),
+    'agents.snapshot': async (args) => {
+      const { messages: _messages, ...session } = await agentRuntime.snapshot(text(args.id, 'Session id'));
+      return session;
+    },
     'agents.replay': (args) => agentRuntime.replay(text(args.id, 'Session id'), Math.max(0, Number(args.afterSequence) || 0)).then((events) => events.slice(-150)),
     'agents.abort': (args) => agentRuntime.abort(text(args.id, 'Session id')),
-    'agents.fork': (args) => agentRuntime.fork(text(args.id, 'Session id')),
+    'agents.fork': async (args) => {
+      const { messages: _messages, ...session } = await agentRuntime.fork(text(args.id, 'Session id'));
+      return session;
+    },
     'agents.tools': () => agentToolRegistry.list({ includeDisabled: true }),
     'agents.plugins': () => listPlugins(),
 
