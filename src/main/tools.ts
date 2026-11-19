@@ -24,7 +24,7 @@ import { recentTools, recordTool } from './toolLog';
 import { assessRisk, type Risk } from './guard';
 import { authorize, classifyToolAction } from './permission';
 import { argsPreview, idempotencyKeyFor, recordOutcome, recordStartedStrict, callContext, type AuthDecision, type ExecutionStatus } from './toolRecord';
-import { currentToolStatus, executionSignal, executionSessionId, runWithExecutionScope, type ToolResultEnvelope } from './toolResult';
+import { currentToolStatus, executionSignal, runWithExecutionScope, type ToolResultEnvelope } from './toolResult';
 import { withWriteLock } from './writeCoord';
 import { devTools } from './devTools';
 import { placeApp, stageTools } from './stage';
