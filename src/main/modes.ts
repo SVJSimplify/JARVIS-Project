@@ -1,4 +1,5 @@
 import { loadJson, atomicWrite } from './store';
+import { executionSessionId } from './toolResult';
 import type { ActivityEvent, ActivityKind, InteractionMode, ModeInfo, NotifyPayload } from './protocol';
 
 export type { ActivityEvent, ActivityKind, InteractionMode, ModeInfo, NotifyPayload };
@@ -213,9 +214,10 @@ export function beginTurn(task: string): void {
  */
 export function endTurn(res: { reply?: string; failed?: boolean; interrupted?: boolean; error?: string }): NotifyPayload | null {
   try {
+    const digest = currentDigest();
     if (!digest.open) return null;
     const d = digest;
-    digests.clear();
+    digests.set(sessionKey(), freshDigest());
     // The progress tracker learns the outcome in BOTH modes (before the background
     // early-return below): a finished silent turn must still freeze its checklist.
     try {
