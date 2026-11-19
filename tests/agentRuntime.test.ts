@@ -44,6 +44,26 @@ describe('Cline-compatible JINI agent session runtime', () => {
     expect(driver.cancelChat).not.toHaveBeenCalled();
   });
 
+  it('treats an empty model response as completed rather than cancelled', async () => {
+    const persistence: AgentRuntimePersistence = { load: async () => [], save: async () => undefined };
+    const runtime = new AgentRuntime({ chat: vi.fn(async () => ''), cancelChat: vi.fn() }, persistence);
+    await runtime.run('empty response', { sessionId: 'empty-session' });
+    expect((await runtime.snapshot('empty-session')).status).toBe('completed');
+  });
+
+  it('forks a session with an independent transcript and parent relationship', async () => {
+    const restored: string[] = [];
+    const persistence: AgentRuntimePersistence = { load: async () => [], save: async () => undefined };
+    const driver = { chat: vi.fn(async () => 'done'), cancelChat: vi.fn(), snapshotHistory: () => [{ role: 'user' as const, content: 'original' }], restoreHistory: (id: string) => { restored.push(id); } };
+    const runtime = new AgentRuntime(driver, persistence);
+    await runtime.run('original', { sessionId: 'source-session' });
+    const fork = await runtime.fork('source-session', 'fork-session');
+    expect(fork.parentSessionId).toBe('source-session');
+    expect(fork.status).toBe('idle');
+    expect(fork.messages).toEqual([{ role: 'user', content: 'original' }]);
+    expect(restored).toContain('fork-session');
+  });
+
   it('restores active snapshots as interrupted and validates session state', async () => {
     const { runtime } = setup();
     const restored = await runtime.restore({

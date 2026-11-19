@@ -9,6 +9,7 @@
  */
 import type { Tool } from '../toolTypes';
 import type { ActionClass } from '../permission';
+import { executionSignal } from '../toolResult';
 
 export interface AgentToolDefinition {
   name: string;
@@ -139,7 +140,7 @@ export class AgentToolRegistry {
         description: agentTool.description,
         parameters: agentTool.inputSchema,
         parallelSafe: agentTool.parallelSafe === true || agentTool.executionMode === 'parallel',
-        run: async (args) => stringifyOutput(await agentTool.execute(args, { agentId: 'main', pluginId: id })),
+        run: async (args) => stringifyOutput(await agentTool.execute(args, { agentId: 'main', pluginId: id, signal: executionSignal() })),
       };
       pending.push({ name, tool, source: 'plugin', pluginId: id, agentTool, enabled: true, action, resource: agentTool.resource });
     }

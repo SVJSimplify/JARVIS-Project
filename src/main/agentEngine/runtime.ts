@@ -17,6 +17,8 @@ import type { AgentRuntimeHooks } from '../agentRuntimeHooks';
 export type AgentSessionStatus = 'idle' | 'running' | 'aborting' | 'completed' | 'failed' | 'aborted' | 'interrupted';
 export interface AgentSessionSnapshot {
   id: string;
+  /** Source session when this session was forked. */
+  parentSessionId?: string;
   status: AgentSessionStatus;
   createdAt: number;
   updatedAt: number;
@@ -98,6 +100,7 @@ export class AgentRuntime {
             iteration: Number.isFinite(s.iteration) ? Math.max(0, Number(s.iteration)) : 0,
             pendingToolCalls: Array.isArray(s.pendingToolCalls) ? s.pendingToolCalls.filter((v): v is string => typeof v === 'string') : [],
             ...(Array.isArray(s.messages) ? { messages: s.messages as Message[] } : {}),
+            ...(typeof s.parentSessionId === 'string' ? { parentSessionId: s.parentSessionId } : {}),
             ...(typeof s.lastOutput === 'string' ? { lastOutput: s.lastOutput } : {}),
             ...(typeof s.lastError === 'string' ? { lastError: s.lastError } : {}),
           };
@@ -122,6 +125,7 @@ export class AgentRuntime {
   }
 
   async createSession(id: string = randomUUID()): Promise<AgentSessionSnapshot> {
+    if (typeof id !== 'string' || !id.trim() || id.length > 160) throw new Error('Agent session id must be 1–160 characters.');
     await this.hydrate();
     if (this.sessions.has(id)) throw new Error(`Agent session "${id}" already exists.`);
     const now = Date.now();
@@ -198,6 +202,9 @@ export class AgentRuntime {
               ...(event.tool === undefined ? {} : { tool: event.tool }),
               ...(event.status === undefined ? {} : { text: event.status }),
             });
+            // Model/tool boundaries are recovery checkpoints. If the process exits mid-run,
+            // hydration can distinguish an interrupted run and retain its last known step.
+            await this.save();
           }
         },
       };
@@ -214,7 +221,9 @@ export class AgentRuntime {
         },
         { chatId: id, source: options.source ?? 'interactive', hooks },
       );
-      session.status = (session as AgentSessionSnapshot).status === 'aborting' || output === '' ? 'aborted' : 'completed';
+      const wasAborted = this.cancelRequested.has(id) || session.status === 'aborting';
+      this.cancelRequested.delete(id);
+      session.status = wasAborted ? 'aborted' : 'completed';
       session.lastOutput = output;
       session.messages = this.driver.snapshotHistory?.(id) ?? session.messages ?? [];
       session.pendingToolCalls = [];
@@ -283,16 +292,35 @@ export class AgentRuntime {
     return [...this.sessions.values()].map(clone).sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  /** Fork a completed/interrupted conversation without sharing mutable transcript state. */
+  async fork(sessionId: string, newSessionId: string = randomUUID()): Promise<AgentSessionSnapshot> {
+    await this.hydrate();
+    const source = this.sessions.get(sessionId);
+    if (!source) throw new Error(`Unknown agent session \"${sessionId}\".`);
+    if (this.sessions.has(newSessionId)) throw new Error(`Agent session \"${newSessionId}\" already exists.`);
+    if (this.activeRuns.has(sessionId)) throw new Error('Cannot fork a session while it is running.');
+    const now = Date.now();
+    const messages = this.driver.snapshotHistory?.(sessionId) ?? source.messages ?? [];
+    const fork: AgentSessionSnapshot = { id: newSessionId, parentSessionId: sessionId, status: 'idle', createdAt: now, updatedAt: now, turnCount: 0, iteration: 0, pendingToolCalls: [], messages: structuredClone(messages) };
+    this.sessions.set(newSessionId, fork);
+    this.driver.restoreHistory?.(newSessionId, fork.messages ?? []);
+    await this.save();
+    this.emit({ type: 'session-created', sessionId: newSessionId, at: now, status: 'idle' });
+    return clone(fork);
+  }
+
   async restore(snapshot: AgentSessionSnapshot): Promise<AgentSessionSnapshot> {
     await this.hydrate();
-    if (!snapshot || typeof snapshot.id !== 'string' || !snapshot.id || !validStatus(snapshot.status)) {
+    if (!snapshot || typeof snapshot.id !== 'string' || !snapshot.id.trim() || snapshot.id.length > 160 || !validStatus(snapshot.status)) {
       throw new Error('Invalid agent session snapshot.');
     }
+    if (this.activeRuns.has(snapshot.id)) throw new Error(`Cannot restore active agent session \"${snapshot.id}\".`);
     const restored: AgentSessionSnapshot = {
       ...snapshot,
+      parentSessionId: typeof snapshot.parentSessionId === 'string' ? snapshot.parentSessionId : undefined,
       status: snapshot.status === 'running' || snapshot.status === 'aborting' ? 'interrupted' : snapshot.status,
-      turnCount: Math.max(0, Math.floor(snapshot.turnCount || 0)),
-      iteration: Math.max(0, Math.floor(snapshot.iteration || 0)),
+      turnCount: Number.isFinite(snapshot.turnCount) ? Math.max(0, Math.floor(snapshot.turnCount)) : 0,
+      iteration: Number.isFinite(snapshot.iteration) ? Math.max(0, Math.floor(snapshot.iteration)) : 0,
       pendingToolCalls: [],
       messages: Array.isArray(snapshot.messages) ? structuredClone(snapshot.messages) : [],
       updatedAt: Date.now(),
