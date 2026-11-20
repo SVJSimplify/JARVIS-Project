@@ -688,3 +688,215 @@ select {
 .font-serif-display { font-family:var(--text); font-optical-sizing:auto; font-weight:650; letter-spacing:-.04em; }
 button, input, textarea { font-family:var(--text); }
 @media (prefers-reduced-motion: reduce) { .jini-runtime-overlay { backdrop-filter:none; } }
+
+
+/* ---------------------------------------------------------------------------
+   JINI workspace — product UI pass
+   A quiet, high-contrast workspace: navigation, conversation, and operations
+   are distinct surfaces. No ornamental gradients, oversized pills, or glow.
+--------------------------------------------------------------------------- */
+:root {
+  --void: 245 246 247;
+  --accent: 38 43 48;
+  --hot: 25 29 33;
+  --steel: 101 108 115;
+  --line: 224 227 230;
+  --surface: 255 255 255;
+  --surface-2: 241 243 245;
+  --jini-border: #e1e4e7;
+  --jini-muted: #697179;
+  --jini-ink: #191d21;
+  --jini-canvas: #ffffff;
+}
+.jini-shell {
+  background: #f4f5f6 !important;
+  animation: none;
+}
+.jini-windowbar {
+  height: 38px;
+  background: #f8f9fa;
+  border-bottom: 1px solid var(--jini-border);
+}
+.windowbar-kicker {
+  color: #858d94;
+  letter-spacing: .14em;
+}
+.jini-shell-body { background: #f4f5f6; }
+.jini-sidebar {
+  width: 224px;
+  background: #f8f9fa;
+  border-right: 1px solid var(--jini-border);
+}
+.jini-sidebar-heading {
+  height: 54px;
+  border-bottom: 1px solid #e9ebed;
+  margin: 0 10px 10px;
+  padding-left: 12px;
+}
+.jini-sidebar nav { padding-left: 12px; padding-right: 12px; }
+.jini-sidebar nav button,
+.jini-sidebar ul button {
+  min-height: 37px;
+  border-radius: 8px;
+  color: #535b62;
+  font-size: 12.5px;
+  transition: background-color .14s ease, color .14s ease;
+}
+.jini-sidebar nav button:hover,
+.jini-sidebar ul button:hover {
+  background: #eceff1;
+  color: #20252a;
+  transform: none;
+}
+.jini-sidebar nav button[aria-current='page'] {
+  background: #e8ebee;
+  color: #171b1f;
+  box-shadow: inset 2px 0 #343a40;
+  font-weight: 650;
+}
+.jini-sidebar nav button[aria-current='page'] > span:first-child { color: #242a30 !important; }
+.jini-sidebar > p { color: #899198; font-size: 10px; letter-spacing: .09em; text-transform: uppercase; }
+.jini-sidebar > div:last-child { padding: 10px 12px 12px; }
+.jini-sidebar > div:last-child button { min-height: 36px; }
+.jini-sidebar > div:last-child p { color: #8a9299; font-size: 10px; }
+.jini-canvas {
+  margin: 8px 8px 8px 10px;
+  border: 1px solid #e1e4e7;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(20,25,30,.025), 0 8px 24px rgba(20,25,30,.035);
+  animation: none;
+}
+.jini-toolbar {
+  min-height: 50px;
+  background: #fff;
+  border-bottom: 1px solid #e8eaec;
+}
+.jini-toolbar h2 { color: #20252a; font-size: 13px; font-weight: 650; }
+.jini-toolbar .command-trigger {
+  background: #f7f8f9;
+  border-color: #e5e8ea;
+  color: #626a71;
+  box-shadow: none;
+}
+.jini-toolbar .command-trigger:hover {
+  background: #f0f2f4;
+  border-color: #d6dade;
+  box-shadow: none;
+}
+.jini-toolbar .command-trigger kbd { background: #eceff1; color: #606970; }
+.jini-workspace { background: #fff; }
+.jini-main { background: #fff; }
+.jini-thread { scrollbar-gutter: stable; }
+.jini-thread > div > div { animation: none; }
+.jini-thread p { color: #343b41; line-height: 1.75; }
+.jini-assistant-reply {
+  border: 1px solid #e7e9eb;
+  border-radius: 4px 12px 12px 12px;
+  background: #fafbfc;
+  box-shadow: none;
+}
+.jini-assistant-reply p { line-height: 1.75; }
+.jini-empty { animation: none; }
+.jini-empty .orb { filter: none; }
+.jini-empty h1 { color: #1c2126; letter-spacing: -.05em; }
+.jini-empty > p { color: #737c84; }
+.jini-empty button {
+  border: 1px solid #e2e5e8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+  transition: background .14s ease, border-color .14s ease;
+}
+.jini-empty button:hover {
+  transform: none;
+  border-color: #cbd1d6;
+  background: #f8f9fa;
+  box-shadow: none;
+}
+.jini-inspector {
+  width: 270px;
+  padding: 16px 14px;
+  gap: 12px;
+  background: #f8f9fa;
+  border-left: 1px solid #e3e6e8;
+}
+.jini-inspector > section {
+  padding: 13px;
+  border: 1px solid #e3e6e8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: none;
+  animation: none;
+}
+.jini-inspector .rail-title { font-size: 11px; color: #252b30; }
+.jini-inspector dt { color: #7a838b; font-size: 11px; }
+.jini-inspector dd { color: #30373d; font-size: 11px; }
+.jini-composer-dock { background: linear-gradient(180deg, rgba(255,255,255,0), #fff 18%); }
+.jini-main > footer form {
+  border: 1px solid #dfe3e6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(20,25,30,.035);
+}
+.jini-main > footer form:focus-within {
+  border-color: #aeb7bf;
+  box-shadow: 0 0 0 3px rgba(80,92,104,.08);
+}
+.jini-main > footer form button[type='submit'] { box-shadow: none; }
+.jini-window-control { color: #667079; border-radius: 6px; }
+.jini-window-control:hover { color: #20262b; background: #e9ecef; border-color: #e0e3e6; }
+.jini-window-control--close:hover { color: #fff; background: #b64c43; border-color: #b64c43; }
+
+/* Agent runtime is an operational workspace, not a second dark-themed app. */
+.jini-runtime-overlay { background: rgba(18,22,26,.48); backdrop-filter: blur(3px); }
+.jini-runtime-shell {
+  color: #20252a;
+  background: #fff;
+  border: 1px solid #dfe3e6;
+  border-radius: 12px;
+  box-shadow: 0 24px 72px rgba(18,24,30,.22);
+}
+.jini-runtime-shell .text-ink,.jini-runtime-shell .text-body { color: #252b30 !important; }
+.jini-runtime-shell .text-muted,.jini-runtime-shell .text-faint { color: #737c84 !important; }
+.jini-runtime-shell .border-line,.jini-runtime-shell .border-hairline { border-color: #e2e5e8 !important; }
+.jini-runtime-shell .bg-paper,.jini-runtime-shell .bg-surface { background: #fff !important; }
+.jini-runtime-header { background: #fff; border-bottom: 1px solid #e6e9eb; }
+.jini-runtime-header p:first-child { color: #77818a !important; }
+.jini-runtime-heading { color: #1e2429; font-size: clamp(24px,2.5vw,30px); font-weight: 650; letter-spacing: -.045em; }
+.jini-runtime-close { color: #626c74; background: #f5f6f7; border: 1px solid #e1e5e8; border-radius: 8px; }
+.jini-runtime-close:hover { color: #1e2429; background: #eceff1; }
+.jini-runtime-overview { background: #f8f9fa; border-bottom: 1px solid #e6e9eb; color: #737c84; }
+.jini-runtime-overview strong { color: #20262b; }
+.jini-runtime-tabs { background: #fff; border-bottom: 1px solid #e6e9eb; }
+.jini-runtime-tabs button { color: #707981; }
+.jini-runtime-tabs button[aria-current='page'] { color: #20262b !important; background: #edf0f2 !important; }
+.jini-runtime-sidebar { background: #fafbfc; border-color: #e5e8ea; }
+.jini-runtime-content { background: #fff; }
+.jini-runtime-session:hover { background: #f0f2f4 !important; }
+.jini-runtime-session[class*='border-sand'] { background: #edf0f2 !important; border-color: #cbd1d6 !important; }
+.jini-runtime-metrics > div { background: #f7f8f9 !important; border: 1px solid #e3e6e8; border-radius: 9px; }
+.jini-runtime-filter { border: 1px solid #dfe3e6; background: #f7f8f9; color: #626c74; border-radius: 7px; }
+.jini-runtime-filter.is-active { color: #fff; background: #252b30; border-color: #252b30; }
+.jini-runtime-shell input { color: #20262b !important; background: #fff !important; border-color: #dfe3e6 !important; }
+.jini-runtime-shell input::placeholder { color: #98a0a7; }
+.jini-runtime-tooltable { border-color: #e3e6e8; }
+.jini-runtime-tooltable > div:first-child { background: #f4f6f7 !important; }
+.jini-runtime-tooltable > div:nth-child(2) > div { border-color: #edf0f2; }
+.jini-runtime-events ol { border-color: #dce1e4; }
+.jini-runtime-events li { border-color: #edf0f2; }
+.jini-runtime-events li > span { background: #555f68 !important; }
+@media (max-width: 920px) {
+  .jini-sidebar { width: 196px !important; }
+  .jini-inspector { display: none !important; }
+}
+@media (max-width: 680px) {
+  .jini-sidebar { width: 58px !important; }
+  .jini-canvas { margin: 4px; border-radius: 10px; }
+  .jini-toolbar { padding-left: 12px; padding-right: 10px; }
+  .jini-composer-dock { padding-left: 12px; padding-right: 12px; }
+  .jini-thread > div { padding-left: 12px; padding-right: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jini-empty button, .jini-sidebar nav button { transition: none !important; }
+}

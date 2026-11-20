@@ -90,3 +90,99 @@ body { background:#f5f6f7; color:#191b1e; }
 .btn-secondary,.group-list { border-color:#dfe2e5; background:#fff; }
 .field { border-color:#d6dadd; background:#fff; }
 .section-label { letter-spacing:.025em; }
+
+
+/* JINI mobile workspace — compact, tactile, and aligned with desktop surfaces. */
+:root {
+  --mobile-bg: #f4f5f6;
+  --mobile-surface: #fff;
+  --mobile-line: #e1e4e7;
+  --mobile-ink: #1c2126;
+  --mobile-muted: #727b83;
+}
+html, body, #root { background: var(--mobile-bg); }
+body { color: var(--mobile-ink); }
+#root > div { background: var(--mobile-bg) !important; }
+.safe-top {
+  background: #f8f9fa;
+  border-bottom: 1px solid var(--mobile-line);
+  padding-left: 20px;
+  padding-right: 16px;
+  padding-bottom: 8px;
+}
+.safe-top .font-serif-display { font-size: 19px; letter-spacing: -.055em; }
+.safe-top button { font-size: 11px; color: #667079; }
+main.min-h-0 { background: var(--mobile-bg); }
+nav[aria-label="Sections"] {
+  min-height: 62px;
+  background: rgba(255,255,255,.97);
+  border-top: 1px solid var(--mobile-line);
+  padding-left: 5px;
+  padding-right: 5px;
+  box-shadow: 0 -4px 18px rgba(20,25,30,.035);
+}
+nav[aria-label="Sections"] button {
+  min-width: 0;
+  gap: 3px;
+  padding-top: 7px;
+  padding-bottom: 5px;
+  color: #7b848c;
+  font-size: 9.5px;
+  letter-spacing: .005em;
+}
+nav[aria-label="Sections"] button[aria-current="page"] {
+  color: #20262b;
+  font-weight: 700;
+}
+nav[aria-label="Sections"] button[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 22px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: #343b42;
+}
+nav[aria-label="Sections"] button svg { width: 20px; height: 20px; }
+.btn { min-height: 42px; border-radius: 10px; }
+.btn-primary { background: #252b30; }
+.btn-secondary { background: #fff; border-color: #dfe3e6; }
+.field { border-color: #dfe3e6; border-radius: 10px; background: #fff; }
+.section-label { color: #79828a; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.group-list { border-color: var(--mobile-line); border-radius: 12px; background: #fff; }
+.group-row { border-color: #edf0f2; }
+.font-serif-display { font-family: 'Inter Variable', system-ui, sans-serif; font-weight: 700; letter-spacing: -.05em; }
+.jini-mobile-runtime { padding-bottom: max(28px, env(safe-area-inset-bottom)); }
+.jini-mobile-runtime .section-label { color: #79828a; }
+.jini-mobile-runtime-stats > div {
+  padding: 12px 11px;
+  border: 1px solid #e1e5e8;
+  border-radius: 10px;
+  background: #fff;
+}
+.jini-mobile-runtime-stats strong { color: #20262b; font-size: 20px; }
+.jini-mobile-runtime-stats span { color: #7a838b; font-size: 9.5px; font-weight: 600; }
+.jini-mobile-runtime .rounded-xl.border,
+.jini-mobile-runtime .rounded-2xl.border {
+  border-color: #e1e5e8;
+}
+.jini-mobile-runtime .bg-surface { background: #fff; }
+.jini-mobile-runtime .bg-oat { background: #f0f2f4; }
+.jini-mobile-runtime-filter {
+  border-color: #dfe3e6;
+  background: #fff;
+  color: #5e6870;
+}
+.jini-mobile-runtime-filter.is-active { background: #252b30; border-color: #252b30; color: #fff; }
+.jini-mobile-runtime article { box-shadow: 0 1px 2px rgba(20,25,30,.025); }
+.jini-mobile-runtime button:focus-visible,
+nav[aria-label="Sections"] button:focus-visible { outline-color: #343b42; }
+@media (max-width: 360px) {
+  .safe-top { padding-left: 16px; padding-right: 12px; }
+  nav[aria-label="Sections"] button { font-size: 8.5px; }
+  .jini-mobile-runtime-stats { gap: 6px; }
+  .jini-mobile-runtime-stats > div { padding: 10px 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  nav[aria-label="Sections"] button, .btn { transition: none !important; }
+}
