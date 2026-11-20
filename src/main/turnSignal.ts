@@ -6,7 +6,7 @@ import { executionSessionId } from './toolResult';
  * provider requests for minutes after the user pressed Stop.
  */
 const signals = new Map<string, AbortSignal>();
-const sessionKey = (id?: string): string => id ?? executionSessionId() ?? '__default__';
+const sessionKey = (id?: string): string => id ?? executionSessionId() ?? 'default';
 
 export const setTurnSignal = (signal: AbortSignal | null, sessionId?: string): void => {
   const id = sessionKey(sessionId);
