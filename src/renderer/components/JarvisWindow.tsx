@@ -119,6 +119,7 @@ export default function JarvisWindow({ version, mode, interactionMode, onSetMode
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const tele = useTelemetry();
+  const bg = interactionMode === 'background';
   const openSettings = (section: SettingsSection) => {
     setSettingsSection(section);
     setSettingsOpen(true);
@@ -267,16 +268,16 @@ export default function JarvisWindow({ version, mode, interactionMode, onSetMode
       <div className="jini-canvas my-2 mr-2 flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-hairline bg-paper shadow-[0_1px_3px_rgba(60,42,20,0.06)]">
         <header className="hud-header jini-toolbar relative z-20 flex h-[52px] shrink-0 items-center gap-3 border-b border-hairline pl-6 pr-5">
           <h2 className="text-[14px] font-semibold text-ink">Assistant</h2>
-          <StatusChip mode={mode} quiet={interactionMode === 'background'} />
+          <StatusChip mode={mode} quiet={bg} />
           <button
             type="button"
-            onClick={() => onSetMode(interactionMode === 'background' ? 'interactive' : 'background')}
-            aria-label={interactionMode === 'background' ? 'Switch to interactive mode' : 'Switch to background mode'}
-            aria-pressed={interactionMode === 'background'}
-            title={interactionMode === 'background' ? 'Switch to interactive mode' : 'Switch to background mode'}
+            onClick={() => onSetMode(bg ? 'interactive' : 'background')}
+            aria-label={bg ? 'Switch to interactive mode' : 'Switch to background mode'}
+            aria-pressed={bg}
+            title={bg ? 'Switch to interactive mode' : 'Switch to background mode'}
             className="no-drag inline-flex h-7 items-center rounded-full border border-hairline bg-surface px-2.5 text-[11px] text-muted transition-colors hover:border-sand hover:text-ink"
           >
-            {interactionMode === 'background' ? 'Background' : 'Interactive'}
+            {bg ? 'Background' : 'Interactive'}
           </button>
           <button
             type="button"
