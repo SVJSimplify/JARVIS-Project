@@ -73,3 +73,12 @@ body {
 @keyframes orb-think { 0%, 100% { transform: scale(.86); } 50% { transform: scale(.9); } }
 @keyframes orb-speak { from { transform: scale(.97); } to { transform: scale(1.04); } }
 @media (prefers-reduced-motion: reduce) { .voice-orb__core, .voice-orb::before { animation: none !important; } }
+
+/* Agent workspace: compact, legible, tool-first mobile treatment. */
+.jini-mobile-runtime .font-mono { font-size: 11px; letter-spacing: -.015em; }
+.jini-mobile-runtime-stats > div { display:flex; flex-direction:column; gap:4px; padding:13px 10px; background:#202327; border:1px solid #34383c; border-radius:10px; }
+.jini-mobile-runtime-stats strong { color:#f8f8f8; font-size:21px; font-variant-numeric:tabular-nums; }
+.jini-mobile-runtime-stats span { color:#b9bec3; font-size:10px; }
+.jini-mobile-runtime-filter { flex:1; padding:8px 6px; background:#e9e9e9; border:1px solid #c9c9c9; color:#333; border-radius:8px; font-size:11px; font-weight:600; }
+.jini-mobile-runtime-filter.is-active { background:#202327; border-color:#202327; color:#fff; }
+.jini-mobile-runtime [aria-pressed='true'] { outline-offset:2px; }

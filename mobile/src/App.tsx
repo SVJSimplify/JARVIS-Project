@@ -50,7 +50,7 @@ export default function App() {
     <div className="flex h-full flex-col bg-bg">
       <header className="safe-top flex items-center justify-between px-5 pb-1">
         <span className="font-serif-display text-[21px] font-semibold tracking-[-0.02em] text-text">
-          jini<span className="text-clay">.</span>
+          JINI<span className="text-clay">.</span>
         </span>
         <ConnectionStatus />
       </header>

@@ -59,6 +59,8 @@ export default function AgentsScreen() {
   const [busy, setBusy] = useState(false);
   const [action, setAction] = useState('');
   const [toolAction, setToolAction] = useState('');
+  const [toolQuery, setToolQuery] = useState('');
+  const [toolScope, setToolScope] = useState<'all' | 'plugin' | 'disabled'>('all');
   const [error, setError] = useState('');
   const loadingRef = useRef(false);
 
@@ -183,9 +185,10 @@ export default function AgentsScreen() {
   };
 
   return (
-    <div className="pb-8">
+    <div className="jini-mobile-runtime pb-8">
       <ScreenHeader title="Agent runtime" action={<button className="btn-text pb-1 text-[13px]" disabled={busy || !online} onClick={() => void refresh()}>{busy ? 'Loading…' : online ? 'Refresh' : 'Offline'}</button>} />
-      <p className="px-1 text-meta text-faint">Cline + OpenCode architecture · live from your desktop</p>
+      <p className="px-1 text-meta text-faint">SESSION CONTROL / LIVE REGISTRY</p>
+      <div className="jini-mobile-runtime-stats mt-4 grid grid-cols-3 gap-2"><div><strong>{sessions.length}</strong><span>Sessions</span></div><div><strong>{tools.filter((tool) => tool.enabled).length}</strong><span>Enabled tools</span></div><div><strong>{plugins.length}</strong><span>Plugins</span></div></div>
       <div className="mt-4 flex gap-1 rounded-xl bg-oat p-1">
         {(['sessions', 'tools', 'plugins'] as const).map((item) => (
           <button key={item} onClick={() => setView(item)} className={'flex-1 rounded-lg px-2 py-2 text-[12px] font-medium capitalize ' + (view === item ? 'bg-surface text-text shadow-sm' : 'text-faint')}>{item}</button>
@@ -228,8 +231,11 @@ export default function AgentsScreen() {
       {view === 'tools' && (
         <section className="mt-4">
           <div className="mb-2 flex items-center justify-between"><h3 className="text-[14px] font-semibold text-text">Registered tools</h3><span className="text-meta text-faint">{tools.filter((tool) => tool.enabled).length} enabled / {tools.length}</span></div>
-          {tools.map((tool) => <article key={tool.name} className="mb-2 rounded-xl border border-hairline bg-surface p-3"><div className="flex items-center justify-between gap-2"><p className="break-all font-mono text-[11px] text-text">{tool.name}</p><span className={'text-[9px] font-semibold ' + (tool.enabled ? 'text-[#55734F]' : 'text-[#9A4D3D]')}>{tool.enabled ? 'ENABLED' : 'DISABLED'}</span></div><p className="mt-1 text-[11px] leading-relaxed text-muted">{tool.description}</p><div className="mt-2 flex items-center justify-between gap-2"><p className="text-[10px] text-faint">Policy: {tool.action ?? 'policy gate'} · {tool.parallelSafe ? 'parallel-safe' : 'sequential'} · {tool.pluginId ?? tool.source}</p>{tool.source === 'plugin' && <button type="button" disabled={!online || toolAction === tool.name} onClick={() => void togglePluginTool(tool)} className="shrink-0 rounded-lg border border-hairline px-2.5 py-1.5 text-[10px] font-medium text-body disabled:opacity-50">{toolAction === tool.name ? 'Saving…' : tool.enabled ? 'Disable' : 'Enable'}</button>}</div></article>)}
+          <input value={toolQuery} onChange={(event) => setToolQuery(event.target.value)} aria-label="Search tools" placeholder="Search tools or plugins" className="field mb-3" />
+          <div className="mb-3 flex gap-2">{(['all', 'plugin', 'disabled'] as const).map((scope) => <button type="button" key={scope} aria-pressed={toolScope === scope} onClick={() => setToolScope(scope)} className={`jini-mobile-runtime-filter ${toolScope === scope ? 'is-active' : ''}`}>{scope === 'all' ? 'All' : scope === 'plugin' ? 'Plugins' : 'Disabled'}</button>)}</div>
+          {tools.filter((tool) => `${tool.name} ${tool.description} ${tool.pluginId ?? ''}`.toLowerCase().includes(toolQuery.trim().toLowerCase()) && (toolScope === 'all' || (toolScope === 'plugin' ? tool.source === 'plugin' : !tool.enabled))).map((tool) => <article key={tool.name} className="mb-2 rounded-xl border border-hairline bg-surface p-3"><div className="flex items-center justify-between gap-2"><p className="break-all font-mono text-[11px] text-text">{tool.name}</p><span className={'text-[9px] font-semibold ' + (tool.enabled ? 'text-[#55734F]' : 'text-[#9A4D3D]')}>{tool.enabled ? 'ENABLED' : 'DISABLED'}</span></div><p className="mt-1 text-[11px] leading-relaxed text-muted">{tool.description}</p><div className="mt-2 flex items-center justify-between gap-2"><p className="text-[10px] text-faint">Policy: {tool.action ?? 'policy gate'} · {tool.parallelSafe ? 'parallel-safe' : 'sequential'} · {tool.pluginId ?? tool.source}</p>{tool.source === 'plugin' && <button type="button" disabled={!online || toolAction === tool.name} onClick={() => void togglePluginTool(tool)} className="shrink-0 rounded-lg border border-hairline px-2.5 py-1.5 text-[10px] font-medium text-body disabled:opacity-50">{toolAction === tool.name ? 'Saving…' : tool.enabled ? 'Disable' : 'Enable'}</button>}</div></article>)}
           {!tools.length && <Empty title="No registered tools" hint="The desktop registry will appear here when connected." />}
+          {!!tools.length && !tools.some((tool) => `${tool.name} ${tool.description} ${tool.pluginId ?? ''} `.toLowerCase().includes(toolQuery.trim().toLowerCase()) && (toolScope === 'all' || (toolScope === 'plugin' ? tool.source === 'plugin' : !tool.enabled))) && <p className="py-5 text-center text-[12px] text-faint">No tools match these filters.</p>}
         </section>
       )}
 

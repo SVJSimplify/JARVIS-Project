@@ -641,3 +641,40 @@ select {
 .jini-composer-input:focus {
   outline: none;
 }
+
+/* JINI agent workspace — high-density monochrome operational UI. */
+.jini-runtime-overlay { background: rgba(12, 13, 15, .72); backdrop-filter: blur(5px); }
+.jini-runtime-shell { background: #111315; color: #ededed; border: 1px solid #33373b; border-radius: 14px; box-shadow: 0 28px 90px rgba(0,0,0,.45); }
+.jini-runtime-shell .text-ink,.jini-runtime-shell .text-body { color: #e8e8e8 !important; }
+.jini-runtime-shell .text-muted,.jini-runtime-shell .text-faint { color: #9da1a5 !important; }
+.jini-runtime-shell .border-line,.jini-runtime-shell .border-hairline { border-color: #33373b !important; }
+.jini-runtime-shell .bg-paper,.jini-runtime-shell .bg-surface { background: #1c1f22 !important; }
+.jini-runtime-header { background: #151719; border-bottom: 1px solid #303338; }
+.jini-runtime-header p:first-child { color: #9b9fa3 !important; font-family: var(--mono); letter-spacing: .14em; }
+.jini-runtime-heading { font-size: clamp(25px,3vw,34px); line-height: 1.1; font-weight: 650; letter-spacing: -.045em; }
+.jini-runtime-close { background: #24272a; color: #dedede; border: 1px solid #3a3d41; border-radius: 8px; }
+.jini-runtime-close:hover { background: #34383c; }
+.jini-runtime-overview { background: #111315; border-bottom: 1px solid #2b2e32; color: #92979c; font-size: 12px; }
+.jini-runtime-overview strong { color: #f5f5f5; font-size: 14px; font-variant-numeric: tabular-nums; margin-right: 5px; }
+.jini-runtime-tabs { background: #17191b; border-bottom: 1px solid #303338; }
+.jini-runtime-tabs button { border-radius: 7px; color: #9b9fa3; }
+.jini-runtime-tabs button[aria-current='page'] { background: #303438 !important; color: #fff !important; }
+.jini-runtime-sidebar { background: #17191b; border-color: #303338; }
+.jini-runtime-content { background: #111315; }
+.jini-runtime-session { border-color: transparent !important; }
+.jini-runtime-session:hover { background: #25282c !important; }
+.jini-runtime-session:focus-visible { outline-color: #f2f2f2; }
+.jini-runtime-session[class*='border-sand'] { background: #292d31 !important; border-color: #555c62 !important; }
+.jini-runtime-metrics > div { background: #1d2023 !important; border: 1px solid #32363a; border-radius: 9px; }
+.jini-runtime-filter { border: 1px solid #373b40; background: #1d2023; color: #aeb3b8; border-radius: 7px; padding: 7px 11px; font-size: 11px; font-weight: 600; }
+.jini-runtime-filter.is-active { background: #eaeaea; color: #161719; border-color: #eaeaea; }
+.jini-runtime-shell input { background: #1d2023 !important; color: #f5f5f5 !important; border-color: #41464b !important; }
+.jini-runtime-shell input::placeholder { color: #888e94; }
+.jini-runtime-shell button:not(.jini-runtime-filter):disabled { opacity: .45; }
+.jini-runtime-tooltable { border-color: #363a3e; }
+.jini-runtime-tooltable > div:first-child { background: #24272a !important; }
+.jini-runtime-tooltable > div:nth-child(2) > div { border-color: #292d31; }
+.jini-runtime-events ol { border-color: #3b4044; }
+.jini-runtime-events li { border-color: #2b2f32; }
+.jini-runtime-events li > span { background: #d6d8da !important; }
+@media(max-width:767px) { .jini-runtime-shell { height: 96vh; max-height: 96vh; } .jini-runtime-layout { display:flex; flex-direction:column; } .jini-runtime-sidebar { max-height: 190px; flex-shrink:0; } .jini-runtime-content { flex:1; } .jini-runtime-tooltable > div:first-child { display:none; } .jini-runtime-tooltable > div:nth-child(2) > div { grid-template-columns: minmax(0,1fr) 85px; } .jini-runtime-tooltable > div:nth-child(2) > div > :nth-child(2), .jini-runtime-tooltable > div:nth-child(2) > div > :nth-child(3) { display:none; } }
