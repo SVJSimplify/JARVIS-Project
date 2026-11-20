@@ -141,7 +141,8 @@ describe('the renderer component contract — real controls, real data', () => {
     expect(window).toMatch(/<ConversationsPanel open=\{panel === 'conversations'\}/);
     expect(window).toMatch(/<SettingsPanel open=\{settingsOpen\}/);
     expect(window).toMatch(/onSetMode\(bg \? 'interactive' : 'background'\)/);
-    expect(window).toMatch(/hud\.setMini\(!mini\)/);
+    expect(window).toMatch(/hud\.setMini\(true\)/); // compact control
+    expect(window).toMatch(/hud\.setMini\(false\)/); // expand control
   });
 
   it('App.tsx remains untouched by the integration (no autopilot imports needed there)', () => {

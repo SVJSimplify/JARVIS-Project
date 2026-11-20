@@ -951,6 +951,11 @@ export async function taskViews(): Promise<TaskProgressView[]> {
   return [...active, ...recent].slice(0, 8).map(taskToView);
 }
 
+/** Wait for all queued atomic task writes before simulating a process restart in tests. */
+export const flushTaskStoreForTests = async (): Promise<void> => {
+  await Promise.all([...writeChains.values()]);
+};
+
 /** Test helper. */
 export const resetTaskStoreForTests = (): void => {
   cache.clear();

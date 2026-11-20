@@ -105,6 +105,9 @@ describe('Workflow B — pause, restart-simulation, resume', () => {
     const paused = await waitStatus(id, ['PAUSED']);
     expect(paused?.status).toBe('PAUSED');
     expect(paused?.steps.some((s) => s.status === 'done')).toBe(true); // completed work preserved
+    // The UI observes the in-memory state before the atomic write necessarily finishes.
+    // Flush writes before simulating a process kill so this tests the durable restart path.
+    await flushTaskStoreForTests();
     // restart simulation: drop the in-memory cache, reload from disk
     const { resetTaskStoreForTests: reset } = await import('../src/main/taskStore');
     reset();
