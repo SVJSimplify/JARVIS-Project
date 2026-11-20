@@ -68,6 +68,15 @@ describe('action classification', () => {
     expect(classifyToolAction('move_file', { from: 'a', to: 'b' }).resource).toContain('b');
   });
 
+  it('classifies Git checkpoint listing, creation and restore with the correct policy classes', () => {
+    expect(classifyToolAction('git_checkpoint_list', {}).action).toBe('read');
+    expect(classifyToolAction('git_checkpoint_create', {})).toEqual({ action: 'config', resource: 'git:checkpoint' });
+    expect(classifyToolAction('git_checkpoint_restore', {})).toEqual({
+      action: 'write',
+      resource: expect.stringContaining('path:workspace:'),
+    });
+  });
+
   it('maps execution classes and treats unknown tools conservatively as config mutations', () => {
     expect(classifyToolAction('run_command', { command: 'npm run build' })).toEqual({ action: 'execute', resource: 'shell:npm run build' });
     expect(classifyToolAction('run_python', { code: 'print(1)' }).resource).toBe('py:print(1)');
