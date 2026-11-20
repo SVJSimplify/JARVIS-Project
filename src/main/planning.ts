@@ -23,7 +23,7 @@ const isPlanning = (): boolean => planningBySession.get(sessionKey()) === true;
 const READ_ONLY = new Set([
   'get_current_time', 'read', 'list_files', 'glob', 'grep', 'tinyfish_search', 'tinyfish_fetch', 'web_search', 'fetch_url', 'get_weather',
   'code_search', 'skill', 'todo_read', 'todo_write', 'ask_user', 'plan_exit', 'list_memories', 'find_contact',
-  'read_notes', 'list_timers', 'list_custom_apps', 'list_windows', 'get_system_info', 'diagnostics', 'batch', 'task',
+  'read_notes', 'list_timers', 'list_custom_apps', 'list_windows', 'get_system_info', 'diagnostics', 'batch', 'task', 'git_checkpoint_list',
   // Round 31 (§2): read-only project intelligence is exactly what plan mode exists for.
   'inspect_project', 'project_context', 'analyze_impact',
 ]);

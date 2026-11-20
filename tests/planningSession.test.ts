@@ -8,6 +8,8 @@ describe('session-scoped plan mode', () => {
       resetPlanMode();
       planningTools.plan_enter.run({});
       expect(planGuard('write_file')).toMatch(/read-only/);
+      expect(planGuard('git_checkpoint_list')).toBeNull();
+      expect(planGuard('git_checkpoint_restore')).toMatch(/read-only/);
     });
     await runWithExecutionScope({ sessionId: 'plan-session-b' }, async () => {
       resetPlanMode();
