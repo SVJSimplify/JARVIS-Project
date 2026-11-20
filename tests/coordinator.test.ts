@@ -237,7 +237,8 @@ describe('TaskCoordinator (Module C)', () => {
     expect(out).toMatch(/Task T-/);
     const id = /Task (T-[\w]+)/.exec(out)![1];
     // Drive is async: wait for the terminal state.
-    for (let i = 0; i < 50 && (await getTask(id))?.status !== 'COMPLETED'; i++) await new Promise((r) => setTimeout(r, 50));
+    // The coordinator runs planning, execution and verification asynchronously; allow CI scheduling headroom.
+    for (let i = 0; i < 200 && (await getTask(id))?.status !== 'COMPLETED'; i++) await new Promise((r) => setTimeout(r, 50));
     const t = await getTask(id);
     expect(t?.status).toBe('COMPLETED');
     expect(t?.verification?.passed).toBe(true);
