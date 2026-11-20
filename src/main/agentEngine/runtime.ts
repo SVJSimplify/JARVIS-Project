@@ -80,6 +80,13 @@ const clone = (s: AgentSessionSnapshot): AgentSessionSnapshot => structuredClone
 const cloneEvent = (event: AgentRuntimeEvent): AgentRuntimeEvent => structuredClone(event);
 const MAX_RUNTIME_EVENTS = 10_000;
 
+/** Session identifiers cross IPC, persistence and provider boundaries; reject malformed values early. */
+function assertSessionId(value: unknown, label = 'Agent session id'): asserts value is string {
+  if (typeof value !== 'string' || !value || value !== value.trim() || value.length > 160 || /[\\u0000-\\u001f\\u007f]/.test(value)) {
+    throw new Error(label + ' must be 1–160 characters with no surrounding whitespace or control characters.');
+  }
+}
+
 export class AgentRuntime {
   private readonly sessions = new Map<string, AgentSessionSnapshot>();
   private readonly activeRuns = new Map<string, Promise<string>>();
@@ -162,7 +169,7 @@ export class AgentRuntime {
   }
 
   async createSession(id: string = randomUUID()): Promise<AgentSessionSnapshot> {
-    if (typeof id !== 'string' || !id.trim() || id.length > 160) throw new Error('Agent session id must be 1–160 characters.');
+    assertSessionId(id);
     await this.hydrate();
     if (this.sessions.has(id)) throw new Error(`Agent session "${id}" already exists.`);
     const now = Date.now();
@@ -175,7 +182,9 @@ export class AgentRuntime {
   }
 
   async run(prompt: string, options: AgentRunOptions = {}): Promise<string> {
-    if (!prompt.trim()) throw new Error('Agent prompt cannot be empty.');
+    if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Agent prompt cannot be empty.');
+    if (options.sessionId !== undefined) assertSessionId(options.sessionId);
+    if (options.source !== undefined && options.source !== 'interactive' && options.source !== 'scheduled') throw new Error('Invalid agent run source.');
     await this.hydrate();
     const id = options.sessionId ?? randomUUID();
     // OpenCode-style per-session ownership: a new interactive turn replaces only the
@@ -300,12 +309,14 @@ export class AgentRuntime {
   }
 
   async continue(sessionId: string, prompt: string, options: Omit<AgentRunOptions, 'sessionId'> = {}): Promise<string> {
+    assertSessionId(sessionId);
     await this.hydrate();
     if (!this.sessions.has(sessionId)) throw new Error(`Unknown agent session "${sessionId}".`);
     return this.run(prompt, { ...options, sessionId });
   }
 
   async abort(sessionId: string): Promise<boolean> {
+    assertSessionId(sessionId);
     await this.hydrate();
     const session = this.sessions.get(sessionId);
     const active = this.activeRuns.has(sessionId);
@@ -335,6 +346,7 @@ export class AgentRuntime {
   }
 
   async snapshot(sessionId: string): Promise<AgentSessionSnapshot> {
+    assertSessionId(sessionId);
     await this.hydrate();
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Unknown agent session "${sessionId}".`);
@@ -345,6 +357,8 @@ export class AgentRuntime {
 
   /** Replay the durable session event stream after a sequence cursor. */
   async replay(sessionId: string, afterSequence = 0): Promise<AgentRuntimeEvent[]> {
+    assertSessionId(sessionId);
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < 0) throw new Error('Event replay cursor must be a non-negative safe integer.');
     await this.hydrate();
     if (!this.sessions.has(sessionId)) throw new Error(`Unknown agent session "${sessionId}".`);
     const cursor = Number.isFinite(afterSequence) ? Math.max(0, Math.floor(afterSequence)) : 0;
@@ -358,11 +372,13 @@ export class AgentRuntime {
 
   /** Fork a completed/interrupted conversation without sharing mutable transcript state. */
   async fork(sessionId: string, newSessionId: string = randomUUID()): Promise<AgentSessionSnapshot> {
+    assertSessionId(sessionId);
+    assertSessionId(newSessionId, 'New agent session id');
     await this.hydrate();
     const source = this.sessions.get(sessionId);
     if (!source) throw new Error(`Unknown agent session "${sessionId}".`);
     if (this.sessions.has(newSessionId)) throw new Error(`Agent session "${newSessionId}" already exists.`);
-    if (this.activeRuns.has(sessionId)) throw new Error('Cannot fork a session while it is running.');
+    if (this.activeRuns.has(sessionId) || source.status === 'running' || source.status === 'aborting') throw new Error('Cannot fork a session while it is running.');
     const now = Date.now();
     const messages = this.driver.snapshotHistory?.(sessionId) ?? source.messages ?? [];
     const fork: AgentSessionSnapshot = { id: newSessionId, parentSessionId: sessionId, status: 'idle', createdAt: now, updatedAt: now, turnCount: 0, iteration: 0, pendingToolCalls: [], messages: structuredClone(messages) };
@@ -376,9 +392,8 @@ export class AgentRuntime {
 
   async restore(snapshot: AgentSessionSnapshot): Promise<AgentSessionSnapshot> {
     await this.hydrate();
-    if (!snapshot || typeof snapshot.id !== 'string' || !snapshot.id.trim() || snapshot.id.length > 160 || !validStatus(snapshot.status)) {
-      throw new Error('Invalid agent session snapshot.');
-    }
+    if (!snapshot || typeof snapshot !== 'object' || !validStatus(snapshot.status)) throw new Error('Invalid agent session snapshot.');
+    assertSessionId(snapshot.id, 'Restored agent session id');
     if (this.activeRuns.has(snapshot.id)) throw new Error(`Cannot restore active agent session "${snapshot.id}".`);
     const restored: AgentSessionSnapshot = {
       ...snapshot,

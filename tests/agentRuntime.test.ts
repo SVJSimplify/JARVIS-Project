@@ -192,3 +192,30 @@ describe('Cline-compatible JINI agent session runtime', () => {
   });
 
 });
+
+
+describe('agent runtime boundary validation', () => {
+  it('rejects malformed session identifiers before touching persistence or provider state', async () => {
+    const { runtime, driver } = setup();
+    await expect(runtime.createSession('  bad-id')).rejects.toThrow(/session id/);
+    await expect(runtime.run('prompt', { sessionId: 'bad\\u0000id' })).rejects.toThrow(/session id/);
+    await expect(runtime.snapshot('bad\\n-id')).rejects.toThrow(/session id/);
+    expect(driver.chat).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid run inputs and event replay cursors', async () => {
+    const { runtime, driver } = setup();
+    await expect(runtime.run('   ')).rejects.toThrow(/prompt cannot be empty/);
+    await expect(runtime.run('prompt', { source: 'unknown' as 'interactive' })).rejects.toThrow(/run source/);
+    await expect(runtime.replay('valid-session', -1)).rejects.toThrow(/replay cursor/);
+    await expect(runtime.replay('valid-session', 1.5)).rejects.toThrow(/replay cursor/);
+    expect(driver.chat).not.toHaveBeenCalled();
+  });
+
+  it('validates both source and destination identifiers before forking', async () => {
+    const { runtime } = setup();
+    await runtime.run('prompt', { sessionId: 'source-session' });
+    await expect(runtime.fork('source-session', ' invalid')).rejects.toThrow(/New agent session id/);
+    await expect(runtime.fork('source-session', 'source-session')).rejects.toThrow(/already exists/);
+  });
+});
