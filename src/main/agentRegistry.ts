@@ -58,7 +58,7 @@ export interface AgentDef {
 
 const READ_TOOLS = new Set([
   'read', 'list_files', 'glob', 'grep', 'find_files', 'read_document', 'get_current_time', 'get_system_info', 'list_windows', 'read_notes',
-  'list_memories', 'find_memory', 'find_contact', 'calculate', 'tool_log', 'todo_read', 'list_timers', 'list_scheduled', 'list_drives', 'list_processes',
+  'list_memories', 'find_memory', 'find_contact', 'calculate', 'tool_log', 'todo_read', 'list_timers', 'list_scheduled', 'list_drives', 'list_processes', 'git_checkpoint_list',
   // Round 31 (§2): project intelligence — read-only workspace understanding + impact analysis.
   'inspect_project', 'project_context', 'analyze_impact',
 ]);
