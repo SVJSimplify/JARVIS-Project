@@ -137,6 +137,7 @@ export async function pairWithOffer(offerText: string, deviceName: string, platf
       messages: [],
       tasks: [],
       approvals: [],
+      agentEvents: [],
       outbox: [],
     });
     void connect();
@@ -149,7 +150,7 @@ export function unpair(): void {
   socket?.close();
   socket = null;
   key = null;
-  setState({ link: null, connection: 'unpaired', cursor: 0, tasks: [], approvals: [], outbox: [] });
+  setState({ link: null, connection: 'unpaired', cursor: 0, tasks: [], approvals: [], agentEvents: [], outbox: [] });
 }
 
 // ---------------- RPC ----------------
