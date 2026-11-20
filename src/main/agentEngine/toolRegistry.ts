@@ -129,18 +129,27 @@ export class AgentToolRegistry {
         throw new Error('Tool "' + name + '" needs a description.');
       }
       if (typeof definition.execute !== 'function') throw new Error('Tool "' + name + '" needs an execute function.');
-      validateSchema(definition.inputSchema, name);
+      let inputSchema: Record<string, unknown>;
+      try { inputSchema = structuredClone(definition.inputSchema); }
+      catch { throw new Error('Tool "' + name + '" inputSchema must contain only cloneable JSON schema data.'); }
+      validateSchema(inputSchema, name);
       const action = definition.action ?? 'config';
+      if (!['read', 'write', 'delete', 'execute', 'install', 'credentials', 'communicate', 'purchase', 'config'].includes(String(action))) {
+        throw new Error('Tool "' + name + '" declares an invalid action class.');
+      }
+      if (definition.executionMode !== undefined && definition.executionMode !== 'sequential' && definition.executionMode !== 'parallel') {
+        throw new Error('Tool "' + name + '" declares an invalid execution mode.');
+      }
       if ((definition.parallelSafe === true || definition.executionMode === 'parallel') && action !== 'read') {
         throw new Error('Parallel custom tools must explicitly declare action: read.');
       }
       if (definition.resource !== undefined && typeof definition.resource !== 'string' && typeof definition.resource !== 'function') {
         throw new Error('Tool resource must be a string or a function.');
       }
-      const agentTool: AgentTool = { ...definition, name, action };
+      const agentTool: AgentTool = { ...definition, name, action, inputSchema };
       const tool: Tool = {
         description: agentTool.description,
-        parameters: agentTool.inputSchema,
+        parameters: structuredClone(agentTool.inputSchema),
         parallelSafe: agentTool.parallelSafe === true || agentTool.executionMode === 'parallel',
         run: async (args) => stringifyOutput(await agentTool.execute(args, { agentId: 'main', pluginId: id, signal: executionSignal(), sessionId: executionSessionId() })),
       };
@@ -205,7 +214,7 @@ export class AgentToolRegistry {
     if (patch.parameters !== undefined) {
       validateSchema(patch.parameters, name);
       entry.tool.parameters = patch.parameters;
-      if (entry.agentTool) entry.agentTool.inputSchema = patch.parameters;
+      if (entry.agentTool) entry.agentTool.inputSchema = structuredClone(patch.parameters);
     }
     if (patch.parallelSafe === true && entry.source === 'plugin' && entry.action !== 'read') {
       throw new Error('Parallel custom tools must explicitly declare action: read.');

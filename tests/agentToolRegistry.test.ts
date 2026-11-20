@@ -92,3 +92,38 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
     }])).toThrow(/properties must be an object/);
   });
 });
+
+
+describe('plugin schema isolation', () => {
+  it('takes a private schema snapshot and returns defensive model-facing schemas', () => {
+    registry = new AgentToolRegistry();
+    const schema: Record<string, unknown> = {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    };
+    registry.registerPluginTools('isolated.plugin', [{
+      name: 'search', description: 'Search', inputSchema: schema, execute: () => 'ok', action: 'read',
+    }]);
+
+    (schema.properties as Record<string, unknown>).query = { type: 'number' };
+    (schema.required as string[]).push('mutated');
+    const first = registry.toToolMap().plugin_isolated_plugin_search.parameters;
+    expect(first).toEqual({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'] });
+
+    (first.properties as Record<string, unknown>).query = { type: 'boolean' };
+    expect(registry.toToolMap().plugin_isolated_plugin_search.parameters).toEqual({
+      type: 'object', properties: { query: { type: 'string' } }, required: ['query'],
+    });
+  });
+
+  it('rejects invalid runtime action and execution-mode declarations', () => {
+    registry = new AgentToolRegistry();
+    expect(() => registry.registerPluginTools('invalid.plugin', [{
+      name: 'bad_action', description: 'Bad action', inputSchema: { type: 'object' }, execute: () => 'no', action: 'root' as never,
+    }])).toThrow(/invalid action class/);
+    expect(() => registry.registerPluginTools('invalid.mode', [{
+      name: 'bad_mode', description: 'Bad mode', inputSchema: { type: 'object' }, execute: () => 'no', action: 'read', executionMode: 'race' as never,
+    }])).toThrow(/invalid execution mode/);
+  });
+});
