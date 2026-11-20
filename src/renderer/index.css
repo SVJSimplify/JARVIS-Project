@@ -678,3 +678,13 @@ select {
 .jini-runtime-events li { border-color: #2b2f32; }
 .jini-runtime-events li > span { background: #d6d8da !important; }
 @media(max-width:767px) { .jini-runtime-shell { height: 96vh; max-height: 96vh; } .jini-runtime-layout { display:flex; flex-direction:column; } .jini-runtime-sidebar { max-height: 190px; flex-shrink:0; } .jini-runtime-content { flex:1; } .jini-runtime-tooltable > div:first-child { display:none; } .jini-runtime-tooltable > div:nth-child(2) > div { grid-template-columns: minmax(0,1fr) 85px; } .jini-runtime-tooltable > div:nth-child(2) > div > :nth-child(2), .jini-runtime-tooltable > div:nth-child(2) > div > :nth-child(3) { display:none; } }
+
+/* 2026 JINI redesign: neutral product shell, no ornamental gradients or pastel dashboard chrome. */
+:root { --void: 246 247 248; --accent: 43 47 51; --hot: 24 27 30; --steel: 100 106 112; --line: 222 225 228; --surface: 255 255 255; --surface-2: 238 240 242; --display: var(--text); }
+.hud { background: #f4f5f6; }
+.holo-panel { border-color:#dadde0; border-radius:12px !important; box-shadow:0 12px 48px rgba(12,16,20,.12); }
+.holo-title { font-family:var(--text); letter-spacing:-.035em; font-weight:650; }
+.rail-title { font-weight:650; letter-spacing:-.025em; }
+.font-serif-display { font-family:var(--text); font-optical-sizing:auto; font-weight:650; letter-spacing:-.04em; }
+button, input, textarea { font-family:var(--text); }
+@media (prefers-reduced-motion: reduce) { .jini-runtime-overlay { backdrop-filter:none; } }

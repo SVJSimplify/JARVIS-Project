@@ -82,3 +82,11 @@ body {
 .jini-mobile-runtime-filter { flex:1; padding:8px 6px; background:#e9e9e9; border:1px solid #c9c9c9; color:#333; border-radius:8px; font-size:11px; font-weight:600; }
 .jini-mobile-runtime-filter.is-active { background:#202327; border-color:#202327; color:#fff; }
 .jini-mobile-runtime [aria-pressed='true'] { outline-offset:2px; }
+
+/* Consistent JINI mobile shell: neutral surfaces, compact typography, precise hierarchy. */
+body { background:#f5f6f7; color:#191b1e; }
+.font-serif-display { font-family:'Inter Variable',system-ui,sans-serif; font-weight:700; letter-spacing:-.045em; }
+.btn-primary { background:#202327; color:#fff; }
+.btn-secondary,.group-list { border-color:#dfe2e5; background:#fff; }
+.field { border-color:#d6dadd; background:#fff; }
+.section-label { letter-spacing:.025em; }
