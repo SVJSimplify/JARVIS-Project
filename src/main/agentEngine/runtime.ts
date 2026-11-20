@@ -202,7 +202,14 @@ export class AgentRuntime {
   private async runSession(prompt: string, options: AgentRunOptions, id: string): Promise<string> {
     await this.hydrate();
     let session = this.sessions.get(id);
-    if (!session) session = await this.createSession(id);
+    if (!session) {
+      // createSession intentionally returns a defensive clone to callers. Re-read the
+      // canonical map entry before mutating run state; mutating that clone left persisted
+      // sessions stuck at "idle" and broke snapshots, lifecycle hooks and replacement.
+      await this.createSession(id);
+      session = this.sessions.get(id);
+    }
+    if (!session) throw new Error(`Agent session "${id}" could not be created.`);
     if (session.status === 'running' || session.status === 'aborting') {
       throw new Error(`Agent session "${id}" already has an active run.`);
     }
