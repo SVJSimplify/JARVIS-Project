@@ -63,6 +63,7 @@ export async function restoreGitCheckpoint(cwd: string, id: string): Promise<voi
 export async function deleteGitCheckpoint(cwd: string, id: string): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Invalid checkpoint id.');
   const root = await rootOf(cwd);
+  if (!root) throw new Error('Workspace is not inside a Git repository.');
   await git(root, ['update-ref', '-d', PREFIX + id]);
 }
 export async function listGitCheckpoints(cwd: string): Promise<string[]> {
