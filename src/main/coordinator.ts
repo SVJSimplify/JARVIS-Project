@@ -1113,6 +1113,10 @@ async function drive(t: TaskRecord, deps: CoordinatorDeps, signal: AbortSignal, 
         // reconciled honestly (unknown outcomes stay unknown), completed work is preserved
         // and the task settles PAUSED, resumable. No verdict is set.
         await reconcileInterruptedSteps(t, 'paused by the user while the step was mid-flight; outcome unknown').catch(() => undefined);
+        // PAUSED is an externally visible resume point. Release the old execution lease
+        // before publishing that status, otherwise an immediate task_resume can see
+        // PAUSED with the previous driver's fresh claim and be incorrectly refused.
+        await releaseClaim(t, lease.owner).catch(() => undefined);
         await transition(t, 'PAUSED', 'paused by the user — completed steps are preserved; resume to continue').catch(() => undefined);
         taskEvent(t, 'Task paused', `${t.steps.filter((s) => s.status === 'done').length}/${t.steps.length} steps done — resume with task_resume`, 'busy');
       } else if (cancelReasons.get(t.id) === 'user') {
