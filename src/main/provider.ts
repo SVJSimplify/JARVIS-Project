@@ -345,6 +345,10 @@ export function cancelChat(chatId?: string): void {
     for (const controller of turnControllers.get(chatId) ?? []) controller.abort();
     return;
   }
+  // Cancel queued turns as well as the currently executing request. A no-id stop is
+  // conversation-wide: aborting only turnAbort races the next queued turn starting just
+  // after the caller observes the previous promise settle.
+  for (const controllers of turnControllers.values()) for (const controller of controllers) controller.abort();
   turnAbort?.abort();
 }
 
