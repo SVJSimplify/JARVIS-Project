@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareDesktopVersions } from '../src/main/updater';
+import { compareDesktopVersions } from '../src/main/updateVersion';
 
 describe('desktop update version comparison', () => {
   it('compares numeric version components rather than strings', () => {

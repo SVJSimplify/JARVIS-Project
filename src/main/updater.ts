@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { compareDesktopVersions } from './updateVersion';
 
 const RELEASE_API = 'https://api.github.com/repos/SVJSimplify/JARVIS-Project/releases/tags/desktop-latest';
 const RELEASE_ASSET_PREFIX = 'https://github.com/SVJSimplify/JARVIS-Project/releases/download/desktop-latest/';
@@ -42,21 +43,6 @@ function publish(next: DesktopUpdateStatus): DesktopUpdateStatus {
     if (!window.isDestroyed()) window.webContents.send('updates:status', status);
   }
   return status;
-}
-
-function versionParts(value: string): number[] | null {
-  if (!/^\d+\.\d+\.\d+$/.test(value)) return null;
-  return value.split('.').map(Number);
-}
-
-export function compareDesktopVersions(left: string, right: string): number {
-  const a = versionParts(left);
-  const b = versionParts(right);
-  if (!a || !b) throw new Error('Update version must use numeric major.minor.patch format.');
-  for (let i = 0; i < 3; i += 1) {
-    if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
-  }
-  return 0;
 }
 
 async function readRelease(): Promise<{ nextManifest: UpdateManifest; url: string }> {

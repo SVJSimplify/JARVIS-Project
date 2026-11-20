@@ -215,7 +215,7 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
           <section className="space-y-5" aria-labelledby="updates-heading">
             <div>
               <h2 id="updates-heading" className="rail-title">JINI updates</h2>
-              <p className="text-sm text-steel">JINI checks for desktop releases automatically. Updates download in the background and install when you choose to restart.</p>
+              <p className="text-sm text-steel">JINI checks for desktop releases automatically. Download an available update here, then restart when you're ready to install it.</p>
             </div>
             <div className="rounded-xl border border-hairline bg-surface p-4">
               <div className="flex items-center justify-between gap-3">
