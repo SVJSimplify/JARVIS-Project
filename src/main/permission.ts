@@ -140,7 +140,7 @@ const WRITE_TOOLS = new Set(['write_file', 'edit_file', 'multi_edit', 'apply_pat
 // Explicitly reviewed observation-only handlers. Unknown tools remain config-class by
 // default; only this allowlist can bypass the durable started-receipt path.
 const READ_TOOLS = new Set([
-  'get_current_time', 'list_files', 'read', 'glob', 'grep', 'code_search',
+  'get_current_time', 'list_files', 'read', 'glob', 'grep', 'code_search', 'tool_log', 'list_capabilities',
   'web_search', 'web_browse', 'search_and_read', 'fetch_url', 'get_weather',
   'tinyfish_search', 'tinyfish_fetch', 'calculate', 'get_system_info',
   'clipboard_read', 'find_contact', 'find_memory', 'read_notes', 'list_memories',
