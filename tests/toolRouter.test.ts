@@ -8,7 +8,8 @@ import {
   loadGroups,
   noteUsed,
   routeSummary,
-  routeTurn,\n  resolveIntent,
+  routeTurn,
+  resolveIntent,
   setAllSchemas,
   unloadedGroups,
 } from '../src/main/toolRouter';
