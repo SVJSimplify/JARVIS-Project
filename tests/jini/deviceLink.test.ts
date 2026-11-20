@@ -149,6 +149,28 @@ describe('JINI device link (desktop hub + shared protocol, real HTTP)', () => {
     expect((s2.resp!.result as { events: unknown[] }).events).toHaveLength(0);
   });
 
+  it('streams agent lifecycle metadata through the encrypted sync channel', async () => {
+    const p = await pairPhone(hub, port);
+    const ctr = makeCounter();
+    const base = hub.status().seq;
+    hub.append('agent', {
+      eventId: 'event-1',
+      sequence: 7,
+      sessionId: 'session-1',
+      type: 'tool-start',
+      at: Date.now(),
+      status: 'running',
+      tool: 'search_web',
+    });
+    const synced = await rpc(port, p.deviceId!, p.key!, ctr, 'sync', { since: base });
+    const result = synced.resp!.result as { events: Array<{ type: string; data: Record<string, unknown> }> };
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].type).toBe('agent');
+    expect(result.events[0].data).toMatchObject({ sessionId: 'session-1', type: 'tool-start', tool: 'search_web' });
+    expect(result.events[0].data).not.toHaveProperty('text');
+    expect(result.events[0].data).not.toHaveProperty('arguments');
+  });
+
   it('revocation locks the device out immediately', async () => {
     const p = await pairPhone(hub, port);
     const ctr = makeCounter();
