@@ -96,7 +96,7 @@ describe('Cline-shaped tools on an OpenCode-style registry', () => {
 
 describe('plugin schema isolation', () => {
   it('takes a private schema snapshot and returns defensive model-facing schemas', () => {
-    registry = new AgentToolRegistry();
+    const registry = new AgentToolRegistry();
     const schema: Record<string, unknown> = {
       type: 'object',
       properties: { query: { type: 'string' } },
@@ -118,7 +118,7 @@ describe('plugin schema isolation', () => {
   });
 
   it('rejects invalid runtime action and execution-mode declarations', () => {
-    registry = new AgentToolRegistry();
+    const registry = new AgentToolRegistry();
     expect(() => registry.registerPluginTools('invalid.plugin', [{
       name: 'bad_action', description: 'Bad action', inputSchema: { type: 'object' }, execute: () => 'no', action: 'root' as never,
     }])).toThrow(/invalid action class/);
@@ -131,7 +131,7 @@ describe('plugin schema isolation', () => {
 
 describe('tool registry lifecycle parity', () => {
   it('keeps parallelSafe and executionMode synchronized when a plugin tool is updated', () => {
-    registry = new AgentToolRegistry();
+    const registry = new AgentToolRegistry();
     registry.registerPluginTools('parallel.plugin', [{
       name: 'lookup', description: 'Lookup', inputSchema: { type: 'object' }, execute: () => 'ok', action: 'read', executionMode: 'parallel',
     }]);
