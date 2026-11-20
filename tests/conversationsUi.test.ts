@@ -102,7 +102,9 @@ describe('round 15 source guards — the layout fix and the panel stay wired', (
     const win = src('src/renderer/components/JarvisWindow.tsx');
     expect(win).toMatch(/ml-auto flex items-center gap-1/);
     expect(win).toMatch(/grid h-7 w-7 place-items-center/);
-    expect(win).toMatch(/aria-label="Conversations"/);
+    // The compact history entry is now labelled "History" and opens the conversations panel.
+    expect(win).toContain("label: 'History'");
+    expect(win).toMatch(/setPanel\('conversations'\)/);
   });
 
   it('the Conversations panel registers as a modal (Esc must not cancel a running turn)', () => {

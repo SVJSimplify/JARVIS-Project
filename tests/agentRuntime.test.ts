@@ -113,7 +113,12 @@ describe('Cline-compatible JINI agent session runtime', () => {
     const { runtime, driver } = setup();
     const hooks = { beforeRun: vi.fn(), beforeModel: vi.fn(), afterModel: vi.fn(), afterRun: vi.fn() };
     await runtime.run('hooked prompt', { sessionId: 'hook-session', hooks });
-    expect(driver.chat).toHaveBeenCalledWith('hooked prompt', expect.any(Function), expect.any(Function), expect.objectContaining({ chatId: 'hook-session', hooks }));
+    expect(driver.chat).toHaveBeenCalledWith(
+      'hooked prompt',
+      expect.any(Function),
+      expect.any(Function),
+      expect.objectContaining({ chatId: 'hook-session', hooks: expect.objectContaining(hooks) })
+    );
   });
 
   it('persists the provider transcript and restores it into the existing chat engine', async () => {
