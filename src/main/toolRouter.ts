@@ -150,6 +150,7 @@ const normalize = (s: string): string =>
   s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 
 const familyForTool = (name: string): string => {
+  if (CORE.has(name)) return 'core';
   for (const family of FAMILIES) {
     if (family.patterns.some((pattern) => pattern.test(name))) return family.id;
   }
@@ -274,6 +275,11 @@ export const groupInfo = (): Array<{ id: string; hint: string; tools: string[] }
     hint: family.hint,
     tools: all.filter((schema) => familyOf.get(schema.function.name) === family.id).map((schema) => schema.function.name),
   })),
+  {
+    id: 'core',
+    hint: 'always available',
+    tools: all.filter((schema) => CORE.has(schema.function.name)).map((schema) => schema.function.name),
+  },
   {
     id: 'advanced',
     hint: 'specialist and less commonly used capabilities; load only when needed',

@@ -220,10 +220,7 @@ export function buildCapabilityManifest(registry: Registry, schemas: ToolSchema[
   return {
     generatedAt: new Date().toISOString(),
     toolCount: tools.length,
-    groups: [
-      ...groups.map((g) => ({ id: g.id, hint: g.hint, toolCount: g.tools.length })),
-      { id: 'core', hint: 'always available', toolCount: tools.filter((t) => t.group === 'core').length },
-    ],
+    groups: groups.map((g) => ({ id: g.id, hint: g.hint, toolCount: g.tools.length })),
     tools,
     agents: Object.values(AGENTS).map((a) => ({
       name: a.name,
