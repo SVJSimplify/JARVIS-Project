@@ -226,7 +226,11 @@ export async function resolveBrowserExecutable(config?: NativeBrowserConfig): Pr
   if (cfg.selectedBrowser) {
     const sel = installed.find((b) => b.id === cfg.selectedBrowser || b.executable === cfg.selectedBrowser);
     if (sel?.found) return { executable: sel.executable, browser: sel };
-    if (path.isAbsolute(cfg.selectedBrowser) && (await fileExists(cfg.selectedBrowser))) {
+    if (path.isAbsolute(cfg.selectedBrowser)) {
+      // An explicit executable path is a user selection, not a hint. Never silently
+      // fall back to another installed browser when that path is stale or unavailable:
+      // doing so can launch the wrong browser/profile during a recovery attempt.
+      if (!(await fileExists(cfg.selectedBrowser))) return null;
       return { executable: cfg.selectedBrowser, browser: { id: 'custom', name: path.basename(cfg.selectedBrowser), kind: 'custom', executable: cfg.selectedBrowser, found: true, priority: 0 } };
     }
   }
