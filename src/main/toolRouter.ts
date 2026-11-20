@@ -43,7 +43,7 @@ const FAMILIES: Family[] = [
     hint: 'web research, current information, source comparison, fact checking, weather and public information',
     cues: ['research', 'look up', 'find out', 'latest', 'current information', 'news', 'compare sources', 'fact check', 'investigate', 'search the web', 'web search', 'prices', 'weather', 'reviews', 'competitors', 'sources'],
     patterns: [/^(web_search|web_browse|fetch_url|tinyfish_|search_and_read|get_weather|verify_claim|research_web)/],
-    minScore: 2,
+    minScore: 1.5,
   },
   {
     id: 'browser',
@@ -57,7 +57,7 @@ const FAMILIES: Family[] = [
     hint: 'desktop apps, windows, keyboard/mouse actions, clipboard, audio, display and device controls',
     cues: ['desktop', 'open app', 'launch app', 'close app', 'switch window', 'focus window', 'volume', 'brightness', 'mute', 'keyboard', 'mouse', 'clipboard', 'press key', 'click on screen', 'windows settings', 'play music', 'pause music', 'bluetooth device'],
     patterns: [/^(inspect_app|click_control|set_control_text|type_text|press_keys|click_at|close_app|launch_app|open_app|media_control|list_windows|focus_window|window_control|set_hud_mode|place_window|volume_control|set_brightness|lock_screen|clipboard_|take_screenshot|add_app|remove_app|list_custom_apps|scroll_at|drag_at)/],
-    minScore: 2,
+    minScore: 1.5,
   },
   {
     id: 'files',
@@ -120,7 +120,7 @@ const FAMILIES: Family[] = [
     hint: 'create, read and transform documents, PDFs, presentations, spreadsheets and exports',
     cues: ['document', 'pdf', 'word document', 'docx', 'spreadsheet', 'excel', 'xlsx', 'presentation', 'powerpoint', 'pptx', 'export report', 'create a report', 'make a document'],
     patterns: [/^(make_document|read_document|artifact_|document_|pdf_|spreadsheet_|presentation_)/],
-    minScore: 2,
+    minScore: 1.5,
   },
 ];
 
@@ -234,6 +234,9 @@ export function endTurn(): void {
   const state = routeState();
   state.recent.push(new Set(state.touched));
   while (state.recent.length > STICKY_TURNS) state.recent.shift();
+  // A family belongs to one completed turn. Reusing the same touched set on every
+  // subsequent endTurn kept old capabilities sticky forever after the first request.
+  state.touched.clear();
 }
 
 export const currentSchemas = (): ToolSchema[] => {
