@@ -221,7 +221,12 @@ export class AgentToolRegistry {
     }
     if (patch.parallelSafe !== undefined) {
       entry.tool.parallelSafe = patch.parallelSafe;
-      if (entry.agentTool) entry.agentTool.parallelSafe = patch.parallelSafe;
+      if (entry.agentTool) {
+        entry.agentTool.parallelSafe = patch.parallelSafe;
+        // executionMode is also authoritative in the Cline-shaped contract; keep the
+        // two representations in sync so disabling parallelism actually takes effect.
+        if (!patch.parallelSafe && entry.agentTool.executionMode === 'parallel') entry.agentTool.executionMode = 'sequential';
+      }
     }
     if (patch.enabled !== undefined) entry.enabled = patch.enabled;
   }

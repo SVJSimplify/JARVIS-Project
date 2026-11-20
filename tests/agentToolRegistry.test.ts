@@ -127,3 +127,18 @@ describe('plugin schema isolation', () => {
     }])).toThrow(/invalid execution mode/);
   });
 });
+
+
+describe('tool registry lifecycle parity', () => {
+  it('keeps parallelSafe and executionMode synchronized when a plugin tool is updated', () => {
+    registry = new AgentToolRegistry();
+    registry.registerPluginTools('parallel.plugin', [{
+      name: 'lookup', description: 'Lookup', inputSchema: { type: 'object' }, execute: () => 'ok', action: 'read', executionMode: 'parallel',
+    }]);
+    const name = 'plugin_parallel_plugin_lookup';
+    expect(registry.toToolMap()[name].parallelSafe).toBe(true);
+    registry.update(name, { parallelSafe: false });
+    expect(registry.toToolMap()[name].parallelSafe).toBe(false);
+    expect(registry.get(name)?.parallelSafe).toBe(false);
+  });
+});
