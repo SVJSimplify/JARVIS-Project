@@ -265,7 +265,7 @@ const gitCheckpointTools: Record<string, Tool> = {
     parameters: { type: 'object', properties: {} },
     run: async () => {
       const checkpoints = await listGitCheckpoints(FILES_ROOT);
-      return checkpoints.length ? checkpoints.join('\\n') : 'No Git recovery checkpoints exist for this workspace.';
+      return checkpoints.length ? checkpoints.join('\n') : 'No Git recovery checkpoints exist for this workspace.';
     },
   },
   git_checkpoint_create: {
@@ -626,7 +626,7 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
         try {
           const checkpoint = await createGitCheckpoint(FILES_ROOT, `Before ${name}`);
           if (checkpoint) {
-            checkpointNote = `\\n[Git recovery checkpoint: ${checkpoint.id}]`;
+            checkpointNote = `\n[Git recovery checkpoint: ${checkpoint.id}]`;
             emitTool({ detail: `Recovery checkpoint ${checkpoint.id} created before ${name}`, status: 'busy' });
           }
         } catch (checkpointError) {
