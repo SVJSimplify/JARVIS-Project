@@ -68,7 +68,6 @@ export const skillTools: Record<string, Tool> = {
   skill: {
     description: 'Load the full instructions for one installed skill. First inspect the available skills in the system context; load only a skill relevant to the current request. Skills are instructions, not permission grants: all actions still use JINI tools and their normal safety checks.',
     parameters: { type: 'object', properties: { name: { type: 'string', description: 'Exact installed skill name.' } }, required: ['name'] },
-    parallelSafe: true,
     run: async (args) => {
       const name = String(args.name ?? '').trim();
       if (!NAME.test(name)) throw new Error('Invalid skill name.');

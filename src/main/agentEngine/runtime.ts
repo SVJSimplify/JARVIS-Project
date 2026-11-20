@@ -184,6 +184,10 @@ export class AgentRuntime {
       const active = this.activeRuns.get(id)!;
       if (options.source !== 'scheduled') await this.abort(id);
       await active.catch(() => undefined);
+      // The run wrapper's finally may be queued just after this continuation. Retire
+      // the exact settled promise here so a replacement cannot spin on a stale map entry
+      // or observe the previous session's still-running snapshot.
+      if (this.activeRuns.get(id) === active) this.activeRuns.delete(id);
     }
     this.cancelRequested.delete(id);
     const pending = this.runSession(prompt, { ...options, sessionId: id }, id);

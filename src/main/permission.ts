@@ -137,6 +137,19 @@ export const currentAutonomy = async (): Promise<Autonomy> => 'autonomous';
 // ------------------------------------------------------------------ action classification
 
 const WRITE_TOOLS = new Set(['write_file', 'edit_file', 'multi_edit', 'apply_patch', 'copy_file', 'move_file', 'make_dir']);
+// Explicitly reviewed observation-only handlers. Unknown tools remain config-class by
+// default; only this allowlist can bypass the durable started-receipt path.
+const READ_TOOLS = new Set([
+  'get_current_time', 'list_files', 'read', 'glob', 'grep', 'code_search',
+  'web_search', 'web_browse', 'search_and_read', 'fetch_url', 'get_weather',
+  'tinyfish_search', 'tinyfish_fetch', 'calculate', 'get_system_info',
+  'clipboard_read', 'find_contact', 'find_memory', 'read_notes', 'list_memories',
+  'list_timers', 'list_custom_apps', 'list_scheduled', 'list_tasks', 'list_drives',
+  'list_processes', 'list_my_browser_tabs', 'browser_tabs', 'browser_read',
+  'native_browser_status', 'native_browser_tabs', 'native_browser_read',
+  'native_browser_snapshot', 'native_browser_screenshot', 'native_browser_wait',
+  'ops_recovery_status', 'analyze_impact', 'skill',
+]);
 const ABS = (p: unknown): string => String(p ?? '');
 
 /**
@@ -161,6 +174,7 @@ export function classifyToolAction(tool: string, args: Record<string, unknown>, 
     return { action: 'delete', resource: `tool:${tool}` };
   if (tool === 'apply_patch' && /^\s*\*\*\* Delete File: /m.test(String(a.patch ?? '')))
     return { action: 'delete', resource: `patch:${String(a.patch ?? '').slice(0, 120)}` };
+  if (READ_TOOLS.has(tool)) return { action: 'read', resource: `tool:${tool}` };
   if (WRITE_TOOLS.has(tool)) {
     const p = ABS(tool === 'move_file' || tool === 'copy_file' ? a.to : a.path);
     const isWinDrive = /^[a-z]:[\\/]/i.test(p);

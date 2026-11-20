@@ -58,7 +58,7 @@ describe('the generated manifest reflects the registry', () => {
   it('maps tools to router groups and marks the rest as core', () => {
     const m = manifest();
     expect(m.tools.find((t) => t.name === 'browser_click')?.group).toBe('browser');
-    expect(m.tools.find((t) => t.name === 'run_command')?.group).toBe('files');
+    expect(m.tools.find((t) => t.name === 'run_command')?.group).toBe('development');
     expect(m.tools.find((t) => t.name === 'run_command')?.required).toEqual(['command']);
     expect(m.tools.find((t) => t.name === 'get_current_time')?.group).toBe('core');
   });

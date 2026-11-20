@@ -22,7 +22,14 @@ export async function restoreGitCheckpoint(cwd: string, id: string): Promise<voi
   const root = await rootOf(cwd), ref = PREFIX + id;
   const commit = (await git(root, ['rev-parse', '--verify', ref])).stdout.trim();
   if (!/^[0-9a-f]{40,64}$/i.test(commit)) throw new Error('Checkpoint reference is invalid.');
-  await git(root, ['stash', 'apply', '--index', commit]);
+  // A restore is an explicit rollback, not a merge. Applying a stash onto a dirty
+  // worktree fails (or can conflict) and does not restore the checkpoint the user chose.
+  // Preserve the current tracked state under a private recovery ref before replacing it.
+  const current = (await git(root, ['stash', 'create', 'JINI pre-restore safety snapshot'])).stdout.trim();
+  if (current) await git(root, ['update-ref', `refs/jini/checkpoint-backups/${randomUUID()}`, current]);
+  // The checkpoint commit's tree is the exact tracked worktree snapshot created earlier.
+  // read-tree updates both index and worktree atomically; untracked files are untouched.
+  await git(root, ['read-tree', '--reset', '-u', commit]);
 }
 export async function deleteGitCheckpoint(cwd: string, id: string): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Invalid checkpoint id.');
