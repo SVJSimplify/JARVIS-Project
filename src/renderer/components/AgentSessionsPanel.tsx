@@ -51,6 +51,7 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
   const [plugins, setPlugins] = useState<Array<{ id: string }>>([]);
   const [view, setView] = useState<'sessions' | 'tools' | 'plugins'>('sessions');
   const [toolFilter, setToolFilter] = useState('');
+  const [toolAction, setToolAction] = useState('');
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState('');
   const [error, setError] = useState('');
@@ -141,6 +142,20 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
       setError(cause instanceof Error ? cause.message : 'Could not fork this session.');
     } finally {
       setAction('');
+    }
+  };
+
+  const togglePluginTool = async (tool: RegisteredToolInfo) => {
+    if (tool.source !== 'plugin') return;
+    setToolAction(tool.name);
+    setError('');
+    try {
+      await window.electronAPI.agent.tools.setEnabled(tool.name, !tool.enabled);
+      setTools(await window.electronAPI.agent.tools.list());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not update the plugin tool.');
+    } finally {
+      setToolAction('');
     }
   };
 
@@ -274,7 +289,7 @@ export default function AgentSessionsPanel({ open, onClose }: Props) {
                         <div className="min-w-0"><p className="break-all font-mono text-[10.5px] text-ink">{tool.name}</p><p className={`mt-1 text-[9.5px] ${tool.enabled ? 'text-[#55734F]' : 'text-[#9A4D3D]'}`}>{tool.enabled ? 'Enabled' : 'Disabled'}</p></div>
                         <p className="line-clamp-2 text-[10.5px] leading-relaxed text-muted">{tool.description}</p>
                         <div className="space-y-1"><span className="inline-block rounded-md bg-paper px-1.5 py-0.5 text-[9.5px] text-body">{tool.action ?? 'policy gate'}</span>{tool.parallelSafe && <p className="text-[9px] text-faint">Parallel-safe</p>}</div>
-                        <div><span className="text-[10px] capitalize text-muted">{tool.source}</span>{tool.pluginId && <p className="mt-1 break-all text-[9px] text-faint">{tool.pluginId}</p>}</div>
+                        <div><span className="text-[10px] capitalize text-muted">{tool.source}</span>{tool.pluginId && <p className="mt-1 break-all text-[9px] text-faint">{tool.pluginId}</p>}{tool.source === 'plugin' && <button type="button" disabled={toolAction === tool.name} onClick={() => void togglePluginTool(tool)} className="mt-1 rounded-md border border-line px-2 py-1 text-[9px] font-medium text-body disabled:opacity-50">{toolAction === tool.name ? 'Saving…' : tool.enabled ? 'Disable' : 'Enable'}</button>}</div>
                       </div>
                     ))}
                     {tools.filter((tool) => `${tool.name} ${tool.description} ${tool.pluginId ?? ''}`.toLowerCase().includes(toolFilter.trim().toLowerCase())).length === 0 && <p className="p-6 text-center text-[12px] text-faint">No tools match this filter.</p>}

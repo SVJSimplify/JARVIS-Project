@@ -428,6 +428,15 @@ ipcMain.handle('ai-cancel', async (event) => {
 });
 ipcMain.handle('agent-sessions-list', () => agentRuntime.list());
 ipcMain.handle('agent-tools-list', () => agentToolRegistry.list({ includeDisabled: true }));
+ipcMain.handle('agent-tools-set-enabled', (event, name: unknown, enabled: unknown) => {
+  mainWindowForControl(event);
+  if (typeof name !== 'string' || name.length > 64 || !name) throw new Error('A valid tool name is required.');
+  if (typeof enabled !== 'boolean') throw new Error('Tool enabled state must be boolean.');
+  const tool = agentToolRegistry.get(name);
+  if (!tool || tool.source !== 'plugin') throw new Error('Only registered plugin tools can be managed here.');
+  agentToolRegistry.update(name, { enabled });
+  return agentToolRegistry.list({ includeDisabled: true });
+});
 ipcMain.handle('agent-plugins-list', () => listPlugins());
 ipcMain.handle('agent-session-snapshot', (_, sessionId: string) => {
   if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 160) throw new Error('Invalid agent session id.');

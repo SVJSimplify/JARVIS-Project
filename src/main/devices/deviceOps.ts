@@ -125,6 +125,14 @@ export function buildDeviceOps(hub: () => DeviceHub): Record<string, OpHandler> 
     'agents.abort': (args) => agentRuntime.abort(text(args.id, 'Session id')),
     'agents.fork': async (args) => publicAgentSession(await agentRuntime.fork(text(args.id, 'Session id'))),
     'agents.tools': () => agentToolRegistry.list({ includeDisabled: true }),
+    'agents.tools.setEnabled': (args) => {
+      const name = text(args.name, 'Tool name');
+      if (name.length > 64 || typeof args.enabled !== 'boolean') throw new Error('A valid tool name and boolean enabled state are required.');
+      const tool = agentToolRegistry.get(name);
+      if (!tool || tool.source !== 'plugin') throw new Error('Only registered plugin tools can be managed from a paired device.');
+      agentToolRegistry.update(name, { enabled: args.enabled });
+      return agentToolRegistry.list({ includeDisabled: true });
+    },
     'agents.plugins': () => listPlugins(),
 
     'tasks.list': () => taskViews(),

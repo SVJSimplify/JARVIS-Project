@@ -77,7 +77,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     replay: (sessionId: string, afterSequence = 0): Promise<unknown[]> => ipcRenderer.invoke('agent-session-replay', sessionId, afterSequence),
     fork: (sessionId: string, newSessionId?: string): Promise<unknown> => ipcRenderer.invoke('agent-session-fork', sessionId, newSessionId),
     abort: (sessionId: string): Promise<boolean> => ipcRenderer.invoke('agent-session-abort', sessionId),
-    tools: { list: () => ipcRenderer.invoke('agent-tools-list') },
+    tools: {
+      list: () => ipcRenderer.invoke('agent-tools-list'),
+      setEnabled: (name: string, enabled: boolean): Promise<unknown[]> => ipcRenderer.invoke('agent-tools-set-enabled', name, enabled),
+    },
     plugins: { list: () => ipcRenderer.invoke('agent-plugins-list') }
   },
   modes: {

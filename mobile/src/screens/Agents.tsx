@@ -57,6 +57,7 @@ export default function AgentsScreen() {
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [action, setAction] = useState('');
+  const [toolAction, setToolAction] = useState('');
   const [error, setError] = useState('');
   const loadingRef = useRef(false);
 
@@ -135,6 +136,20 @@ export default function AgentsScreen() {
     }
   };
 
+  const togglePluginTool = async (tool: ToolInfo) => {
+    if (!online || tool.source !== 'plugin') return;
+    setToolAction(tool.name);
+    setError('');
+    try {
+      const next = await rpc<ToolInfo[]>('agents.tools.setEnabled', { name: tool.name, enabled: !tool.enabled });
+      setTools(next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not update the plugin tool.');
+    } finally {
+      setToolAction('');
+    }
+  };
+
   const fork = async () => {
     if (!snapshot) return;
     setAction('fork');
@@ -201,7 +216,7 @@ export default function AgentsScreen() {
       {view === 'tools' && (
         <section className="mt-4">
           <div className="mb-2 flex items-center justify-between"><h3 className="text-[14px] font-semibold text-text">Registered tools</h3><span className="text-meta text-faint">{tools.filter((tool) => tool.enabled).length} enabled / {tools.length}</span></div>
-          {tools.map((tool) => <article key={tool.name} className="mb-2 rounded-xl border border-hairline bg-surface p-3"><div className="flex items-center justify-between gap-2"><p className="break-all font-mono text-[11px] text-text">{tool.name}</p><span className={'text-[9px] font-semibold ' + (tool.enabled ? 'text-[#55734F]' : 'text-[#9A4D3D]')}>{tool.enabled ? 'ENABLED' : 'DISABLED'}</span></div><p className="mt-1 text-[11px] leading-relaxed text-muted">{tool.description}</p><p className="mt-2 text-[10px] text-faint">Policy: {tool.action ?? 'policy gate'} · {tool.parallelSafe ? 'parallel-safe' : 'sequential'} · {tool.pluginId ?? tool.source}</p></article>)}
+          {tools.map((tool) => <article key={tool.name} className="mb-2 rounded-xl border border-hairline bg-surface p-3"><div className="flex items-center justify-between gap-2"><p className="break-all font-mono text-[11px] text-text">{tool.name}</p><span className={'text-[9px] font-semibold ' + (tool.enabled ? 'text-[#55734F]' : 'text-[#9A4D3D]')}>{tool.enabled ? 'ENABLED' : 'DISABLED'}</span></div><p className="mt-1 text-[11px] leading-relaxed text-muted">{tool.description}</p><div className="mt-2 flex items-center justify-between gap-2"><p className="text-[10px] text-faint">Policy: {tool.action ?? 'policy gate'} · {tool.parallelSafe ? 'parallel-safe' : 'sequential'} · {tool.pluginId ?? tool.source}</p>{tool.source === 'plugin' && <button type="button" disabled={!online || toolAction === tool.name} onClick={() => void togglePluginTool(tool)} className="shrink-0 rounded-lg border border-hairline px-2.5 py-1.5 text-[10px] font-medium text-body disabled:opacity-50">{toolAction === tool.name ? 'Saving…' : tool.enabled ? 'Disable' : 'Enable'}</button>}</div></article>)}
           {!tools.length && <Empty title="No registered tools" hint="The desktop registry will appear here when connected." />}
         </section>
       )}
