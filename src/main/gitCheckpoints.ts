@@ -4,19 +4,34 @@
  * are intentionally excluded, so this is not a complete filesystem backup.
  */
 import { randomUUID } from 'crypto';
+import * as path from 'path';
 import { runProcessChecked } from './processRunner';
 const PREFIX = 'refs/jini/checkpoints/';
 const git = (cwd: string, args: string[]) => runProcessChecked('git', args, { cwd, timeoutMs: 30000, maxBufferBytes: 2 * 1024 * 1024 });
-const rootOf = async (cwd: string): Promise<string> => (await git(cwd, ['rev-parse', '--show-toplevel'])).stdout.trim();
-export interface GitCheckpoint { id: string; commit: string; createdAt: number; label: string; }
-export async function createGitCheckpoint(cwd: string, label = 'Before agent changes'): Promise<GitCheckpoint | null> {
-  let root: string;
+const ROOT_CACHE = new Map<string, { root: string | null; checkedAt: number }>();
+const rootOf = async (cwd: string): Promise<string | null> => {
+  const key = path.resolve(cwd);
+  const cached = ROOT_CACHE.get(key);
+  // Negative results are cached briefly: normal workspaces are often not Git repositories,
+  // and a write-heavy agent turn should not spawn one failing Git process per tool call.
+  if (cached && (cached.root !== null || Date.now() - cached.checkedAt < 30_000)) return cached.root;
   try {
-    root = await rootOf(cwd);
+    const root = (await git(cwd, ['rev-parse', '--show-toplevel'])).stdout.trim();
+    ROOT_CACHE.set(key, { root, checkedAt: Date.now() });
+    return root || null;
   } catch (error) {
-    if (/not a git repository|not a git directory/i.test(error instanceof Error ? error.message : String(error))) return null;
+    const message = error instanceof Error ? error.message : String(error);
+    if (/not a git repository|not a git directory/i.test(message)) {
+      ROOT_CACHE.set(key, { root: null, checkedAt: Date.now() });
+      return null;
+    }
     throw error;
   }
+};
+export interface GitCheckpoint { id: string; commit: string; createdAt: number; label: string; }
+export async function createGitCheckpoint(cwd: string, label = 'Before agent changes'): Promise<GitCheckpoint | null> {
+  const root = await rootOf(cwd);
+  if (!root) return null;
   // A clean worktree still needs a baseline checkpoint before its first edit.
   const dirtySnapshot = (await git(root, ['stash', 'create', 'JINI checkpoint'])).stdout.trim();
   let commit = dirtySnapshot;
@@ -31,7 +46,9 @@ export async function createGitCheckpoint(cwd: string, label = 'Before agent cha
 }
 export async function restoreGitCheckpoint(cwd: string, id: string): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Invalid checkpoint id.');
-  const root = await rootOf(cwd), ref = PREFIX + id;
+  const root = await rootOf(cwd);
+  if (!root) throw new Error('Workspace is not inside a Git repository.');
+  const ref = PREFIX + id;
   const commit = (await git(root, ['rev-parse', '--verify', ref])).stdout.trim();
   if (!/^[0-9a-f]{40,64}$/i.test(commit)) throw new Error('Checkpoint reference is invalid.');
   // A restore is an explicit rollback, not a merge. Applying a stash onto a dirty
@@ -49,13 +66,8 @@ export async function deleteGitCheckpoint(cwd: string, id: string): Promise<void
   await git(root, ['update-ref', '-d', PREFIX + id]);
 }
 export async function listGitCheckpoints(cwd: string): Promise<string[]> {
-  let root: string;
-  try {
-    root = await rootOf(cwd);
-  } catch (error) {
-    if (/not a git repository|not a git directory/i.test(error instanceof Error ? error.message : String(error))) return [];
-    throw error;
-  }
+  const root = await rootOf(cwd);
+  if (!root) return [];
   const out = await git(root, ['for-each-ref', '--format=%(refname:strip=3) %(objectname)', PREFIX]);
   return out.stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
 }
