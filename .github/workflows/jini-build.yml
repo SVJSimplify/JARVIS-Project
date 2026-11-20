@@ -176,6 +176,9 @@ jobs:
 
   publish-desktop-update:
     name: Publish desktop auto-update release
+    concurrency:
+      group: jini-desktop-update-release
+      cancel-in-progress: true
     if: github.event_name == 'push' && github.ref == 'refs/heads/jini-mvp-chatgpt'
     needs: [desktop-installer, desktop-check]
     runs-on: ubuntu-latest
@@ -207,7 +210,20 @@ jobs:
           };
           fs.writeFileSync('update/latest.json', JSON.stringify(manifest, null, 2));
           NODE
+      - name: Skip stale desktop builds
+        id: freshness
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          latest_sha="$(curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/branches/jini-mvp-chatgpt" | jq -r '.commit.sha')"
+          if [ "$latest_sha" != "$GITHUB_SHA" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale update build $GITHUB_SHA; branch is now $latest_sha."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish or replace the rolling desktop release
+        if: steps.freshness.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: desktop-latest

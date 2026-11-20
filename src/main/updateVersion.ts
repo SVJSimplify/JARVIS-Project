@@ -1,3 +1,7 @@
+export function isValidDesktopVersion(value: string): boolean {
+  return /^\\d+\\.\\d+\\.\\d+$/.test(value) && value.split('.').every((part) => Number.isSafeInteger(Number(part)));
+}
+
 export function compareDesktopVersions(left: string, right: string): number {
   const parse = (value: string): number[] | null => {
     if (!/^\d+\.\d+\.\d+$/.test(value)) return null;

@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { compareDesktopVersions } from './updateVersion';
+import { compareDesktopVersions, isValidDesktopVersion } from './updateVersion';
 
 const RELEASE_API = 'https://api.github.com/repos/SVJSimplify/JARVIS-Project/releases/tags/desktop-latest';
 const RELEASE_ASSET_PREFIX = 'https://github.com/SVJSimplify/JARVIS-Project/releases/download/desktop-latest/';
@@ -63,7 +63,7 @@ async function readRelease(): Promise<{ nextManifest: UpdateManifest; url: strin
   const manifestResponse = await fetch(manifestUrl, { headers: { 'User-Agent': 'JINI-Desktop-Updater' }, signal: AbortSignal.timeout(20_000) });
   if (!manifestResponse.ok) throw new Error(`Update manifest download failed (HTTP ${manifestResponse.status}).`);
   const raw = await manifestResponse.json() as Partial<UpdateManifest>;
-  if (typeof raw.version !== 'string' || !versionParts(raw.version) ||
+  if (typeof raw.version !== 'string' || !isValidDesktopVersion(raw.version) ||
       typeof raw.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(raw.sha256) ||
       raw.assetName !== INSTALLER_NAME) {
     throw new Error('The latest desktop release contains an invalid update manifest.');
