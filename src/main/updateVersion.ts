@@ -1,12 +1,11 @@
 export function isValidDesktopVersion(value: string): boolean {
-  return /^\\d+\\.\\d+\\.\\d+$/.test(value) && value.split('.').every((part) => Number.isSafeInteger(Number(part)));
+  return /^[0-9]+\\.[0-9]+\\.[0-9]+$/.test(value) &&
+    value.split('.').every((part) => Number.isSafeInteger(Number(part)));
 }
 
 export function compareDesktopVersions(left: string, right: string): number {
-  const parse = (value: string): number[] | null => {
-    if (!/^\d+\.\d+\.\d+$/.test(value)) return null;
-    return value.split('.').map(Number);
-  };
+  const parse = (value: string): number[] | null =>
+    isValidDesktopVersion(value) ? value.split('.').map(Number) : null;
   const a = parse(left);
   const b = parse(right);
   if (!a || !b) throw new Error('Update version must use numeric major.minor.patch format.');
