@@ -31,11 +31,11 @@ export function providerRejection(status: number, body: string): string | null {
 /** Thrown only for a PERMANENT model rejection (retired / restricted / unknown to the gateway). */
 export class ModelGoneError extends Error {}
 
-/** Thrown when retries are exhausted on a TRANSIENT provider failure; the fallback chain may try the next model. */
+/** Thrown when retries are exhausted on a TRANSIENT provider failure. Never a model-retirement fallback signal. */
 export class ProviderUnavailableError extends Error {}
 
 /** Relay/gateway lost ITS upstream connection (HTTP/2 session destroyed, socket reset…): transient, worth waiting out. */
-const UPSTREAM_DROP_RE = /fetch failed|ERR_HTTP2|session has been destroyed|ECONNRESET|socket hang up|upstream|EPIPE|ETIMEDOUT|other side closed|terminated/i;
+const UPSTREAM_DROP_RE = /fetch failed|ERR_HTTP2|session has been destroyed|ECONNRESET|socket hang up|upstream connection (?:reset|closed|lost)|(?:upstream|connection).*(?:reset|closed|dropped|terminated)|EPIPE|ETIMEDOUT|other side closed/i;
 
 /** "reset after 20s" / "retry after 20 seconds" hints in a relay's error body → ms (capped). */
 export function bodyRetryHintMs(body: string): number {
@@ -197,7 +197,7 @@ export async function withModelFallback<T>(
       return await job(models[i]);
     } catch (e) {
       last = e;
-      if (!(e instanceof ModelGoneError || e instanceof ProviderUnavailableError) || i === models.length - 1) throw e;
+      if (!(e instanceof ModelGoneError) || i === models.length - 1) throw e;
       console.warn(`[llm] model "${models[i]}" ${e instanceof ModelGoneError ? 'was rejected as unavailable' : 'is temporarily unreachable'} — falling back to "${models[i + 1]}"`);
       onFallback?.(models[i], models[i + 1]);
     }

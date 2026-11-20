@@ -113,7 +113,7 @@ const navItemClass = (active: boolean) =>
     active ? 'bg-surface font-medium text-ink shadow-[0_1px_2px_rgba(60,42,20,0.07)] ring-1 ring-hairline' : 'text-body hover:bg-black/[0.035] hover:text-ink'
   }`;
 
-export default function JarvisWindow({ version, mode, interactionMode, levelRef, log, caption, mini, voiceReady, turnsCount = 0, onSuggest, onOpenChat, children }: Props) {
+export default function JarvisWindow({ version, mode, interactionMode, onSetMode, levelRef, log, caption, mini, voiceReady, turnsCount = 0, onSuggest, onOpenChat, children }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('provider');
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -268,6 +268,16 @@ export default function JarvisWindow({ version, mode, interactionMode, levelRef,
         <header className="hud-header jini-toolbar relative z-20 flex h-[52px] shrink-0 items-center gap-3 border-b border-hairline pl-6 pr-5">
           <h2 className="text-[14px] font-semibold text-ink">Assistant</h2>
           <StatusChip mode={mode} quiet={interactionMode === 'background'} />
+          <button
+            type="button"
+            onClick={() => onSetMode(interactionMode === 'background' ? 'interactive' : 'background')}
+            aria-label={interactionMode === 'background' ? 'Switch to interactive mode' : 'Switch to background mode'}
+            aria-pressed={interactionMode === 'background'}
+            title={interactionMode === 'background' ? 'Switch to interactive mode' : 'Switch to background mode'}
+            className="no-drag inline-flex h-7 items-center rounded-full border border-hairline bg-surface px-2.5 text-[11px] text-muted transition-colors hover:border-sand hover:text-ink"
+          >
+            {interactionMode === 'background' ? 'Background' : 'Interactive'}
+          </button>
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
