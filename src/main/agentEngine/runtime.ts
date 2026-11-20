@@ -81,8 +81,16 @@ const cloneEvent = (event: AgentRuntimeEvent): AgentRuntimeEvent => structuredCl
 const MAX_RUNTIME_EVENTS = 10_000;
 
 /** Session identifiers cross IPC, persistence and provider boundaries; reject malformed values early. */
+function hasControlCharacters(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
 function assertSessionId(value: unknown, label = 'Agent session id'): asserts value is string {
-  if (typeof value !== 'string' || !value || value !== value.trim() || value.length > 160 || /[\u0000-\u001f\u007f]/.test(value)) {
+  if (typeof value !== 'string' || !value || value !== value.trim() || value.length > 160 || hasControlCharacters(value)) {
     throw new Error(label + ' must be 1–160 characters with no surrounding whitespace or control characters.');
   }
 }
