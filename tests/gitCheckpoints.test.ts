@@ -37,3 +37,15 @@ describe('git checkpoints', () => {
     }
   });
 });
+
+
+describe('git checkpoint availability', () => {
+  it('returns null outside a Git repository instead of failing the agent write path', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jini-no-git-'));
+    try {
+      await expect(createGitCheckpoint(dir)).resolves.toBeNull();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

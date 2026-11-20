@@ -10,10 +10,20 @@ const git = (cwd: string, args: string[]) => runProcessChecked('git', args, { cw
 const rootOf = async (cwd: string): Promise<string> => (await git(cwd, ['rev-parse', '--show-toplevel'])).stdout.trim();
 export interface GitCheckpoint { id: string; commit: string; createdAt: number; label: string; }
 export async function createGitCheckpoint(cwd: string, label = 'Before agent changes'): Promise<GitCheckpoint | null> {
-  const root = await rootOf(cwd);
+  let root: string;
+  try {
+    root = await rootOf(cwd);
+  } catch (error) {
+    if (/not a git repository|not a git directory/i.test(error instanceof Error ? error.message : String(error))) return null;
+    throw error;
+  }
   // A clean worktree still needs a baseline checkpoint before its first edit.
   const dirtySnapshot = (await git(root, ['stash', 'create', 'JINI checkpoint'])).stdout.trim();
-  const commit = dirtySnapshot || (await git(root, ['rev-parse', '--verify', 'HEAD'])).stdout.trim();
+  let commit = dirtySnapshot;
+  if (!commit) {
+    try { commit = (await git(root, ['rev-parse', '--verify', 'HEAD'])).stdout.trim(); }
+    catch { return null; } // an unborn repository has no baseline commit yet
+  }
   if (!/^[0-9a-f]{40,64}$/i.test(commit)) return null;
   const id = randomUUID();
   await git(root, ['update-ref', PREFIX + id, commit]);

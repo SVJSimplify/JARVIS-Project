@@ -272,17 +272,21 @@ const gitCheckpointTools: Record<string, Tool> = {
     description: 'Create an explicit Git recovery checkpoint for the current workspace state before a risky series of edits. Only tracked files are included.',
     parameters: { type: 'object', properties: { label: { type: 'string', description: 'Short reason for this checkpoint.' } } },
     run: async (args) => {
-      const checkpoint = await createGitCheckpoint(FILES_ROOT, String(args.label ?? 'Manual JINI checkpoint'));
-      return checkpoint ? `Created checkpoint ${checkpoint.id} (commit ${checkpoint.commit}).` : 'No Git repository or HEAD commit was available for this workspace.';
+      try {
+        const checkpoint = await createGitCheckpoint(FILES_ROOT, String(args.label ?? 'Manual JINI checkpoint'));
+        return checkpoint ? `Created checkpoint ${checkpoint.id} (commit ${checkpoint.commit}).` : 'No Git repository or HEAD commit was available for this workspace.';
+      } catch (error) {
+        return `Could not create a Git checkpoint: ${error instanceof Error ? error.message : String(error)}`;
+      }
     },
   },
   git_checkpoint_restore: {
-    description: 'Restore a previously listed JINI Git checkpoint for the current workspace. This replaces tracked working-tree and index state; the current tracked state is first preserved under a private backup ref. Use only when the user explicitly asks to restore a checkpoint.',
+    description: 'Restore a previously listed JINI Git checkpoint for the current workspace. This replaces tracked working-tree and index state; the current tracked state is first preserved as another listed checkpoint. Use only when the user explicitly asks to restore a checkpoint.',
     parameters: { type: 'object', properties: { id: { type: 'string', description: 'Checkpoint UUID from git_checkpoint_list.' } }, required: ['id'] },
     run: async (args) => {
       const id = String(args.id ?? '');
       await restoreGitCheckpoint(FILES_ROOT, id);
-      return `Restored Git checkpoint ${id}. Current tracked state was preserved in a private backup ref.`;
+      return `Restored Git checkpoint ${id}. Current tracked state was preserved as another listed checkpoint.`;
     },
   },
 };
