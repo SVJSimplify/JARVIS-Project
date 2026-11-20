@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import os from 'os'; import path from 'path'; import fs from 'fs'; import { execFileSync } from 'child_process';
-import { createGitCheckpoint, restoreGitCheckpoint, deleteGitCheckpoint } from '../src/main/gitCheckpoints';
+import { createGitCheckpoint, restoreGitCheckpoint, deleteGitCheckpoint, listGitCheckpoints } from '../src/main/gitCheckpoints';
 describe('git checkpoints', () => {
  it('creates a non-destructive tracked snapshot and restores it explicitly', async () => {
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'jini-checkpoint-'));
@@ -11,7 +11,13 @@ describe('git checkpoints', () => {
    fs.writeFileSync(path.join(dir,'a.txt'),'changed'); const cp=await createGitCheckpoint(dir);
    expect(cp).not.toBeNull(); expect(fs.readFileSync(path.join(dir,'a.txt'),'utf8')).toBe('changed');
    fs.writeFileSync(path.join(dir,'a.txt'),'later'); await restoreGitCheckpoint(dir,cp!.id);
-   expect(fs.readFileSync(path.join(dir,'a.txt'),'utf8')).toBe('changed'); await deleteGitCheckpoint(dir,cp!.id);
+   expect(fs.readFileSync(path.join(dir,'a.txt'),'utf8')).toBe('changed');
+   const checkpoints = await listGitCheckpoints(dir);
+   const restoreBackupId = checkpoints.map((entry) => entry.split(' ')[0]).find((id) => id !== cp!.id);
+   expect(restoreBackupId).toBeTruthy();
+   await restoreGitCheckpoint(dir, restoreBackupId!);
+   expect(fs.readFileSync(path.join(dir,'a.txt'),'utf8')).toBe('later');
+   await deleteGitCheckpoint(dir,cp!.id);
   } finally { fs.rmSync(dir,{recursive:true,force:true}); }
  });
 });
