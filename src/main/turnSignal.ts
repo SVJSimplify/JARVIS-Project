@@ -14,5 +14,11 @@ export const setTurnSignal = (signal: AbortSignal | null, sessionId?: string): v
   else signals.delete(id);
 };
 
-export const currentTurnSignal = (sessionId?: string): AbortSignal | null =>
-  signals.get(sessionKey(sessionId)) ?? null;
+export const currentTurnSignal = (sessionId?: string): AbortSignal | null => {
+  const scoped = sessionId ?? executionSessionId();
+  if (scoped) return signals.get(scoped) ?? null;
+  // Legacy callers outside an execution scope ask for "the current turn" rather than
+  // a named session. Return the most recently started live signal, not an unrelated
+  // hard-coded default key; concurrent named sessions still resolve by explicit id.
+  return Array.from(signals.values()).at(-1) ?? null;
+};
