@@ -1,29 +1,41 @@
-# JINI agent-engine migration
+# JINI agent-engine integration
 
-## Upstream study (2026-11-19)
+## Upstream study
 
-- OpenCode: https://github.com/anomalyco/opencode — MIT. Studied its tool registry editor (add, update, remove, namespaces), schema snapshots, and plugin/tool lifecycle.
-- Cline: https://github.com/cline/cline — Apache-2.0. Studied the SDK's AgentTool contract (name, description, inputSchema, execute(input, context)), extension capability declarations, and per-tool policies.
+- OpenCode: https://github.com/anomalyco/opencode — MIT. Reused architectural ideas from its tool registry lifecycle, namespaces, session/event model and provider/tool boundaries.
+- Cline: https://github.com/cline/cline — Apache-2.0. Reused the AgentTool contract, explicit execution context, capability declarations, task/session lifecycle and Git checkpoint model.
 
-## Decisions
+## Architectural decisions
 
-- Custom-tool contract: Cline's shape. A tool declares a JSON input schema and an execution function with an explicit context (agent, plugin, cancellation signal).
-- Registry lifecycle: OpenCode's shape. Registration, lookup, update, disable, removal, namespace isolation, and immutable model-facing snapshots are centralized.
-- JINI remains the host. Every contributed tool is adapted into JINI's existing dispatch choke point. It still passes schema validation, plan guards, risk classification, authorization, durable started/outcome receipts, cancellation checks, audit logging, and result envelopes.
-- No duplicate runtime. This migration slice does not import a second model loop or let plugins call tool implementations around the central gate.
+- **JINI remains the host.** Contributed tools are adapted into JINI's existing dispatch choke point. Every call still passes schema validation, plan guards, risk classification, authorization, durable started/outcome receipts, cancellation checks, audit logging and result envelopes.
+- **Cline-shaped custom-tool contract.** A tool declares a JSON input schema and an execution function with explicit agent, plugin, cancellation-signal and session context.
+- **OpenCode-shaped registry lifecycle.** Registration, lookup, update, enable/disable, removal, namespace isolation and defensive model-facing schema snapshots are centralized.
+- **One authoritative execution loop.** JINI's provider/tool loop remains responsible for model turns. The agent runtime owns session lifecycle and durable event replay; it does not create a second model loop.
+- **JINI safety is retained.** Plugin tools cannot shadow built-ins or bypass the central gate. Declared delete actions remain subject to JINI's hard deletion block.
 
 ## Compatibility findings
 
-The current JINI desktop host uses Electron 32 / Node 20 and TypeScript 5, with an OpenAI-compatible provider adapter. The current Cline SDK packages declare Node >=22 and use a multi-package workspace (@cline/agents, @cline/shared, @cline/llms, @cline/core). OpenCode's current core is a Bun workspace using Effect 4 and workspace aliases. Copying either complete runtime into this host without a runtime/dependency migration would create a non-buildable hybrid.
+The JINI desktop host uses Electron 32 / Node 20 and TypeScript 5. Its current provider path is
+OpenAI-compatible. Cline's SDK packages declare Node >=22 and use a multi-package workspace
+(@cline/agents, @cline/shared, @cline/llms, @cline/core). OpenCode's core is a Bun workspace using
+Effect 4 and workspace aliases. Vendoring either complete runtime directly would create an
+incompatible second host and duplicate JINI's existing execution, policy and persistence systems.
 
-Therefore this first integration extracts the stable public tool contract and registry boundary into a JINI-native adapter. It intentionally does not claim that either complete upstream runtime has been vendored. A later agent-loop replacement must be migrated and tested as a separate, explicit runtime change.
+The implementation therefore ports the reusable contracts and capabilities into JINI-native
+modules rather than importing incompatible runtime graphs.
 
-## Current integration boundary
+## Integrated capabilities
 
-- Existing built-in JINI tools remain available.
-- Plugins may contribute namespaced tools only when declaring the tools capability.
-- Custom tools default to the conservative config action class (durable side-effect receipt); read-only tools must explicitly declare action: read.
-- Parallel custom tools must explicitly declare action: read.
-- A declared delete action is converted to JINI's hard deletion block.
-- Plugin disposal unregisters its tools.
-- Custom tools cannot shadow built-ins or bypass JINI's execution gate.
+- Persistent agent sessions with run, continue, abort, subscribe, snapshot, restore, fork and replay.
+- Typed runtime lifecycle events with durable sequence numbers and desktop subscriptions.
+- Redacted agent lifecycle events streamed to paired mobile devices over the encrypted device link.
+- Namespaced plugin tools with schema isolation, capability checks, lifecycle disposal and desktop/mobile enable/disable controls.
+- Central policy enforcement and durable receipts for every consequential tool call.
+- Automatic tracked-worktree Git checkpoints before eligible workspace writes, plus explicit list/create/restore tools. Restoring preserves the prior tracked state as another listed checkpoint. Untracked files are not included.
+- Context budgeting, compaction, multi-agent delegation, durable task orchestration and verification continue to use JINI's existing implementations.
+
+## Remaining upstream parity work
+
+- Native provider-specific adapters and authentication flows beyond the current OpenAI-compatible contract.
+- OpenCode-style language-server integration where it materially improves JINI's coding workflows.
+- Further parity work must be implemented behind JINI's existing interfaces and security gate; upstream UI, cloud services, VS Code extension host and Bun/Effect service graph are intentionally out of scope.
