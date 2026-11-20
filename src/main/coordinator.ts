@@ -1117,6 +1117,11 @@ async function drive(t: TaskRecord, deps: CoordinatorDeps, signal: AbortSignal, 
         // before publishing that status, otherwise an immediate task_resume can see
         // PAUSED with the previous driver's fresh claim and be incorrectly refused.
         await releaseClaim(t, lease.owner).catch(() => undefined);
+        // Retire this controller in the same turn that publishes PAUSED. A resume may
+        // start a replacement immediately; the old driver's finally must never delete
+        // that new controller or clear its cancellation reason.
+        if (controllers.get(t.id)?.signal === signal) controllers.delete(t.id);
+        cancelReasons.delete(t.id);
         await transition(t, 'PAUSED', 'paused by the user — completed steps are preserved; resume to continue').catch(() => undefined);
         taskEvent(t, 'Task paused', `${t.steps.filter((s) => s.status === 'done').length}/${t.steps.length} steps done — resume with task_resume`, 'busy');
       } else if (cancelReasons.get(t.id) === 'user') {
@@ -1139,8 +1144,12 @@ async function drive(t: TaskRecord, deps: CoordinatorDeps, signal: AbortSignal, 
     }
   } finally {
     await releaseClaim(t, lease.owner).catch(() => undefined);
-    controllers.delete(t.id);
-    cancelReasons.delete(t.id);
+    // A resumed task can install a new controller before this old driver unwinds.
+    // Only retire state that still belongs to this exact execution signal.
+    if (!controllers.has(t.id) || controllers.get(t.id)?.signal === signal) {
+      controllers.delete(t.id);
+      cancelReasons.delete(t.id);
+    }
   }
 }
 
