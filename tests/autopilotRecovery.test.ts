@@ -231,7 +231,9 @@ describe('§7 — restart reconciliation from DURABLE records (Scenario D)', () 
     const midFlight = await getTask(interruptedDurableId);
     midFlight!.ownerSince = Date.now() - 15 * 60_000; // the dead process stopped heartbeating
     await persistTask(midFlight!);
-    const stalled = await checkStalls();
+    // Use the watchdog's explicit clock to avoid racing the live heartbeat timer while
+    // still proving the lease is stale. The test is simulating 15 minutes of downtime.
+    const stalled = await checkStalls(Date.now() + 15 * 60_000);
     expect(stalled).toContain(interruptedDurableId);
 
     // ---- engine-side restart reconciliation: recompute from DURABLE records ----
