@@ -19,13 +19,14 @@ interface Props {
 
 /** Round 23: Settings is organised into three sections — the provider/voice form this
  *  panel always had, plus the relocated Activity and Transcript interfaces. */
-export type SettingsSection = 'provider' | 'devices' | 'activity' | 'transcript';
+export type SettingsSection = 'provider' | 'devices' | 'activity' | 'transcript' | 'updates';
 
 const SECTIONS: Array<{ id: SettingsSection; label: string; title: string }> = [
   { id: 'provider', label: 'Provider', title: 'Provider' },
   { id: 'devices', label: 'Devices', title: 'Devices' },
   { id: 'activity', label: 'Activity', title: 'Activity' },
   { id: 'transcript', label: 'Transcript', title: 'Transcript' },
+  { id: 'updates', label: 'Updates', title: 'Updates' },
 ];
 
 const VOICES: Array<{ id: string; label: string }> = [
@@ -64,6 +65,9 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
   const [awareness, setAwareness] = useState(true);
   const [saveError, setSaveError] = useState('');
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [updateStatus, setUpdateStatus] = useState<import('../../../types/electron').DesktopUpdateStatus | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateError, setUpdateError] = useState('');
   const prefs = useVoicePrefs();
   const vp = useVoiceprint();
   // JarvisWindow re-creates `onClose` on every telemetry tick (2 s); keying the effect on it
@@ -90,12 +94,15 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
       setAwareness(s.awareness !== false);
     });
     void window.electronAPI.ai.models().then(setModels);
+    void window.electronAPI.updates.get().then(setUpdateStatus).catch((e) => setUpdateError(e instanceof Error ? e.message : 'Could not read update status.'));
+    const unsubscribeUpdates = window.electronAPI.updates.onStatus(setUpdateStatus);
 
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
     window.addEventListener('keydown', onKey);
     return () => {
       popModal();
       window.removeEventListener('keydown', onKey);
+      unsubscribeUpdates();
     };
   }, [open, initialSection]);
 
@@ -204,6 +211,67 @@ export default function SettingsPanel({ open, onClose, log = [], initialSection 
         </nav>
 
         {section === 'activity' && <SettingsActivitySection />}
+        {section === 'updates' && (
+          <section className="space-y-5" aria-labelledby="updates-heading">
+            <div>
+              <h2 id="updates-heading" className="rail-title">JINI updates</h2>
+              <p className="text-sm text-steel">JINI checks for desktop releases automatically. Updates download in the background and install when you choose to restart.</p>
+            </div>
+            <div className="rounded-xl border border-hairline bg-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-ink">Installed version</p>
+                  <p className="mt-1 font-mono text-xs text-steel">v{updateStatus?.currentVersion ?? '…'}</p>
+                </div>
+                <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs text-steel">
+                  {updateStatus?.state === 'available' ? 'Update available' :
+                    updateStatus?.state === 'downloaded' ? 'Ready to install' :
+                    updateStatus?.state === 'downloading' ? 'Downloading' :
+                    updateStatus?.state === 'checking' ? 'Checking' :
+                    updateStatus?.state === 'not-available' ? 'Up to date' :
+                    updateStatus?.state === 'disabled' ? 'Unavailable here' :
+                    updateStatus?.state === 'error' ? 'Update check failed' : 'Automatic updates'}
+                </span>
+              </div>
+              {updateStatus?.availableVersion && <p className="mt-4 text-sm text-ink">Version <strong>v{updateStatus.availableVersion}</strong> is ready.</p>}
+              {updateStatus?.message && <p className="mt-3 text-xs text-steel">{updateStatus.message}</p>}
+              {updateStatus?.releaseNotes && <p className="mt-3 whitespace-pre-wrap text-xs text-steel">{updateStatus.releaseNotes}</p>}
+              {updateStatus?.state === 'downloading' && (
+                <div className="mt-4">
+                  <div className="mb-1 flex justify-between text-xs text-steel">
+                    <span>Downloading update</span><span>{Math.round(updateStatus.progress ?? 0)}%</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+                    <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.max(0, Math.min(100, updateStatus.progress ?? 0))}%` }} />
+                  </div>
+                </div>
+              )}
+              {updateError && <p role="alert" className="mt-3 text-xs text-hot">{updateError}</p>}
+              <div className="mt-5 flex flex-wrap gap-2">
+                {updateStatus?.state === 'available' && (
+                  <button type="button" disabled={updateBusy} onClick={() => {
+                    setUpdateBusy(true); setUpdateError('');
+                    void window.electronAPI.updates.download().then(setUpdateStatus).catch((e) => setUpdateError(e instanceof Error ? e.message : 'Download failed.')).finally(() => setUpdateBusy(false));
+                  }} className="rounded-lg bg-ink px-4 py-2 text-xs font-medium text-paper disabled:opacity-50">
+                    {updateBusy ? 'Starting…' : 'Download update'}
+                  </button>
+                )}
+                {updateStatus?.state === 'downloaded' && (
+                  <button type="button" onClick={() => void window.electronAPI.updates.install().catch((e) => setUpdateError(e instanceof Error ? e.message : 'Could not start installer.'))} className="rounded-lg bg-ink px-4 py-2 text-xs font-medium text-paper">
+                    Restart and install
+                  </button>
+                )}
+                <button type="button" disabled={updateBusy || updateStatus?.state === 'downloading' || updateStatus?.state === 'checking'} onClick={() => {
+                  setUpdateBusy(true); setUpdateError('');
+                  void window.electronAPI.updates.check().then(setUpdateStatus).catch((e) => setUpdateError(e instanceof Error ? e.message : 'Update check failed.')).finally(() => setUpdateBusy(false));
+                }} className="rounded-lg border border-hairline px-4 py-2 text-xs font-medium text-ink disabled:opacity-50">
+                  Check for updates
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-muted">Your chats, memory, settings, and local data stay in JINI's user data folder during updates.</p>
+          </section>
+        )}
         {section === 'devices' && <DevicesSection />}
 
         {section === 'transcript' && (

@@ -48,6 +48,7 @@ import { senderIsTrustedAppFrame, expectedRendererSpec, noteIpcTrustRefusal, set
 import { onScreenshot } from './vision';
 import { initDeviceLink, linkApprovalEvent, linkChatsChanged, linkProgress, linkTasksChanged, registerDeviceIpc } from './devices/desktopLink';
 import { credentialInfoIpc, credentialSetIpc, credentialTestIpc, credentialRevokeIpc, setCredentialCipher } from './credentials';
+import { initializeUpdateService } from './updater';
 
 // Failures must be observable, never silent: log them with the component that owns them.
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
@@ -213,6 +214,7 @@ app.whenReady().then(() => {
     .catch((e) => console.error('[credentials] embeddings key migration error:', e instanceof Error ? e.message : e));
 
   createWindow();
+  initializeUpdateService();
   startTelemetry();
   void syncAwareness();
 

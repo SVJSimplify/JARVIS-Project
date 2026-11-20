@@ -15,6 +15,15 @@ declare namespace Electron {
   }
 }
 
+export interface DesktopUpdateStatus {
+  state: 'disabled' | 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'installing' | 'error';
+  currentVersion: string;
+  availableVersion?: string;
+  progress?: number;
+  message?: string;
+  releaseNotes?: string;
+}
+
 export interface JiniLinkStatus {
   enabled: boolean;
   listening: boolean;
@@ -41,6 +50,13 @@ declare global {
   interface Window {
     electronAPI: {
       getAppVersion: () => Promise<string>;
+      updates: {
+        get: () => Promise<DesktopUpdateStatus>;
+        check: () => Promise<DesktopUpdateStatus>;
+        download: () => Promise<DesktopUpdateStatus>;
+        install: () => Promise<void>;
+        onStatus: (cb: (status: DesktopUpdateStatus) => void) => () => void;
+      };
       openExternal: (url: string) => Promise<void>;
       devices: {
         status: () => Promise<{ status: JiniLinkStatus; devices: JiniDeviceView[] }>;

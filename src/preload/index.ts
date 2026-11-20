@@ -2,6 +2,17 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  updates: {
+    get: () => ipcRenderer.invoke('updates:get'),
+    check: () => ipcRenderer.invoke('updates:check'),
+    download: () => ipcRenderer.invoke('updates:download'),
+    install: () => ipcRenderer.invoke('updates:install'),
+    onStatus: (cb: (status: unknown) => void): (() => void) => {
+      const handler = (_event: unknown, status: unknown) => cb(status);
+      ipcRenderer.on('updates:status', handler);
+      return () => ipcRenderer.removeListener('updates:status', handler);
+    },
+  },
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   devices: {
     status: () => ipcRenderer.invoke('devices-status'),
