@@ -248,7 +248,7 @@ export class AgentToolRegistry {
       const agentTool = entry.agentTool;
       result[entry.name] = {
         description: agentTool.description,
-        parameters: agentTool.inputSchema,
+        parameters: structuredClone(agentTool.inputSchema),
         parallelSafe: agentTool.parallelSafe === true || agentTool.executionMode === 'parallel',
         run: async (args) => stringifyOutput(await agentTool.execute(args, {
           ...contextProvider(),
