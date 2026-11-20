@@ -13,7 +13,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('electron', async () => (await import('./helpers/electronStub')).electronStub());
 
 import { startTask, pauseTask, resumeTask, cancelTask, outcomeSummary, type CoordinatorDeps } from '../src/main/coordinator';
-import { getTask, resetTaskStoreForTests } from '../src/main/taskStore';
+import { getTask, resetTaskStoreForTests, flushTaskStoreForTests } from '../src/main/taskStore';
 import { resetCallContext, setCallContext } from '../src/main/toolRecord';
 import { runToolDetailed } from '../src/main/tools';
 import { refreshProjectProfile, loadProjectProfile, PROFILE_SECTIONS } from '../src/main/projectProfile';
