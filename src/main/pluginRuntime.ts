@@ -33,8 +33,12 @@ export function registerPlugin(plugin: JiniPlugin): PluginRegistration {
     : undefined;
   const disposers: Array<() => void> = [];
   try {
-    for (const [event, handler] of Object.entries(plugin.events ?? {})) {
-      if (typeof handler === 'function') disposers.push(runtimeEvents.on(event as RuntimeEventName<JiniRuntimeEvents>, handler as (payload: any) => void));
+    for (const event of Object.keys(plugin.events ?? {}) as RuntimeEventName<JiniRuntimeEvents>[]) {
+      const handler = plugin.events?.[event];
+      if (typeof handler === 'function') {
+        // Keep the event key and payload type correlated; runtime bus validates listeners.
+        disposers.push(runtimeEvents.on(event, handler));
+      }
     }
   } catch (error) {
     toolRegistration?.dispose();

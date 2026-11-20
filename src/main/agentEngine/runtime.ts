@@ -346,7 +346,7 @@ export class AgentRuntime {
   /** Replay the durable session event stream after a sequence cursor. */
   async replay(sessionId: string, afterSequence = 0): Promise<AgentRuntimeEvent[]> {
     await this.hydrate();
-    if (!this.sessions.has(sessionId)) throw new Error(`Unknown agent session \"${sessionId}\".`);
+    if (!this.sessions.has(sessionId)) throw new Error(`Unknown agent session "${sessionId}".`);
     const cursor = Number.isFinite(afterSequence) ? Math.max(0, Math.floor(afterSequence)) : 0;
     return this.eventLog.filter((event) => event.sessionId === sessionId && event.sequence > cursor).map(cloneEvent);
   }
@@ -360,8 +360,8 @@ export class AgentRuntime {
   async fork(sessionId: string, newSessionId: string = randomUUID()): Promise<AgentSessionSnapshot> {
     await this.hydrate();
     const source = this.sessions.get(sessionId);
-    if (!source) throw new Error(`Unknown agent session \"${sessionId}\".`);
-    if (this.sessions.has(newSessionId)) throw new Error(`Agent session \"${newSessionId}\" already exists.`);
+    if (!source) throw new Error(`Unknown agent session "${sessionId}".`);
+    if (this.sessions.has(newSessionId)) throw new Error(`Agent session "${newSessionId}" already exists.`);
     if (this.activeRuns.has(sessionId)) throw new Error('Cannot fork a session while it is running.');
     const now = Date.now();
     const messages = this.driver.snapshotHistory?.(sessionId) ?? source.messages ?? [];
@@ -379,7 +379,7 @@ export class AgentRuntime {
     if (!snapshot || typeof snapshot.id !== 'string' || !snapshot.id.trim() || snapshot.id.length > 160 || !validStatus(snapshot.status)) {
       throw new Error('Invalid agent session snapshot.');
     }
-    if (this.activeRuns.has(snapshot.id)) throw new Error(`Cannot restore active agent session \"${snapshot.id}\".`);
+    if (this.activeRuns.has(snapshot.id)) throw new Error(`Cannot restore active agent session "${snapshot.id}".`);
     const restored: AgentSessionSnapshot = {
       ...snapshot,
       parentSessionId: typeof snapshot.parentSessionId === 'string' ? snapshot.parentSessionId : undefined,

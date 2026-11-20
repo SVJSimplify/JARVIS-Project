@@ -87,8 +87,6 @@ const PROJECT_RE =
 const PROJECT_CONTINUATION_RE = /^(?:yes|yeah|yep|no|nope|continue|go on|do it|proceed|that(?:'s| is) right|exactly|correct|unofficial|make it|use that|the first one|the second one|option [a-z0-9]+|i prefer|sounds good|sure)[\s,.!?-]*$/i;
 /** The request itself demands currency: the answer must come from the live web, stamped "as of <today>". */
 const FRESH_RE = /\b(right now|currently|as of (?:today|now)|today'?s|in stock|still sold|latest)\b/i;
-let turnContext = '';
-
 /** Static prefix first (provider prompt caching), turn-dependent parts last; memory and session are read once per turn, not per round. */
 async function systemMessage(state: SessionExecutionState): Promise<Message> {
   return { role: 'system', content: [BASE_PROMPT, OPERATING_PRINCIPLES, DECISION_RULES, TOOL_GUIDE, capabilityPrompt(), state.projectTurn ? WORKFLOW : '', toolCatalog(), state.turnContext].filter(Boolean).join('\n\n') };

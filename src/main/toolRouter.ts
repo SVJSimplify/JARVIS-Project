@@ -125,7 +125,6 @@ const FAMILIES: Family[] = [
 ];
 
 const STICKY_TURNS = 5;
-const familyById = new Map(FAMILIES.map((f) => [f.id, f]));
 let all: ToolSchema[] = [];
 let familyOf = new Map<string, string>();
 interface RouteSessionState {
