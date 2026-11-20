@@ -60,6 +60,17 @@ export interface LiveProgress {
   at: number;
 }
 
+export interface AgentEventView {
+  eventId: string;
+  sequence: number;
+  sessionId: string;
+  type: string;
+  at: number;
+  status: string;
+  tool?: string;
+  round?: number;
+}
+
 export interface MemoryView {
   id: string;
   label: string;
@@ -104,12 +115,13 @@ export interface AppState {
   progress: LiveProgress | null;
   memories: MemoryView[];
   approvals: ApprovalView[];
+  agentEvents: AgentEventView[];
   outbox: OutboxItem[];
   provider: ProviderConfig;
   toast: string;
 }
 
-const PERSISTED: Array<keyof AppState> = ['link', 'cursor', 'messages', 'chats', 'activeChat', 'tasks', 'memories', 'approvals', 'outbox', 'provider', 'lastSync'];
+const PERSISTED: Array<keyof AppState> = ['link', 'cursor', 'messages', 'chats', 'activeChat', 'tasks', 'memories', 'approvals', 'agentEvents', 'outbox', 'provider', 'lastSync'];
 
 let state: AppState = {
   link: null,
@@ -123,6 +135,7 @@ let state: AppState = {
   progress: null,
   memories: [],
   approvals: [],
+  agentEvents: [],
   outbox: [],
   provider: { baseUrl: '', apiKey: '', model: '' },
   toast: '',

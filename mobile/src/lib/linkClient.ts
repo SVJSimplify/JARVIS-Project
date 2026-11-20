@@ -244,6 +244,16 @@ function applyEvent(e: LinkEvent): void {
     case 'notice':
       if (d.text) toast(String(d.text));
       return;
+    case 'agent': {
+      if (typeof d.eventId !== 'string' || typeof d.sessionId !== 'string' || typeof d.type !== 'string') return;
+      const event = d as unknown as import('./store').AgentEventView;
+      setState((s) => ({
+        agentEvents: [...s.agentEvents.filter((item) => item.eventId !== event.eventId), event]
+          .sort((a, b) => a.sequence - b.sequence)
+          .slice(-150),
+      }));
+      return;
+    }
   }
 }
 

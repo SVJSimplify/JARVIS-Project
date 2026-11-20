@@ -9,10 +9,12 @@ import * as path from 'path';
 import { DeviceHub, type Cipher } from './deviceHub';
 import { buildDeviceOps } from './deviceOps';
 import { listChats } from '../history';
+import { agentRuntime } from '../agentEngine/runtime';
 import type { ApprovalRequestView } from '../approval';
 import type { ProgressSnapshot, TaskProgressView } from '../progressTypes';
 
 let hub: DeviceHub | null = null;
+let unsubscribeAgentEvents: (() => void) | null = null;
 
 const cipher: Cipher = {
   available: () => safeStorage.isEncryptionAvailable(),
@@ -38,10 +40,31 @@ export function deviceHub(): DeviceHub {
 export async function initDeviceLink(): Promise<void> {
   try {
     await deviceHub().startIfEnabled();
+    if (!unsubscribeAgentEvents) {
+      unsubscribeAgentEvents = await agentRuntime.subscribe((event) => {
+        const target = hub;
+        if (!target?.status().enabled) return;
+        // Mirror only lifecycle metadata. Never send streamed model text, tool arguments,
+        // transcripts, or raw errors over the paired-device event channel.
+        if (!['session-created', 'abort-requested', 'run-start', 'model-start', 'model-end', 'tool-start', 'tool-end', 'run-end', 'session-restored'].includes(event.type)) return;
+        target.append('agent', {
+          eventId: event.eventId,
+          sequence: event.sequence,
+          sessionId: event.sessionId,
+          type: event.type,
+          at: event.at,
+          status: event.status,
+          ...(event.tool ? { tool: event.tool } : {}),
+          ...(event.round === undefined ? {} : { round: event.round }),
+        });
+      });
+    }
   } catch (e) {
     console.error('[jini-link] could not start:', e instanceof Error ? e.message : e);
   }
   app.on('will-quit', () => {
+    unsubscribeAgentEvents?.();
+    unsubscribeAgentEvents = null;
     void hub?.saveNow();
     void hub?.stop();
   });

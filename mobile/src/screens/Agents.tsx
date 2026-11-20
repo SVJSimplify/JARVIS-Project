@@ -48,6 +48,7 @@ const statusClass = (status: string) => {
 
 export default function AgentsScreen() {
   const online = useAppState((state) => state.connection === 'online');
+  const liveAgentEvents = useAppState((state) => state.agentEvents);
   const [view, setView] = useState<'sessions' | 'tools' | 'plugins'>('sessions');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selected, setSelected] = useState('');
@@ -104,6 +105,17 @@ export default function AgentsScreen() {
     const timer = window.setInterval(() => { void refresh(); }, 5000);
     return () => window.clearInterval(timer);
   }, [refresh, view, online]);
+
+  useEffect(() => {
+    if (!selected || liveAgentEvents.length === 0) return;
+    const incoming = liveAgentEvents.filter((event) => event.sessionId === selected) as RuntimeEvent[];
+    if (!incoming.length) return;
+    setEvents((previous) => {
+      const merged = new Map(previous.map((event) => [event.eventId, event]));
+      for (const event of incoming) merged.set(event.eventId, event);
+      return [...merged.values()].sort((a, b) => b.sequence - a.sequence).slice(0, 80);
+    });
+  }, [liveAgentEvents, selected]);
 
   const selectSession = async (id: string) => {
     setSelected(id);
