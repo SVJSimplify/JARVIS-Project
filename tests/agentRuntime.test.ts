@@ -198,8 +198,8 @@ describe('agent runtime boundary validation', () => {
   it('rejects malformed session identifiers before touching persistence or provider state', async () => {
     const { runtime, driver } = setup();
     await expect(runtime.createSession('  bad-id')).rejects.toThrow(/session id/);
-    await expect(runtime.run('prompt', { sessionId: 'bad\\u0000id' })).rejects.toThrow(/session id/);
-    await expect(runtime.snapshot('bad\\n-id')).rejects.toThrow(/session id/);
+    await expect(runtime.run('prompt', { sessionId: 'bad\u0000id' })).rejects.toThrow(/session id/);
+    await expect(runtime.snapshot('bad\n-id')).rejects.toThrow(/session id/);
     expect(driver.chat).not.toHaveBeenCalled();
   });
 
