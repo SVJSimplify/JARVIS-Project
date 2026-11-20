@@ -26,7 +26,7 @@ const ALL = [
   'web_search', 'tinyfish_search', 'get_weather',
   'browser_open', 'browser_click', 'native_browser_tabs',
   'launch_app', 'volume_control', 'clipboard_read',
-  'list_files', 'write_file', 'grep', 'apply_patch',
+  'list_files', 'write_file', 'grep', 'apply_patch', 'git_checkpoint_list', 'git_checkpoint_create', 'git_checkpoint_restore',
   'run_command', 'diagnostics', 'inspect_project',
   'remember', 'list_memories', 'find_contact',
   'set_timer', 'briefing', 'schedule_task',
@@ -107,6 +107,15 @@ describe('JINI intent-aware capability router', () => {
     const names = currentSchemas().map((item) => item.function.name);
     expect(names).toContain('web_search');
     expect(names).toContain('make_document');
+  });
+
+  it('routes Git checkpoint management to the workspace file capabilities', () => {
+    const route = classifyIntent('List my Git checkpoints and restore the latest checkpoint before edits.');
+    expect(route.families).toContain('files');
+    routeTurn('List my Git checkpoints and restore the latest checkpoint before edits.');
+    const names = currentSchemas().map((item) => item.function.name);
+    expect(names).toContain('git_checkpoint_list');
+    expect(names).toContain('git_checkpoint_restore');
   });
 
   it('routes development, memory and productivity independently', () => {

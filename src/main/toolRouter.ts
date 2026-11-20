@@ -62,8 +62,8 @@ const FAMILIES: Family[] = [
   {
     id: 'files',
     hint: 'local files and folders, read/write/edit, search, move/copy and workspace operations',
-    cues: ['file', 'files', 'folder', 'directory', 'read file', 'write file', 'edit file', 'find file', 'search files', 'move file', 'copy file', 'rename file', 'organize files', 'workspace folder'],
-    patterns: [/^(list_files|write_file|edit_file|open_file|glob$|grep$|multi_edit|apply_patch|copy_file|move_file|make_dir|read$|find_files|open_anything)/],
+    cues: ['file', 'files', 'folder', 'directory', 'read file', 'write file', 'edit file', 'find file', 'search files', 'move file', 'copy file', 'rename file', 'organize files', 'workspace folder', 'checkpoint', 'restore checkpoint', 'git checkpoint'],
+    patterns: [/^(list_files|write_file|edit_file|open_file|glob$|grep$|multi_edit|apply_patch|copy_file|move_file|make_dir|read$|find_files|open_anything|git_checkpoint_)/],
     minScore: 2,
   },
   {
