@@ -140,6 +140,7 @@ const WRITE_TOOLS = new Set(['write_file', 'edit_file', 'multi_edit', 'apply_pat
 // Explicitly reviewed observation-only handlers. Unknown tools remain config-class by
 // default; only this allowlist can bypass the durable started-receipt path.
 const READ_TOOLS = new Set([
+  'git_checkpoint_list',
   'get_current_time', 'list_files', 'read', 'glob', 'grep', 'code_search', 'tool_log', 'list_capabilities',
   'web_search', 'web_browse', 'search_and_read', 'fetch_url', 'get_weather',
   'tinyfish_search', 'tinyfish_fetch', 'calculate', 'get_system_info',
@@ -174,6 +175,8 @@ export function classifyToolAction(tool: string, args: Record<string, unknown>, 
     return { action: 'delete', resource: `tool:${tool}` };
   if (tool === 'apply_patch' && /^\s*\*\*\* Delete File: /m.test(String(a.patch ?? '')))
     return { action: 'delete', resource: `patch:${String(a.patch ?? '').slice(0, 120)}` };
+  if (tool === 'git_checkpoint_create') return { action: 'config', resource: 'git:checkpoint' };
+  if (tool === 'git_checkpoint_restore') return { action: 'write', resource: `path:workspace:${FILES_ROOT}` };
   if (READ_TOOLS.has(tool)) return { action: 'read', resource: `tool:${tool}` };
   if (WRITE_TOOLS.has(tool)) {
     const p = ABS(tool === 'move_file' || tool === 'copy_file' ? a.to : a.path);

@@ -15,3 +15,25 @@ describe('git checkpoints', () => {
   } finally { fs.rmSync(dir,{recursive:true,force:true}); }
  });
 });
+
+describe('git checkpoints', () => {
+  it('creates a restorable baseline even when the worktree is initially clean', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jini-checkpoint-clean-'));
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+    try {
+      git('init');
+      git('config', 'user.email', 'test@example.com');
+      git('config', 'user.name', 'Test');
+      fs.writeFileSync(path.join(dir, 'baseline.txt'), 'baseline');
+      git('add', 'baseline.txt');
+      git('commit', '-m', 'baseline');
+      const checkpoint = await createGitCheckpoint(dir, 'Before first edit');
+      expect(checkpoint).not.toBeNull();
+      fs.writeFileSync(path.join(dir, 'baseline.txt'), 'changed');
+      await restoreGitCheckpoint(dir, checkpoint!.id);
+      expect(fs.readFileSync(path.join(dir, 'baseline.txt'), 'utf8')).toBe('baseline');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

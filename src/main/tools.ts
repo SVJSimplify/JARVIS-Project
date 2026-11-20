@@ -43,6 +43,7 @@ import { userModelTools } from './userModel';
 import { telemetryTools } from './telemetry';
 import { awarenessTools } from './awareness';
 import { FILES_ROOT, clearWorkspaceNotice, displayPath, fsExplain, resolveRead, resolveSafe, resolveWrite, revalidateReadTarget, revalidateWriteTarget, workspaceNotice } from './workspace';
+import { createGitCheckpoint, listGitCheckpoints, restoreGitCheckpoint } from './gitCheckpoints';
 import { laptopTools } from './laptopTools';
 import { currentSchemas, loadGroups, noteUsed, routeTurn, setAllSchemas } from './toolRouter';
 import { checkArgs, parseArgs, resolveTool } from './toolArgs';
@@ -257,7 +258,36 @@ for (const [name, tool] of Object.entries(browserTools)) {
   tool.run = async (args) => `${await inner(args)}\n[session: inbuilt panel]`;
 }
 
-Object.assign(TOOLS, memoryTools, projectMemoryTools, profileTools, impactTools, integrationTools, webTools, headlessTools, tinyfishTools, systemTools, extraTools, appControlTools, visionTools, browserTools, nativeBrowserTools, githubTools, vercelTools, recoveryTools, devTools, stageTools, fsTools, patchTools, planningTools, knowledgeTools, visualTools, qualityTools, decisionTools, agiTools, learnTools, userModelTools, telemetryTools, awarenessTools, scheduleTools, artifactTools);
+
+const gitCheckpointTools: Record<string, Tool> = {
+  git_checkpoint_list: {
+    description: 'List tracked-worktree recovery checkpoints created by JINI. Checkpoints do not include untracked files.',
+    parameters: { type: 'object', properties: {} },
+    run: async () => {
+      const checkpoints = await listGitCheckpoints(FILES_ROOT);
+      return checkpoints.length ? checkpoints.join('\\n') : 'No Git recovery checkpoints exist for this workspace.';
+    },
+  },
+  git_checkpoint_create: {
+    description: 'Create an explicit Git recovery checkpoint for the current workspace state before a risky series of edits. Only tracked files are included.',
+    parameters: { type: 'object', properties: { label: { type: 'string', description: 'Short reason for this checkpoint.' } } },
+    run: async (args) => {
+      const checkpoint = await createGitCheckpoint(FILES_ROOT, String(args.label ?? 'Manual JINI checkpoint'));
+      return checkpoint ? `Created checkpoint ${checkpoint.id} (commit ${checkpoint.commit}).` : 'No Git repository or HEAD commit was available for this workspace.';
+    },
+  },
+  git_checkpoint_restore: {
+    description: 'Restore a previously listed JINI Git checkpoint for the current workspace. This replaces tracked working-tree and index state; the current tracked state is first preserved under a private backup ref. Use only when the user explicitly asks to restore a checkpoint.',
+    parameters: { type: 'object', properties: { id: { type: 'string', description: 'Checkpoint UUID from git_checkpoint_list.' } }, required: ['id'] },
+    run: async (args) => {
+      const id = String(args.id ?? '');
+      await restoreGitCheckpoint(FILES_ROOT, id);
+      return `Restored Git checkpoint ${id}. Current tracked state was preserved in a private backup ref.`;
+    },
+  },
+};
+
+Object.assign(TOOLS, memoryTools, projectMemoryTools, profileTools, impactTools, integrationTools, webTools, headlessTools, tinyfishTools, systemTools, extraTools, appControlTools, visionTools, browserTools, nativeBrowserTools, githubTools, vercelTools, recoveryTools, devTools, stageTools, fsTools, patchTools, planningTools, knowledgeTools, visualTools, qualityTools, decisionTools, agiTools, learnTools, userModelTools, telemetryTools, awarenessTools, scheduleTools, artifactTools, gitCheckpointTools);
 
 const launch = TOOLS.launch_app.run;
 // A place request must survive the whole chain: "open notepad on the right" used to always
@@ -591,7 +621,26 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
           );
         }
       }
-      const out = String((await tool.run(args)) ?? '').trim();
+      let checkpointNote = '';
+      if (action === 'write' && resource.startsWith('path:workspace:') && name !== 'git_checkpoint_restore') {
+        try {
+          const checkpoint = await createGitCheckpoint(FILES_ROOT, `Before ${name}`);
+          if (checkpoint) {
+            checkpointNote = `\\n[Git recovery checkpoint: ${checkpoint.id}]`;
+            emitTool({ detail: `Recovery checkpoint ${checkpoint.id} created before ${name}`, status: 'busy' });
+          }
+        } catch (checkpointError) {
+          // Checkpointing is best-effort: it must never bypass or replace the normal tool
+          // authorization/receipt path, and an unavailable Git repository must not block edits.
+          emitActivity({
+            kind: 'progress',
+            label: 'Recovery checkpoint unavailable',
+            detail: checkpointError instanceof Error ? checkpointError.message.slice(0, 180) : 'Git checkpoint creation failed.',
+            status: 'fail',
+          });
+        }
+      }
+      const out = (String((await tool.run(args)) ?? '').trim() + checkpointNote).trim();
       lastAuth = decision.auth;
       // Round 18 §11: an aborted scope yields a CANCELLATION even when the tool
       // "resolved" — a child killed mid-run surfaces as error TEXT (e.g. ABORT_ERR from

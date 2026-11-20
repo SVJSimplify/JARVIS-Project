@@ -11,8 +11,10 @@ const rootOf = async (cwd: string): Promise<string> => (await git(cwd, ['rev-par
 export interface GitCheckpoint { id: string; commit: string; createdAt: number; label: string; }
 export async function createGitCheckpoint(cwd: string, label = 'Before agent changes'): Promise<GitCheckpoint | null> {
   const root = await rootOf(cwd);
-  const commit = (await git(root, ['stash', 'create', 'JINI checkpoint'])).stdout.trim();
-  if (!commit) return null;
+  // A clean worktree still needs a baseline checkpoint before its first edit.
+  const dirtySnapshot = (await git(root, ['stash', 'create', 'JINI checkpoint'])).stdout.trim();
+  const commit = dirtySnapshot || (await git(root, ['rev-parse', '--verify', 'HEAD'])).stdout.trim();
+  if (!/^[0-9a-f]{40,64}$/i.test(commit)) return null;
   const id = randomUUID();
   await git(root, ['update-ref', PREFIX + id, commit]);
   return { id, commit, createdAt: Date.now(), label: label.replace(/[\r\n\0]/g, ' ').slice(0, 120) };
