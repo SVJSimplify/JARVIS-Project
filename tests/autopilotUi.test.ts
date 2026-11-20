@@ -134,11 +134,11 @@ describe('the renderer component contract — real controls, real data', () => {
 
   it('JarvisWindow hosts the Projects workspace without touching the existing UI', () => {
     expect(window).toContain("import ProjectsPanel from './ProjectsPanel'");
-    expect(window).toMatch(/setProjectsOpen\(true\)/);
-    expect(window).toMatch(/<ProjectsPanel open=\{projectsOpen\}/);
+    expect(window).toMatch(/setPanel\('projects'\)/);
+    expect(window).toMatch(/<ProjectsPanel open=\{panel === 'projects'\}/);
     // Existing panels and header behaviour preserved:
     expect(window).toContain("import ConversationsPanel from './ConversationsPanel'");
-    expect(window).toMatch(/<ConversationsPanel open=\{conversationsOpen\}/);
+    expect(window).toMatch(/<ConversationsPanel open=\{panel === 'conversations'\}/);
     expect(window).toMatch(/<SettingsPanel open=\{settingsOpen\}/);
     expect(window).toMatch(/onSetMode\(bg \? 'interactive' : 'background'\)/);
     expect(window).toMatch(/hud\.setMini\(!mini\)/);

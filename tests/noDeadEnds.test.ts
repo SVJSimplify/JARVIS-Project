@@ -166,6 +166,6 @@ describe('the ErrorBoundary: a component crash can never blank the HUD for good'
     expect(all).toContain('System fault contained');
     expect(all).toContain('Try again');
     expect(all).toContain('Reload HUD');
-    expect(all).toContain('JARVIS is still running');
+    expect(all).toContain('JINI is still running');
   });
 });

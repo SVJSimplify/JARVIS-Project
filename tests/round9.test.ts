@@ -205,7 +205,7 @@ describe('scheduled follow-ups — the follow-through capability', () => {
     expect(list).toMatch(/failed/);
     expect(list).toMatch(/No model set/);
     expect(notify).toHaveBeenCalledTimes(1);
-    expect(notify.mock.calls[0][0]).toMatchObject({ ok: false, title: 'J.A.R.V.I.S — scheduled follow-up failed' });
+    expect(notify.mock.calls[0][0]).toMatchObject({ ok: false, title: 'JINI — scheduled follow-up failed' });
   });
 
   it('background mode suppresses the success toast — the turn itself already notified', async () => {

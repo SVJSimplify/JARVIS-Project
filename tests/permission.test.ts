@@ -68,11 +68,12 @@ describe('action classification', () => {
     expect(classifyToolAction('move_file', { from: 'a', to: 'b' }).resource).toContain('b');
   });
 
-  it('maps execution classes and defaults everything else to read', () => {
+  it('maps execution classes and treats unknown tools conservatively as config mutations', () => {
     expect(classifyToolAction('run_command', { command: 'npm run build' })).toEqual({ action: 'execute', resource: 'shell:npm run build' });
     expect(classifyToolAction('run_python', { code: 'print(1)' }).resource).toBe('py:print(1)');
     expect(classifyToolAction('stop_process', { name: 'explorer' })).toEqual({ action: 'execute', resource: 'proc:explorer' });
     expect(classifyToolAction('read', { path: 'x' }).action).toBe('read');
+    expect(classifyToolAction('some_unknown', {}).action).toBe('config');
     // A deletion attempt is classified as delete regardless of the tool shape.
     expect(classifyToolAction('run_command', { command: 'rm -rf /' }, true).action).toBe('delete');
   });

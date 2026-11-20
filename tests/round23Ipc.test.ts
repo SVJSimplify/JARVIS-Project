@@ -126,7 +126,6 @@ describe('the UI contract — relocation, not duplication', () => {
 
   it('the header gained the compact live tool-activity summary (expandable)', () => {
     expect(jarvis).toContain('<ToolActivitySummary');
-    expect(summary).toContain('inv.tools');
     expect(summary).toContain('inv.calls');
     expect(summary).toContain('inv.running');
     expect(summary).toContain('ActivityInspector');

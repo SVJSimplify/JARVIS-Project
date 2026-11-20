@@ -72,7 +72,7 @@ describe('llm.send — retry discipline over a real socket', () => {
 
   it('still retries genuine hiccups twice before reporting the raw status', async () => {
     last = await start(503, '{"error":{"message":"upstream overloaded, try again"}}');
-    await expect(send('/chat/completions', 'POST', {})).rejects.toThrow(/Provider returned 503/);
+    await expect(send('/chat/completions', 'POST', {})).rejects.toThrow(/HTTP 503/);
     expect(last.hits()).toBe(3); // original attempt + 2 retries
   }, 15_000);
 
@@ -153,7 +153,7 @@ describe('withModelFallback — permanent rejections walk the chain', () => {
     last = await startRouting(() => ({ status: 500, body: '{"error":{"message":"boom"}}' }));
     await expect(
       withModelFallback(['m/one', 'm/two'], (m) => send('/chat/completions', 'POST', { model: m }))
-    ).rejects.toThrow(/Provider returned 500/);
+    ).rejects.toThrow(/HTTP 500/);
     expect(last.hits()).toBe(3); // only the FIRST model tried: 500 retries twice, then stops
   });
 

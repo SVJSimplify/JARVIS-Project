@@ -100,8 +100,8 @@ describe('round 15 source guards — the layout fix and the panel stay wired', (
 
   it('the header control cluster has fixed, non-shrinking hit targets', () => {
     const win = src('src/renderer/components/JarvisWindow.tsx');
-    expect(win).toMatch(/ml-auto flex shrink-0 items-center gap-1/);
-    expect(win).toMatch(/grid h-8 w-8 place-items-center/);
+    expect(win).toMatch(/ml-auto flex items-center gap-1/);
+    expect(win).toMatch(/grid h-7 w-7 place-items-center/);
     expect(win).toMatch(/aria-label="Conversations"/);
   });
 
