@@ -625,12 +625,10 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
           );
         }
       }
-      let checkpointNote = '';
       if (action === 'write' && resource.startsWith('path:workspace:') && name !== 'git_checkpoint_restore') {
         try {
           const checkpoint = await createGitCheckpoint(FILES_ROOT, `Before ${name}`);
           if (checkpoint) {
-            checkpointNote = `\n[Git recovery checkpoint: ${checkpoint.id}]`;
             emitTool({ detail: `Recovery checkpoint ${checkpoint.id} created before ${name}`, status: 'busy' });
           }
         } catch (checkpointError) {
@@ -644,7 +642,7 @@ async function runToolInner(requested: string, rawArgs: string): Promise<ToolRes
           });
         }
       }
-      const out = (String((await tool.run(args)) ?? '').trim() + checkpointNote).trim();
+      const out = String((await tool.run(args)) ?? '').trim();
       lastAuth = decision.auth;
       // Round 18 §11: an aborted scope yields a CANCELLATION even when the tool
       // "resolved" — a child killed mid-run surfaces as error TEXT (e.g. ABORT_ERR from
