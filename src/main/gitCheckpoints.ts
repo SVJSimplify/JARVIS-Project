@@ -49,7 +49,13 @@ export async function deleteGitCheckpoint(cwd: string, id: string): Promise<void
   await git(root, ['update-ref', '-d', PREFIX + id]);
 }
 export async function listGitCheckpoints(cwd: string): Promise<string[]> {
-  const root = await rootOf(cwd);
+  let root: string;
+  try {
+    root = await rootOf(cwd);
+  } catch (error) {
+    if (/not a git repository|not a git directory/i.test(error instanceof Error ? error.message : String(error))) return [];
+    throw error;
+  }
   const out = await git(root, ['for-each-ref', '--format=%(refname:strip=3) %(objectname)', PREFIX]);
   return out.stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
 }

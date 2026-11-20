@@ -50,6 +50,7 @@ describe('git checkpoint availability', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jini-no-git-'));
     try {
       await expect(createGitCheckpoint(dir)).resolves.toBeNull();
+      await expect(listGitCheckpoints(dir)).resolves.toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
