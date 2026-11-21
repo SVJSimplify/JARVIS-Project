@@ -178,7 +178,7 @@ jobs:
     name: Publish desktop auto-update release
     concurrency:
       group: jini-desktop-update-release
-      cancel-in-progress: true
+      cancel-in-progress: false
     if: github.event_name == 'push' && github.ref == 'refs/heads/jini-mvp-chatgpt'
     needs: [desktop-installer, desktop-check]
     runs-on: ubuntu-latest
